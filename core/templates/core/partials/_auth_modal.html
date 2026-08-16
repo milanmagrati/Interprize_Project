@@ -1,0 +1,172 @@
+{% comment %}
+Sign in / sign up modal. Pure front end — no backend session yet, so the
+OTP flow is simulated client-side (static/core/js/main.js, block 14) and
+"logged in" state is remembered in localStorage. Wire it to a real
+identity provider when the backend lands.
+{% endcomment %}
+<div class="auth-scrim" data-auth-scrim hidden></div>
+
+<div class="auth-modal" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" data-auth-modal hidden>
+  <div class="auth-modal__panel">
+    <button type="button" class="auth-modal__close" data-auth-close aria-label="Close">
+      <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+    </button>
+
+    {# -- step 1: phone / email entry --------------------------------- #}
+    <div class="auth-step" data-auth-step="phone">
+      <h2 class="auth-modal__title" id="auth-modal-title">Login or sign up</h2>
+      <p class="auth-modal__lead">We'll send a one-time code to verify it's you.</p>
+
+      <div class="field auth-field" data-auth-field="phone">
+        <span class="field__label">Country &amp; mobile number</span>
+        <div class="auth-phone-row">
+          <details class="country-picker" data-country-picker>
+            <summary class="country-picker__button">
+              <span class="country-picker__flag" data-country-flag>🇮🇳</span>
+              <span class="country-picker__value" data-country-value>India</span>
+              <svg class="icon country-picker__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+            </summary>
+            <div class="country-picker__panel">
+              <label class="field field--search country-picker__search">
+                <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+                <input type="search" placeholder="Search country or code" aria-label="Search countries" data-country-filter>
+              </label>
+              <div class="country-picker__scroll">
+                <div class="country-picker__group" data-country-group>
+                  <p class="city-picker__label">Popular</p>
+                  <ul class="country-picker__list" data-country-list>
+                    <li><button type="button" class="country-picker__item" data-country-code="977" data-country-name="Nepal" data-country-flag="🇳🇵">🇳🇵 <span class="country-picker__name">Nepal</span><span class="country-picker__dial">+977</span></button></li>
+                    <li><button type="button" class="country-picker__item is-selected" data-country-code="91" data-country-name="India" data-country-flag="🇮🇳">🇮🇳 <span class="country-picker__name">India</span><span class="country-picker__dial">+91</span></button></li>
+                  </ul>
+                </div>
+                <div class="country-picker__group" data-country-group>
+                  <p class="city-picker__label">All countries</p>
+                  <ul class="country-picker__list" data-country-list>
+                    <li><button type="button" class="country-picker__item" data-country-code="93" data-country-name="Afghanistan" data-country-flag="🇦🇫">🇦🇫 <span class="country-picker__name">Afghanistan</span><span class="country-picker__dial">+93</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="61" data-country-name="Australia" data-country-flag="🇦🇺">🇦🇺 <span class="country-picker__name">Australia</span><span class="country-picker__dial">+61</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="43" data-country-name="Austria" data-country-flag="🇦🇹">🇦🇹 <span class="country-picker__name">Austria</span><span class="country-picker__dial">+43</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="973" data-country-name="Bahrain" data-country-flag="🇧🇭">🇧🇭 <span class="country-picker__name">Bahrain</span><span class="country-picker__dial">+973</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="880" data-country-name="Bangladesh" data-country-flag="🇧🇩">🇧🇩 <span class="country-picker__name">Bangladesh</span><span class="country-picker__dial">+880</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="32" data-country-name="Belgium" data-country-flag="🇧🇪">🇧🇪 <span class="country-picker__name">Belgium</span><span class="country-picker__dial">+32</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="975" data-country-name="Bhutan" data-country-flag="🇧🇹">🇧🇹 <span class="country-picker__name">Bhutan</span><span class="country-picker__dial">+975</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="55" data-country-name="Brazil" data-country-flag="🇧🇷">🇧🇷 <span class="country-picker__name">Brazil</span><span class="country-picker__dial">+55</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="1" data-country-name="Canada" data-country-flag="🇨🇦">🇨🇦 <span class="country-picker__name">Canada</span><span class="country-picker__dial">+1</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="86" data-country-name="China" data-country-flag="🇨🇳">🇨🇳 <span class="country-picker__name">China</span><span class="country-picker__dial">+86</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="45" data-country-name="Denmark" data-country-flag="🇩🇰">🇩🇰 <span class="country-picker__name">Denmark</span><span class="country-picker__dial">+45</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="20" data-country-name="Egypt" data-country-flag="🇪🇬">🇪🇬 <span class="country-picker__name">Egypt</span><span class="country-picker__dial">+20</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="358" data-country-name="Finland" data-country-flag="🇫🇮">🇫🇮 <span class="country-picker__name">Finland</span><span class="country-picker__dial">+358</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="33" data-country-name="France" data-country-flag="🇫🇷">🇫🇷 <span class="country-picker__name">France</span><span class="country-picker__dial">+33</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="49" data-country-name="Germany" data-country-flag="🇩🇪">🇩🇪 <span class="country-picker__name">Germany</span><span class="country-picker__dial">+49</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="852" data-country-name="Hong Kong" data-country-flag="🇭🇰">🇭🇰 <span class="country-picker__name">Hong Kong</span><span class="country-picker__dial">+852</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="62" data-country-name="Indonesia" data-country-flag="🇮🇩">🇮🇩 <span class="country-picker__name">Indonesia</span><span class="country-picker__dial">+62</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="353" data-country-name="Ireland" data-country-flag="🇮🇪">🇮🇪 <span class="country-picker__name">Ireland</span><span class="country-picker__dial">+353</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="972" data-country-name="Israel" data-country-flag="🇮🇱">🇮🇱 <span class="country-picker__name">Israel</span><span class="country-picker__dial">+972</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="39" data-country-name="Italy" data-country-flag="🇮🇹">🇮🇹 <span class="country-picker__name">Italy</span><span class="country-picker__dial">+39</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="81" data-country-name="Japan" data-country-flag="🇯🇵">🇯🇵 <span class="country-picker__name">Japan</span><span class="country-picker__dial">+81</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="965" data-country-name="Kuwait" data-country-flag="🇰🇼">🇰🇼 <span class="country-picker__name">Kuwait</span><span class="country-picker__dial">+965</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="60" data-country-name="Malaysia" data-country-flag="🇲🇾">🇲🇾 <span class="country-picker__name">Malaysia</span><span class="country-picker__dial">+60</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="960" data-country-name="Maldives" data-country-flag="🇲🇻">🇲🇻 <span class="country-picker__name">Maldives</span><span class="country-picker__dial">+960</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="52" data-country-name="Mexico" data-country-flag="🇲🇽">🇲🇽 <span class="country-picker__name">Mexico</span><span class="country-picker__dial">+52</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="95" data-country-name="Myanmar" data-country-flag="🇲🇲">🇲🇲 <span class="country-picker__name">Myanmar</span><span class="country-picker__dial">+95</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="31" data-country-name="Netherlands" data-country-flag="🇳🇱">🇳🇱 <span class="country-picker__name">Netherlands</span><span class="country-picker__dial">+31</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="64" data-country-name="New Zealand" data-country-flag="🇳🇿">🇳🇿 <span class="country-picker__name">New Zealand</span><span class="country-picker__dial">+64</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="47" data-country-name="Norway" data-country-flag="🇳🇴">🇳🇴 <span class="country-picker__name">Norway</span><span class="country-picker__dial">+47</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="968" data-country-name="Oman" data-country-flag="🇴🇲">🇴🇲 <span class="country-picker__name">Oman</span><span class="country-picker__dial">+968</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="92" data-country-name="Pakistan" data-country-flag="🇵🇰">🇵🇰 <span class="country-picker__name">Pakistan</span><span class="country-picker__dial">+92</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="63" data-country-name="Philippines" data-country-flag="🇵🇭">🇵🇭 <span class="country-picker__name">Philippines</span><span class="country-picker__dial">+63</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="48" data-country-name="Poland" data-country-flag="🇵🇱">🇵🇱 <span class="country-picker__name">Poland</span><span class="country-picker__dial">+48</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="351" data-country-name="Portugal" data-country-flag="🇵🇹">🇵🇹 <span class="country-picker__name">Portugal</span><span class="country-picker__dial">+351</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="974" data-country-name="Qatar" data-country-flag="🇶🇦">🇶🇦 <span class="country-picker__name">Qatar</span><span class="country-picker__dial">+974</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="7" data-country-name="Russia" data-country-flag="🇷🇺">🇷🇺 <span class="country-picker__name">Russia</span><span class="country-picker__dial">+7</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="966" data-country-name="Saudi Arabia" data-country-flag="🇸🇦">🇸🇦 <span class="country-picker__name">Saudi Arabia</span><span class="country-picker__dial">+966</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="65" data-country-name="Singapore" data-country-flag="🇸🇬">🇸🇬 <span class="country-picker__name">Singapore</span><span class="country-picker__dial">+65</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="27" data-country-name="South Africa" data-country-flag="🇿🇦">🇿🇦 <span class="country-picker__name">South Africa</span><span class="country-picker__dial">+27</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="82" data-country-name="South Korea" data-country-flag="🇰🇷">🇰🇷 <span class="country-picker__name">South Korea</span><span class="country-picker__dial">+82</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="34" data-country-name="Spain" data-country-flag="🇪🇸">🇪🇸 <span class="country-picker__name">Spain</span><span class="country-picker__dial">+34</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="94" data-country-name="Sri Lanka" data-country-flag="🇱🇰">🇱🇰 <span class="country-picker__name">Sri Lanka</span><span class="country-picker__dial">+94</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="46" data-country-name="Sweden" data-country-flag="🇸🇪">🇸🇪 <span class="country-picker__name">Sweden</span><span class="country-picker__dial">+46</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="41" data-country-name="Switzerland" data-country-flag="🇨🇭">🇨🇭 <span class="country-picker__name">Switzerland</span><span class="country-picker__dial">+41</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="66" data-country-name="Thailand" data-country-flag="🇹🇭">🇹🇭 <span class="country-picker__name">Thailand</span><span class="country-picker__dial">+66</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="90" data-country-name="Turkey" data-country-flag="🇹🇷">🇹🇷 <span class="country-picker__name">Turkey</span><span class="country-picker__dial">+90</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="971" data-country-name="United Arab Emirates" data-country-flag="🇦🇪">🇦🇪 <span class="country-picker__name">United Arab Emirates</span><span class="country-picker__dial">+971</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="44" data-country-name="United Kingdom" data-country-flag="🇬🇧">🇬🇧 <span class="country-picker__name">United Kingdom</span><span class="country-picker__dial">+44</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="1" data-country-name="United States" data-country-flag="🇺🇸">🇺🇸 <span class="country-picker__name">United States</span><span class="country-picker__dial">+1</span></button></li>
+                    <li><button type="button" class="country-picker__item" data-country-code="84" data-country-name="Vietnam" data-country-flag="🇻🇳">🇻🇳 <span class="country-picker__name">Vietnam</span><span class="country-picker__dial">+84</span></button></li>
+                  </ul>
+                </div>
+                <div class="country-picker__group" data-country-group>
+                  <ul class="country-picker__list" data-country-list>
+                    <li><button type="button" class="country-picker__item" data-country-code="" data-country-name="Other" data-country-flag="🌐">🌐 <span class="country-picker__name">Other — enter code</span></button></li>
+                  </ul>
+                </div>
+              </div>
+              <p class="city-picker__empty" data-country-empty hidden>No country matches that search.</p>
+            </div>
+          </details>
+          <div class="auth-dialcode" data-auth-dialcode-wrap>
+            <span data-auth-dialcode>+91</span>
+            <input class="auth-dialcode__input" type="text" inputmode="tel" placeholder="+" maxlength="4" data-auth-dialcode-input hidden>
+          </div>
+          <input class="auth-phone-input" type="tel" inputmode="numeric" autocomplete="tel" placeholder="Mobile number" data-auth-phone>
+        </div>
+      </div>
+
+      <div class="field auth-field" data-auth-field="email" hidden>
+        <span class="field__label">Email address</span>
+        <input type="email" autocomplete="email" placeholder="you@example.com" data-auth-email>
+      </div>
+
+      <p class="auth-modal__error" data-auth-error hidden></p>
+
+      <button type="button" class="btn btn--block auth-btn-whatsapp" data-auth-send="whatsapp">
+        <svg class="icon" aria-hidden="true"><use href="#i-whatsapp" data-auth-send-icon></use></svg>
+        <span data-auth-send-label>Send OTP on WhatsApp</span>
+      </button>
+
+      <div class="auth-divider"><span>or continue with</span></div>
+
+      <div class="auth-alts">
+        <button type="button" class="btn btn--outline btn--sm" data-auth-send="sms">
+          <svg class="icon" aria-hidden="true"><use href="#i-message"></use></svg> SMS
+        </button>
+        <button type="button" class="btn btn--outline btn--sm" data-auth-toggle-email>
+          <svg class="icon" aria-hidden="true"><use href="#i-mail"></use></svg>
+          <span data-auth-toggle-email-label>Email OTP</span>
+        </button>
+      </div>
+
+      <p class="auth-modal__terms">
+        By continuing you agree to {{ brand.name }}'s <a href="#">Terms</a> &amp; <a href="#">Privacy Policy</a>.
+      </p>
+    </div>
+
+    {# -- step 2: otp verification -------------------------------------- #}
+    <div class="auth-step" data-auth-step="otp" hidden>
+      <button type="button" class="auth-modal__back" data-auth-back>
+        <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg> Change number
+      </button>
+      <h2 class="auth-modal__title">Enter the code</h2>
+      <p class="auth-modal__lead">We sent a code to <strong data-auth-target></strong></p>
+
+      <div class="field auth-field">
+        <input class="auth-otp-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="• • • • • •" data-auth-otp>
+      </div>
+      <p class="auth-modal__error" data-auth-otp-error hidden></p>
+
+      <button type="button" class="btn btn--primary btn--block" data-auth-verify>Verify &amp; continue</button>
+
+      <p class="auth-modal__resend">
+        Didn't get it?
+        <button type="button" class="auth-modal__resend-btn" data-auth-resend disabled>Resend in <span data-auth-timer>30</span>s</button>
+      </p>
+    </div>
+
+    {# -- step 3: success ------------------------------------------------ #}
+    <div class="auth-step auth-step--success" data-auth-step="success" hidden>
+      <span class="auth-success__icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg></span>
+      <h2 class="auth-modal__title">You're in!</h2>
+      <p class="auth-modal__lead">Welcome to {{ brand.name }}. Let's plan something beautiful.</p>
+      <button type="button" class="btn btn--primary btn--block" data-auth-done>Continue</button>
+    </div>
+  </div>
+</div>

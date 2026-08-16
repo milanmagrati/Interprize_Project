@@ -43,6 +43,15 @@
   .gallery__thumb { width: 100px; }
   .booking { padding: 1.35rem; }
 
+  .auth-modal { align-items: center; padding: 1.5rem; }
+  .auth-modal__panel {
+    border-radius: var(--radius-lg);
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+    transition: transform var(--t-slow) var(--ease-out-back), opacity var(--t) var(--ease);
+  }
+  .auth-modal.is-open .auth-modal__panel { opacity: 1; transform: none; }
+
   .band-cta__inner {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -62,6 +71,15 @@
 
   .header__cta { display: inline-flex; }
   .city-picker { display: block; }
+
+  .header__signin {
+    width: auto;
+    padding: 0 0.9rem;
+    border: 1.5px solid var(--color-line);
+    background: var(--color-surface);
+  }
+  .header__signin:hover { border-color: var(--color-primary-300); background: var(--color-surface); }
+  .header__signin-label { display: inline; }
 
   .hero__inner { gap: 3rem; }
   .searchbar {

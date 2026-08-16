@@ -17,6 +17,7 @@
      11. Listing filters drawer, range output, auto-submit sort
      12. Cart steppers and removal
      13. Add-to-cart toast
+     14. Auth modal (sign in / sign up) — OTP flow, simulated client-side
    ========================================================================== */
 
 (function () {
@@ -656,4 +657,339 @@
       toast("Added to cart. Pick a slot at checkout.");
     });
   });
+
+  /* --------------------------------------------------------------- 14. */
+  (function authModal() {
+    var modal = $("[data-auth-modal]");
+    var scrim = $("[data-auth-scrim]");
+    if (!modal || !scrim) return;
+
+    var STORAGE_KEY = "celebra:auth";
+    var brandNameEl = $(".auth-modal__brandtext strong", modal);
+    var brandName = brandNameEl ? brandNameEl.textContent : "your account";
+
+    var openers = $$("[data-auth-open]");
+    var closers = $$("[data-auth-close]");
+    var steps = $$("[data-auth-step]", modal);
+    var lastFocused = null;
+
+    var fieldPhone = $('[data-auth-field="phone"]', modal);
+    var fieldEmail = $('[data-auth-field="email"]', modal);
+    var phoneInput = $("[data-auth-phone]", modal);
+    var emailInput = $("[data-auth-email]", modal);
+    var errorEl = $("[data-auth-error]", modal);
+    var countryPicker = $("[data-country-picker]", modal);
+    var countryFlagEl = $("[data-country-flag]", modal);
+    var countryValueEl = $("[data-country-value]", modal);
+    var countryFilter = $("[data-country-filter]", modal);
+    var countryEmpty = $("[data-country-empty]", modal);
+    var countryGroups = $$("[data-country-group]", modal);
+    var countryItems = $$("[data-country-code]", modal);
+    var dialcodeSpan = $("[data-auth-dialcode]", modal);
+    var dialcodeInput = $("[data-auth-dialcode-input]", modal);
+    var sendBtn = $('[data-auth-send="whatsapp"]', modal);
+    var sendLabel = $("[data-auth-send-label]", modal);
+    var sendIcon = $("[data-auth-send-icon]", modal);
+    var smsBtn = $('[data-auth-send="sms"]', modal);
+    var toggleEmailBtn = $("[data-auth-toggle-email]", modal);
+    var toggleEmailLabel = $("[data-auth-toggle-email-label]", modal);
+    var targetEl = $("[data-auth-target]", modal);
+    var otpInput = $("[data-auth-otp]", modal);
+    var otpError = $("[data-auth-otp-error]", modal);
+    var verifyBtn = $("[data-auth-verify]", modal);
+    var backBtn = $("[data-auth-back]", modal);
+    var resendBtn = $("[data-auth-resend]", modal);
+    var timerEl = $("[data-auth-timer]", modal);
+    var doneBtn = $("[data-auth-done]", modal);
+
+    var emailMode = false;
+    var pending = null;      // { raw, label, channel } for the in-flight OTP
+    var resendTimer = null;
+
+    function readSession() {
+      try { return JSON.parse(window.localStorage.getItem(STORAGE_KEY)); } catch (e) { return null; }
+    }
+    function writeSession(value) {
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value)); } catch (e) { /* private mode etc. */ }
+    }
+    function clearSession() {
+      try { window.localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    }
+
+    function updateTriggers(session) {
+      openers.forEach(function (el) { el.classList.toggle("is-authed", !!session); });
+      $$("[data-auth-label]").forEach(function (el) {
+        el.textContent = session ? "Account" : "Sign In";
+      });
+      var sub = $("[data-auth-sublabel]");
+      if (sub) sub.textContent = session ? session.label + " — tap to log out" : "Track orders & save your details";
+    }
+
+    function showStep(name) {
+      steps.forEach(function (step) {
+        step.hidden = step.getAttribute("data-auth-step") !== name;
+      });
+    }
+
+    function setError(el, message) {
+      if (!el) return;
+      if (!message) { el.hidden = true; el.textContent = ""; return; }
+      el.hidden = false;
+      el.textContent = message;
+    }
+
+    function digitsOnly(str) { return (str || "").replace(/\D/g, ""); }
+
+    var selectedCountryCode = "91";
+
+    function currentDialCode() {
+      if (!selectedCountryCode) return digitsOnly(dialcodeInput ? dialcodeInput.value : "");
+      return selectedCountryCode;
+    }
+
+    function syncCountry() {
+      if (!dialcodeSpan || !dialcodeInput) return;
+      if (!selectedCountryCode) {
+        dialcodeSpan.hidden = true;
+        dialcodeInput.hidden = false;
+        window.setTimeout(function () { dialcodeInput.focus({ preventScroll: true }); }, 10);
+      } else {
+        dialcodeSpan.hidden = false;
+        dialcodeSpan.textContent = "+" + selectedCountryCode;
+        dialcodeInput.hidden = true;
+      }
+    }
+
+    function selectCountry(item) {
+      var code = item.getAttribute("data-country-code") || "";
+      var name = item.getAttribute("data-country-name") || "";
+      var flag = item.getAttribute("data-country-flag") || "";
+      selectedCountryCode = code;
+      if (countryFlagEl) countryFlagEl.textContent = flag;
+      if (countryValueEl) countryValueEl.textContent = name;
+      countryItems.forEach(function (el) { el.classList.toggle("is-selected", el === item); });
+      syncCountry();
+      if (countryPicker) countryPicker.open = false;
+      if (!code && phoneInput) { /* dial code input already focused by syncCountry */ }
+      else if (phoneInput) phoneInput.focus({ preventScroll: true });
+    }
+
+    countryItems.forEach(function (item) {
+      item.addEventListener("click", function () { selectCountry(item); });
+    });
+
+    function resetCountryFilter() {
+      if (countryFilter) countryFilter.value = "";
+      countryItems.forEach(function (el) { el.closest("li").classList.remove("is-hidden"); });
+      countryGroups.forEach(function (group) { group.hidden = false; });
+      if (countryEmpty) countryEmpty.hidden = true;
+    }
+
+    if (countryFilter) {
+      countryFilter.addEventListener("input", function () {
+        var query = countryFilter.value.trim().toLowerCase();
+        var shown = 0;
+
+        countryGroups.forEach(function (group) {
+          var groupShown = 0;
+          $$("li", group).forEach(function (li) {
+            var item = $("[data-country-code]", li);
+            var haystack = ((item.getAttribute("data-country-name") || "") + " +" + (item.getAttribute("data-country-code") || "")).toLowerCase();
+            var match = !query || haystack.indexOf(query) !== -1;
+            li.classList.toggle("is-hidden", !match);
+            if (match) groupShown++;
+          });
+          group.hidden = groupShown === 0;
+          shown += groupShown;
+        });
+
+        if (countryEmpty) countryEmpty.hidden = shown !== 0;
+      });
+    }
+
+    if (countryPicker) {
+      countryPicker.addEventListener("toggle", function () {
+        if (countryPicker.open) {
+          resetCountryFilter();
+          window.setTimeout(function () {
+            if (countryFilter) countryFilter.focus({ preventScroll: true });
+          }, 10);
+        }
+      });
+      document.addEventListener("click", function (event) {
+        if (countryPicker.open && !countryPicker.contains(event.target)) countryPicker.open = false;
+      });
+    }
+
+    syncCountry();
+
+    function setMode(toEmail) {
+      emailMode = toEmail;
+      if (fieldPhone) fieldPhone.hidden = toEmail;
+      if (fieldEmail) fieldEmail.hidden = !toEmail;
+      if (smsBtn) smsBtn.hidden = toEmail;
+      if (toggleEmailLabel) toggleEmailLabel.textContent = toEmail ? "Use phone number instead" : "Email OTP";
+      if (sendBtn) {
+        sendBtn.classList.toggle("auth-btn-whatsapp", !toEmail);
+        sendBtn.classList.toggle("btn--primary", toEmail);
+        sendBtn.setAttribute("data-auth-send", toEmail ? "email" : "whatsapp");
+      }
+      if (sendIcon) sendIcon.setAttribute("href", toEmail ? "#i-mail" : "#i-whatsapp");
+      if (sendLabel) sendLabel.textContent = toEmail ? "Send OTP to email" : "Send OTP on WhatsApp";
+      setError(errorEl, null);
+    }
+    if (toggleEmailBtn) toggleEmailBtn.addEventListener("click", function () { setMode(!emailMode); });
+
+    function stopResend() {
+      if (resendTimer) { window.clearInterval(resendTimer); resendTimer = null; }
+    }
+
+    function startResend() {
+      stopResend();
+      var seconds = 30;
+      if (resendBtn) { resendBtn.disabled = true; resendBtn.textContent = "Resend in " + seconds + "s"; }
+      resendTimer = window.setInterval(function () {
+        seconds -= 1;
+        if (seconds <= 0) {
+          stopResend();
+          if (resendBtn) { resendBtn.disabled = false; resendBtn.textContent = "Resend code"; }
+          return;
+        }
+        if (resendBtn) resendBtn.textContent = "Resend in " + seconds + "s";
+      }, 1000);
+    }
+
+    function channelLabel(channel) {
+      if (channel === "email") return "email";
+      if (channel === "sms") return "SMS";
+      return "WhatsApp";
+    }
+
+    function handleSend(channel) {
+      setError(errorEl, null);
+
+      if (emailMode || channel === "email") {
+        var email = (emailInput ? emailInput.value : "").trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          setError(errorEl, "Enter a valid email address.");
+          if (emailInput) emailInput.focus();
+          return;
+        }
+        pending = { raw: email, label: email, channel: "email" };
+      } else {
+        var code = currentDialCode();
+        var digits = digitsOnly(phoneInput ? phoneInput.value : "");
+        if (!code) {
+          setError(errorEl, "Enter your country's dial code.");
+          if (dialcodeInput) dialcodeInput.focus();
+          return;
+        }
+        if (digits.length < 7) {
+          setError(errorEl, "Enter a valid mobile number.");
+          if (phoneInput) phoneInput.focus();
+          return;
+        }
+        var display = "+" + code + " " + digits;
+        pending = { raw: display, label: display, channel: channel };
+      }
+
+      if (targetEl) targetEl.textContent = pending.label + " via " + channelLabel(pending.channel);
+      if (otpInput) otpInput.value = "";
+      setError(otpError, null);
+      showStep("otp");
+      startResend();
+      window.setTimeout(function () { if (otpInput) otpInput.focus({ preventScroll: true }); }, 260);
+      toast("Code sent via " + channelLabel(pending.channel) + ".");
+    }
+
+    $$("[data-auth-send]", modal).forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        handleSend(btn.getAttribute("data-auth-send"));
+      });
+    });
+
+    if (backBtn) backBtn.addEventListener("click", function () {
+      showStep("phone");
+      stopResend();
+    });
+
+    if (otpInput) {
+      otpInput.addEventListener("input", function () {
+        otpInput.value = digitsOnly(otpInput.value).slice(0, 6);
+        setError(otpError, null);
+      });
+    }
+
+    if (verifyBtn) verifyBtn.addEventListener("click", function () {
+      var code = otpInput ? otpInput.value : "";
+      if (code.length < 4) {
+        setError(otpError, "Enter the code we sent you.");
+        return;
+      }
+      stopResend();
+      showStep("success");
+    });
+
+    if (resendBtn) resendBtn.addEventListener("click", function () {
+      if (resendBtn.disabled || !pending) return;
+      startResend();
+      toast("Code resent via " + channelLabel(pending.channel) + ".");
+    });
+
+    if (doneBtn) doneBtn.addEventListener("click", function () {
+      if (pending) {
+        writeSession(pending);
+        updateTriggers(pending);
+      }
+      close();
+    });
+
+    function open() {
+      var session = readSession();
+      if (session) {
+        clearSession();
+        updateTriggers(null);
+        toast("Logged out of " + brandName + ".");
+        return;
+      }
+      lastFocused = document.activeElement;
+      setMode(false);
+      showStep("phone");
+      setError(errorEl, null);
+      modal.hidden = false;
+      scrim.hidden = false;
+      requestAnimationFrame(function () {
+        modal.classList.add("is-open");
+        scrim.classList.add("is-open");
+      });
+      lockScroll(true);
+      window.setTimeout(function () {
+        if (phoneInput) phoneInput.focus({ preventScroll: true });
+      }, 260);
+    }
+
+    function close() {
+      if (!modal.classList.contains("is-open")) return;
+      modal.classList.remove("is-open");
+      scrim.classList.remove("is-open");
+      lockScroll(false);
+      stopResend();
+      window.setTimeout(function () {
+        modal.hidden = true;
+        scrim.hidden = true;
+      }, 420);
+      if (lastFocused) lastFocused.focus({ preventScroll: true });
+    }
+
+    openers.forEach(function (btn) { btn.addEventListener("click", open); });
+    closers.forEach(function (btn) { btn.addEventListener("click", close); });
+    scrim.addEventListener("click", close);
+    document.addEventListener("keydown", function (event) {
+      if (event.key !== "Escape") return;
+      if (countryPicker && countryPicker.open) { countryPicker.open = false; return; }
+      if (!modal.hidden) close();
+    });
+
+    updateTriggers(readSession());
+  })();
 })();

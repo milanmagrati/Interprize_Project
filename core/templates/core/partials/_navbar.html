@@ -66,6 +66,11 @@
         {% if cart_count %}<span class="icon-button__badge">{{ cart_count }}</span>{% endif %}
       </a>
 
+      <button type="button" class="header__signin" data-auth-open aria-haspopup="dialog">
+        <svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg>
+        <span class="header__signin-label" data-auth-label>Sign In</span>
+      </button>
+
       <a class="btn btn--primary header__cta" href="{% url 'core:categories' %}">Book now</a>
 
       <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu" data-menu-toggle>
@@ -94,6 +99,17 @@
       <li><a href="{% url 'core:cart' %}">Cart{% if cart_count %} ({{ cart_count }}){% endif %}<svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></a></li>
     </ul>
   </nav>
+
+  <div class="drawer__section">
+    <button type="button" class="drawer__account" data-auth-open>
+      <span class="drawer__account-icon"><svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg></span>
+      <span class="drawer__account-text">
+        <strong data-auth-label>Sign In</strong>
+        <small data-auth-sublabel>Track orders &amp; save your details</small>
+      </span>
+      <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+    </button>
+  </div>
 
   <div class="drawer__section">
     <p class="drawer__label">Shop by occasion</p>
