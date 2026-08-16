@@ -1,0 +1,19 @@
+{% comment %}
+    {% include "core/partials/_testimonial_card.html" with testimonial=testimonial %}
+{% endcomment %}
+<figure class="quote">
+  <svg class="icon quote__mark" aria-hidden="true"><use href="#i-quote"></use></svg>
+  {% include "core/partials/_stars.html" with rating=testimonial.rating %}
+  <blockquote class="quote__text">{{ testimonial.text }}</blockquote>
+  <figcaption class="quote__by">
+    <span class="quote__avatar" aria-hidden="true">{{ testimonial.name|slice:":1" }}</span>
+    <span class="quote__who">
+      <span class="quote__name">{{ testimonial.name }}</span>
+      <span class="quote__where">{{ testimonial.city }} &middot; {{ testimonial.date }}</span>
+    </span>
+  </figcaption>
+  <p class="quote__pkg">
+    <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
+    Booked {{ testimonial.occasion }}
+  </p>
+</figure>

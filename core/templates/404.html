@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Page not found &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+<section class="section notfound">
+  <div class="wrap wrap--narrow notfound__inner">
+
+    <svg class="notfound__art" viewBox="0 0 320 220" role="img" aria-label="A balloon garland with one balloon drifting away">
+      <path d="M20 150C20 70 68 26 132 26c58 0 96 34 108 82" fill="none" stroke="var(--color-primary)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 9"/>
+      <circle cx="46" cy="112" r="17" fill="var(--color-primary)"/>
+      <circle cx="82" cy="74" r="21" fill="var(--color-accent)"/>
+      <circle cx="126" cy="52" r="15" fill="var(--color-gold)"/>
+      <circle cx="168" cy="66" r="19" fill="var(--color-primary-600)"/>
+      <circle cx="205" cy="96" r="13" fill="var(--color-accent-300)"/>
+      <g class="notfound__stray">
+        <circle cx="268" cy="52" r="22" fill="var(--color-gold)"/>
+        <path d="M268 74c-9 12-2 22 0 32" fill="none" stroke="var(--color-charcoal)" stroke-width="2.4" stroke-linecap="round" opacity=".5"/>
+      </g>
+      <text x="160" y="196" text-anchor="middle" class="notfound__digits">404</text>
+    </svg>
+
+    <h1 class="notfound__title">That one drifted off</h1>
+    <p class="notfound__text">
+      The page you asked for is not here. It may have been renamed, or the link
+      lost a character on the way. Here is the way back.
+    </p>
+
+    <div class="notfound__actions">
+      <a class="btn btn--primary btn--lg" href="{% url 'core:home' %}">Back to home</a>
+      <a class="btn btn--outline btn--lg" href="{% url 'core:categories' %}">Browse setups</a>
+    </div>
+
+    <div class="notfound__links">
+      <p class="notfound__label">Popular occasions</p>
+      <div class="chip-row center">
+        {% for category in popular_categories %}
+          <a class="chip chip--sm" href="{% url 'core:category_detail' category.slug %}">{{ category.name }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <p class="notfound__help">
+      Still stuck? <a href="{% url 'core:contact' %}">Message the team</a> or call
+      <a href="tel:{{ brand.phone_href }}">{{ brand.phone }}</a>.
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% comment %}
+    {% include "core/partials/_pagination.html" with page_obj=page_obj querystring=querystring %}
+`querystring` carries the active filters, minus the page number.
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="pager" aria-label="Pagination">
+  {% if page_obj.has_previous %}
+    <a class="pager__step" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" rel="prev">
+      <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg><span>Previous</span>
+    </a>
+  {% else %}
+    <span class="pager__step is-disabled" aria-hidden="true">
+      <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg><span>Previous</span>
+    </span>
+  {% endif %}
+
+  <ol class="pager__pages">
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}
+        <li><span class="pager__page is-current" aria-current="page">{{ num }}</span></li>
+      {% else %}
+        <li><a class="pager__page" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ num }}">{{ num }}</a></li>
+      {% endif %}
+    {% endfor %}
+  </ol>
+
+  {% if page_obj.has_next %}
+    <a class="pager__step" href="?{% if querystring %}{{ querystring }}&amp;{% endif %}page={{ page_obj.next_page_number }}" rel="next">
+      <span>Next</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+    </a>
+  {% else %}
+    <span class="pager__step is-disabled" aria-hidden="true">
+      <span>Next</span><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+    </span>
+  {% endif %}
+</nav>
+{% endif %}

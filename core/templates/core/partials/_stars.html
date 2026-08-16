@@ -1,0 +1,17 @@
+{% comment %}
+Star rating.
+    {% include "core/partials/_stars.html" with rating=package.rating count=package.review_count %}
+`count` is optional. The filled layer is clipped to rating/5 so half stars work.
+{% endcomment %}
+<span class="rating">
+  <span class="stars" role="img" aria-label="Rated {{ rating }} out of 5">
+    <span class="stars__track" aria-hidden="true">
+      {% for _ in "12345" %}<svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg>{% endfor %}
+    </span>
+    <span class="stars__fill" aria-hidden="true" style="width: {% widthratio rating 5 100 %}%">
+      {% for _ in "12345" %}<svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg>{% endfor %}
+    </span>
+  </span>
+  <span class="rating__value">{{ rating }}</span>
+  {% if count %}<span class="rating__count">({{ count }})</span>{% endif %}
+</span>

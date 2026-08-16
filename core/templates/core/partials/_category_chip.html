@@ -1,0 +1,9 @@
+{% comment %}
+Occasion chip for the horizontal scroller.
+    {% include "core/partials/_category_chip.html" with category=category %}
+{% endcomment %}
+<a class="chip" href="{% url 'core:category_detail' category.slug %}">
+  <svg class="icon chip__icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg>
+  <span class="chip__label">{{ category.name }}</span>
+  <span class="chip__meta">from &#8377;{{ category.price_from }}</span>
+</a>

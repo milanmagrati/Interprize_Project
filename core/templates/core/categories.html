@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}All occasions &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="page-head">
+  <div class="wrap page-head__inner">
+    <div>
+      <p class="eyebrow">
+        <svg class="eyebrow__garland" viewBox="0 0 34 14" aria-hidden="true" focusable="false">
+          <path d="M2 12C2 5.9 5 2 9 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M32 12c0-6.1-3-10-7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="11.5" cy="4" r="2.2"/><circle cx="17" cy="6.6" r="2.6"/><circle cx="22.5" cy="4" r="2.2"/>
+        </svg>
+        Nine occasions
+      </p>
+      <h1 class="page-head__title">Everything we decorate</h1>
+      <p class="page-head__lead">
+        Start with the occasion. Each one opens onto setups you can book at a fixed price,
+        filtered to what is available in {{ active_city }}.
+      </p>
+    </div>
+    <ul class="page-head__stats">
+      <li><strong>500+</strong><span>setups listed</span></li>
+      <li><strong>{{ cities|length }}</strong><span>cities live</span></li>
+      <li><strong>4.8</strong><span>average rating</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="cat-grid-title" data-reveal>
+  <div class="wrap">
+    <h2 class="sr-only" id="cat-grid-title">All categories</h2>
+    <div class="grid grid--categories">
+      {% for category in category_rows %}
+        <a class="cat-card" href="{% url 'core:category_detail' category.slug %}">
+          <span class="cat-card__media">
+            <img src="{{ category.image }}" alt="{{ category.name }} decoration setup" width="600" height="450" loading="lazy" decoding="async">
+            <span class="cat-card__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg></span>
+          </span>
+          <span class="cat-card__body">
+            <span class="cat-card__title">{{ category.name }}</span>
+            <span class="cat-card__blurb">{{ category.blurb }}</span>
+            <span class="cat-card__foot">
+              <span class="cat-card__count">{{ category.package_count }} setups</span>
+              <span class="cat-card__price">from &#8377;{{ category.price_from }}</span>
+            </span>
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section section--teal band-cta" data-reveal>
+  <div class="wrap band-cta__inner">
+    <div>
+      <h2 class="band-cta__title">Cannot find your occasion?</h2>
+      <p class="band-cta__text">Housewarmings, retirements, graduations, farewells. Describe it and we will design a setup around it.</p>
+    </div>
+    <a class="btn btn--gold btn--lg" href="{% url 'core:contact' %}">Ask for a custom setup</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% comment %}
+Accordion row. JS keeps one open at a time and animates the height; without JS
+the native <details> element still opens and closes.
+
+    {% include "core/partials/_faq_item.html" with faq=faq index=forloop.counter %}
+{% endcomment %}
+<details class="faq" data-faq{% if index == 1 %} open{% endif %}>
+  <summary class="faq__q">
+    <span>{{ faq.question }}</span>
+    <svg class="icon faq__chevron" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+  </summary>
+  <div class="faq__a"><p>{{ faq.answer }}</p></div>
+</details>

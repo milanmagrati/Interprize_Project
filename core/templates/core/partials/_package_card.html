@@ -1,0 +1,47 @@
+{% load humanize %}{% comment %}
+The one package card used on the home page, category pages, related carousels
+and cart suggestions.
+
+    {% include "core/partials/_package_card.html" with package=package %}
+
+Optional: `compact=1` for the carousel variant.
+{% endcomment %}
+<article class="pkg{% if compact %} pkg--compact{% endif %}">
+  <a class="pkg__media" href="{% url 'core:package_detail' package.slug %}" tabindex="-1" aria-hidden="true">
+    <img src="{{ package.image }}" alt="" width="800" height="600" loading="lazy" decoding="async">
+    {% if package.discount_percent %}<span class="pkg__off">{{ package.discount_percent }}% off</span>{% endif %}
+    {% if package.badge %}<span class="pkg__badge">{{ package.badge }}</span>{% endif %}
+  </a>
+
+  <div class="pkg__body">
+    <p class="pkg__category">
+      <svg class="icon" aria-hidden="true"><use href="#i-balloon"></use></svg>{{ package.category_name }}
+    </p>
+
+    <h3 class="pkg__title">
+      <a href="{% url 'core:package_detail' package.slug %}">{{ package.title }}</a>
+    </h3>
+
+    {% include "core/partials/_stars.html" with rating=package.rating count=package.review_count %}
+
+    <p class="pkg__meta">
+      <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>{{ package.duration }}
+      <span class="pkg__dot" aria-hidden="true">&middot;</span>
+      {{ package.includes|length }} items included
+    </p>
+
+    <div class="pkg__price">
+      <span class="price">&#8377;{{ package.price|intcomma }}</span>
+      <span class="price price--was"><s>&#8377;{{ package.original_price|intcomma }}</s></span>
+      <span class="price__save">Save &#8377;{{ package.saving|intcomma }}</span>
+    </div>
+
+    <div class="pkg__actions">
+      <a class="btn btn--outline btn--sm" href="{% url 'core:package_detail' package.slug %}">View details</a>
+      <button class="btn btn--primary btn--sm" type="button" data-add-to-cart="{{ package.slug }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-shopping-bag"></use></svg>
+        Add to cart
+      </button>
+    </div>
+  </div>
+</article>

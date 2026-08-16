@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ package.title }} &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="detail">
+  <div class="wrap detail__inner">
+
+    {# --------------------------------------------------------- gallery #}
+    <div class="gallery" data-gallery>
+      <figure class="gallery__stage">
+        <img src="{{ package.gallery.0.url }}" alt="{{ package.gallery.0.alt }}"
+             width="1200" height="900" data-gallery-stage fetchpriority="high" decoding="async">
+        <button class="gallery__zoom" type="button" data-lightbox-open aria-label="Open photo full size">
+          <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+          <span>View full size</span>
+        </button>
+        {% if package.discount_percent %}<span class="pkg__off gallery__off">{{ package.discount_percent }}% off</span>{% endif %}
+      </figure>
+
+      <ul class="gallery__thumbs" data-gallery-thumbs>
+        {% for shot in package.gallery %}
+          <li>
+            <button class="gallery__thumb{% if forloop.first %} is-active{% endif %}" type="button"
+                    data-gallery-src="{{ shot.url }}" data-gallery-alt="{{ shot.alt }}" data-gallery-index="{{ forloop.counter0 }}"
+                    aria-label="Show photo {{ forloop.counter }} of {{ package.gallery|length }}">
+              <img src="{{ shot.thumb }}" alt="" width="240" height="180" loading="lazy" decoding="async">
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    {# ------------------------------------------------------------ info #}
+    <div class="detail__info">
+      <p class="detail__category">
+        <a href="{% url 'core:category_detail' category.slug %}">
+          <svg class="icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg>{{ category.name }}
+        </a>
+        {% if package.badge %}<span class="pill pill--gold">{{ package.badge }}</span>{% endif %}
+      </p>
+
+      <h1 class="detail__title">{{ package.title }}</h1>
+
+      <div class="detail__rating">
+        {% include "core/partials/_stars.html" with rating=package.rating count=package.review_count %}
+        <a class="detail__jump" href="#reviews">Read reviews</a>
+      </div>
+
+      <div class="detail__price">
+        <span class="price price--lg">&#8377;{{ package.price|intcomma }}</span>
+        <span class="price price--was"><s>&#8377;{{ package.original_price|intcomma }}</s></span>
+        <span class="price__save">You save &#8377;{{ package.saving|intcomma }} ({{ package.discount_percent }}%)</span>
+      </div>
+
+      <p class="detail__desc">{{ package.description }}</p>
+
+      <ul class="detail__facts">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg><span><strong>{{ package.duration }}</strong>Setup duration</span></li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg><span><strong>Verified decorator</strong>Background checked</span></li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-truck"></use></svg><span><strong>Free travel</strong>Inside city limits</span></li>
+      </ul>
+
+      {# ------------------------------------------------------ booking #}
+      <form class="booking card" method="post" action="">
+        {% csrf_token %}
+        <h2 class="booking__title">Choose your slot</h2>
+
+        <div class="booking__row">
+          <label class="field">
+            <span class="field__label">City</span>
+            <span class="select">
+              <select name="city">
+                {% for city in cities %}
+                  <option value="{{ city.slug }}"{% if city.name == active_city %} selected{% endif %}>{{ city.name }}</option>
+                {% endfor %}
+              </select>
+              <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+            </span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">Date</span>
+            <input type="date" name="date">
+          </label>
+        </div>
+
+        <fieldset class="booking__slots">
+          <legend class="field__label">Arrival window</legend>
+          <div class="slots">
+            {% for slot in time_slots %}
+              <label class="slot{% if not slot.available %} slot--gone{% endif %}">
+                <input type="radio" name="slot" value="{{ slot.value }}"{% if not slot.available %} disabled{% endif %}>
+                <span>{{ slot.label }}{% if not slot.available %} <em>full</em>{% endif %}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <fieldset class="booking__addons">
+          <legend class="field__label">Add-ons</legend>
+          {% for add_on in add_ons %}
+            <label class="checkbox">
+              <input type="checkbox" name="add_ons" value="{{ forloop.counter }}">
+              <span>{{ add_on.name }}<b>+&#8377;{{ add_on.price|intcomma }}</b></span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <div class="booking__foot">
+          <div class="booking__total">
+            <span class="booking__total-label">Payable now (30%)</span>
+            <span class="booking__total-value">&#8377;{{ package.price|floatformat:0 }}<small> total</small></span>
+          </div>
+          <button class="btn btn--accent btn--lg btn--block" type="submit">
+            <svg class="icon" aria-hidden="true"><use href="#i-shopping-bag"></use></svg>
+            Add to cart
+          </button>
+        </div>
+
+        <p class="booking__note">
+          <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
+          Free cancellation up to 24 hours before your window.
+        </p>
+      </form>
+    </div>
+  </div>
+</section>
+
+{# --------------------------------------------------------- included #}
+<section class="section section--ivory" aria-labelledby="included-title" data-reveal>
+  <div class="wrap detail__split">
+    <div>
+      {% include "core/partials/_section_head.html" with eyebrow="In the van" title_id="included-title" title="What arrives with the decorator" %}
+      <ul class="checklist">
+        {% for item in package.includes %}
+          <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="card card--pad">
+      <h3 class="card__title">Good to know</h3>
+      <ul class="notes">
+        <li><strong>Access</strong> Tell us about lifts, stairs and society permissions in the booking notes.</li>
+        <li><strong>Walls</strong> Freestanding frames and removable clips by default. No adhesive unless you ask.</li>
+        <li><strong>Photos</strong> The decorator sends you photographs of the finished setup before leaving.</li>
+        <li><strong>Take-down</strong> Add next-morning clearing for &#8377;499 at checkout.</li>
+      </ul>
+      <a class="link-arrow" href="{% url 'core:how_it_works' %}">How the whole booking works <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg></a>
+    </div>
+  </div>
+</section>
+
+{# ---------------------------------------------------------- reviews #}
+<section class="section" id="reviews" aria-labelledby="pkg-reviews-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Reviews" title_id="pkg-reviews-title" title="From people who booked this" %}
+
+    <div class="review-summary card card--pad">
+      <div class="review-summary__score">
+        <span class="review-summary__value">{{ package.rating }}</span>
+        {% include "core/partials/_stars.html" with rating=package.rating %}
+        <span class="review-summary__count">{{ package.review_count }} reviews</span>
+      </div>
+      <ul class="review-summary__bars">
+        <li><span>5 star</span><span class="bar"><span class="bar__fill" style="width: 82%"></span></span><span>82%</span></li>
+        <li><span>4 star</span><span class="bar"><span class="bar__fill" style="width: 13%"></span></span><span>13%</span></li>
+        <li><span>3 star</span><span class="bar"><span class="bar__fill" style="width: 3%"></span></span><span>3%</span></li>
+        <li><span>2 star</span><span class="bar"><span class="bar__fill" style="width: 1%"></span></span><span>1%</span></li>
+        <li><span>1 star</span><span class="bar"><span class="bar__fill" style="width: 1%"></span></span><span>1%</span></li>
+      </ul>
+    </div>
+
+    <div class="grid grid--reviews">
+      {% for testimonial in reviews %}
+        {% include "core/partials/_testimonial_card.html" with testimonial=testimonial %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ---------------------------------------------------------- related #}
+<section class="section section--tight" aria-labelledby="related-title" data-reveal>
+  <div class="wrap">
+    <div class="scroller__head">
+      <h2 class="scroller__title" id="related-title">People also booked</h2>
+      <div class="scroller__arrows">
+        <button class="carousel__arrow" type="button" aria-label="Scroll left" data-scroller-prev="related">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+        </button>
+        <button class="carousel__arrow" type="button" aria-label="Scroll right" data-scroller-next="related">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="scroller" data-scroller="related">
+    <div class="scroller__track wrap scroller__track--cards">
+      {% for related_package in related %}
+        {% include "core/partials/_package_card.html" with package=related_package compact=1 %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# -------------------------------------------------------------- faqs #}
+<section class="section section--teal" aria-labelledby="pkg-faq-title" data-reveal>
+  <div class="wrap wrap--narrow">
+    {% include "core/partials/_section_head.html" with eyebrow="Questions" title_id="pkg-faq-title" title="Common questions" centered=1 %}
+    <div class="faq-list" data-faq-group>
+      {% for faq in faqs %}
+        {% include "core/partials/_faq_item.html" with faq=faq index=forloop.counter %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------- sticky mobile bar #}
+<div class="sticky-bar" data-sticky-bar hidden>
+  <div class="sticky-bar__price">
+    <span class="price">&#8377;{{ package.price|intcomma }}</span>
+    <span class="sticky-bar__was"><s>&#8377;{{ package.original_price|intcomma }}</s> {{ package.discount_percent }}% off</span>
+  </div>
+  <a class="btn btn--accent" href="#main" data-sticky-cta>Book now</a>
+</div>
+
+{# ------------------------------------------------------------ lightbox #}
+<div class="lightbox" data-lightbox hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <button class="lightbox__close" type="button" data-lightbox-close aria-label="Close photo viewer">
+    <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+  </button>
+  <button class="lightbox__nav lightbox__nav--prev" type="button" data-lightbox-prev aria-label="Previous photo">
+    <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+  </button>
+  <figure class="lightbox__figure">
+    <img src="" alt="" data-lightbox-image>
+    <figcaption class="lightbox__caption" data-lightbox-caption></figcaption>
+  </figure>
+  <button class="lightbox__nav lightbox__nav--next" type="button" data-lightbox-next aria-label="Next photo">
+    <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+  </button>
+</div>
+{% endblock %}

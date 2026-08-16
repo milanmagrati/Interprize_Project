@@ -1,0 +1,38 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ brand.name }} — {{ brand.tagline }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ meta_description|default:'Balloon and event decoration setups booked online, at fixed prices, in 100+ cities.' }}{% endblock %}">
+  <meta name="theme-color" content="#0F6B66">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'core/css/responsive.css' %}">
+  {% block extra_css %}{% endblock %}
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='14' r='10' fill='%230F6B66'/><path d='M16 24v6' stroke='%23F5B942' stroke-width='2.5' fill='none'/></svg>">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+</head>
+<body class="page page--{{ page_id|default:'default' }}">
+  {% include "core/partials/_icons.html" %}
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  {% include "core/partials/_navbar.html" %}
+
+  <main id="main" class="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "core/partials/_footer.html" %}
+
+  <script src="{% static 'core/js/main.js' %}" defer></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

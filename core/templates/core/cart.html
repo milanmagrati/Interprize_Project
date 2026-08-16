@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Your cart &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="section cart" aria-labelledby="cart-title">
+  <div class="wrap">
+    <div class="cart__head">
+      <h1 class="cart__title" id="cart-title">Your cart</h1>
+      <p class="cart__sub">{{ cart.lines|length }} setup{{ cart.lines|length|pluralize }} held for 30 minutes while you decide.</p>
+    </div>
+
+    {% if cart.lines %}
+      <div class="cart__inner">
+        <div class="cart__items">
+          {% for line in cart.lines %}
+            <article class="line" data-cart-line>
+              <a class="line__media" href="{% url 'core:package_detail' line.package.slug %}" tabindex="-1" aria-hidden="true">
+                <img src="{{ line.package.image }}" alt="" width="240" height="180" loading="lazy" decoding="async">
+              </a>
+
+              <div class="line__body">
+                <p class="line__category">{{ line.package.category_name }}</p>
+                <h2 class="line__title">
+                  <a href="{% url 'core:package_detail' line.package.slug %}">{{ line.package.title }}</a>
+                </h2>
+
+                <ul class="line__meta">
+                  <li><svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>{{ line.city }}</li>
+                  <li><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>{{ line.date }}</li>
+                  <li><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>{{ line.slot }}</li>
+                </ul>
+
+                {% if line.add_ons %}
+                  <ul class="line__addons">
+                    {% for add_on in line.add_ons %}
+                      <li><svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>{{ add_on.name }} &#8377;{{ add_on.price|intcomma }}</li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+
+                <div class="line__foot">
+                  <div class="stepper" data-stepper
+                       data-unit-price="{{ line.package.price|add:line.add_on_total }}"
+                       data-unit-saving="{{ line.package.saving }}">
+                    <button class="stepper__btn" type="button" aria-label="Decrease quantity" data-stepper-down>
+                      <svg class="icon" aria-hidden="true"><use href="#i-minus"></use></svg>
+                    </button>
+                    <input class="stepper__input" type="number" value="{{ line.quantity }}" min="1" max="9"
+                           aria-label="Quantity for {{ line.package.title }}" data-stepper-input>
+                    <button class="stepper__btn" type="button" aria-label="Increase quantity" data-stepper-up>
+                      <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>
+                    </button>
+                  </div>
+
+                  <div class="line__prices">
+                    <span class="price" data-line-total>&#8377;{{ line.line_total|intcomma }}</span>
+                    <span class="price price--was"><s>&#8377;{{ line.package.original_price|intcomma }}</s></span>
+                  </div>
+
+                  <button class="line__remove" type="button" data-cart-remove>
+                    <svg class="icon" aria-hidden="true"><use href="#i-trash"></use></svg>
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+
+          <a class="link-arrow cart__continue" href="{% url 'core:categories' %}">
+            Keep browsing setups <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+          </a>
+        </div>
+
+        <aside class="summary card" aria-labelledby="summary-title">
+          <h2 class="summary__title" id="summary-title">Price summary</h2>
+
+          <dl class="summary__rows">
+            <div><dt>Subtotal</dt><dd data-summary="subtotal">&#8377;{{ cart.subtotal|intcomma }}</dd></div>
+            <div class="summary__save"><dt>Package savings</dt><dd data-summary="savings">&minus; &#8377;{{ cart.savings|intcomma }}</dd></div>
+            <div>
+              <dt>Travel</dt>
+              <dd data-summary="delivery">{% if cart.delivery %}&#8377;{{ cart.delivery|intcomma }}{% else %}Free{% endif %}</dd>
+            </div>
+            <div><dt>GST (18%)</dt><dd data-summary="tax">&#8377;{{ cart.tax|intcomma }}</dd></div>
+          </dl>
+
+          <div class="summary__total">
+            <span>Total</span>
+            <span data-summary="total">&#8377;{{ cart.total|intcomma }}</span>
+          </div>
+
+          <p class="summary__note">
+            <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
+            Pay 30% now to hold the slots. The rest is due after setup.
+          </p>
+
+          <button class="btn btn--accent btn--lg btn--block" type="button">
+            Proceed to checkout <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+          </button>
+
+          <form class="summary__coupon" method="post" action="">
+            {% csrf_token %}
+            <label class="sr-only" for="coupon">Coupon code</label>
+            <input id="coupon" type="text" name="coupon" placeholder="Coupon code">
+            <button class="btn btn--outline btn--sm" type="submit">Apply</button>
+          </form>
+
+          <ul class="summary__trust">
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>Free cancellation up to 24 hours before</li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>Decorator details shared on confirmation</li>
+            <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>UPI, cards and net banking accepted</li>
+          </ul>
+        </aside>
+      </div>
+    {% else %}
+      <div class="empty">
+        <svg class="icon empty__icon" aria-hidden="true"><use href="#i-shopping-bag"></use></svg>
+        <h2 class="empty__title">Nothing in the cart yet</h2>
+        <p class="empty__text">Browse the occasions and add a setup. We hold your slot for 30 minutes once you do.</p>
+        <a class="btn btn--primary" href="{% url 'core:categories' %}">Browse setups</a>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section section--ivory" aria-labelledby="suggested-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Often added" title_id="suggested-title" title="Pairs well with your cart" %}
+    <div class="grid grid--cards">
+      {% for package in suggested %}
+        {% include "core/partials/_package_card.html" with package=package %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

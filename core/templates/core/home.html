@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ brand.name }} &mdash; Balloon &amp; event decoration, booked online{% endblock %}
+
+{% block content %}
+
+{# ---------------------------------------------------------------- hero #}
+<section class="hero">
+  <div class="wrap hero__inner">
+    <div class="hero__copy">
+      <p class="hero__eyebrow">
+        <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
+        Verified decorators in {{ cities|length }} cities
+      </p>
+
+      <h1 class="hero__title">
+        Someone else can<br>
+        <em>hang the balloons.</em>
+      </h1>
+
+      <p class="hero__lead">
+        Pick a setup, pick a slot, and a Celebra decorator arrives with everything in the van &mdash;
+        builds it, photographs it, and takes the packaging away with them.
+      </p>
+
+      {# GET search: no CSRF token by design, it would leak the token into the URL. #}
+      <form class="searchbar" method="get" action="{% url 'core:categories' %}" novalidate>
+        <div class="searchbar__field">
+          <label class="searchbar__label" for="hero-city">City</label>
+          <div class="searchbar__control">
+            <svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>
+            <select id="hero-city" name="city">
+              {% for city in cities %}
+                <option value="{{ city.slug }}"{% if city.name == active_city %} selected{% endif %}>{{ city.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="searchbar__field">
+          <label class="searchbar__label" for="hero-occasion">Occasion</label>
+          <div class="searchbar__control">
+            <svg class="icon" aria-hidden="true"><use href="#i-gift"></use></svg>
+            <select id="hero-occasion" name="occasion">
+              <option value="">Any occasion</option>
+              {% for category in occasions %}
+                <option value="{{ category.slug }}">{{ category.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="searchbar__field searchbar__field--date">
+          <label class="searchbar__label" for="hero-date">Date</label>
+          <div class="searchbar__control">
+            <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
+            <input id="hero-date" type="date" name="date">
+          </div>
+        </div>
+
+        <button class="btn btn--accent searchbar__submit" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <span>Find setups</span>
+        </button>
+      </form>
+
+      <ul class="trust">
+        {% for badge in trust_badges %}
+          <li class="trust__item">
+            <span class="trust__value">{{ badge.value }}</span>
+            <span class="trust__label">{{ badge.label }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="hero__art">
+      <figure class="hero__shot hero__shot--main">
+        <img src="https://picsum.photos/seed/celebra-hero-main/900/1100"
+             alt="A pastel balloon arch built around a cake table in a living room"
+             width="900" height="1100" fetchpriority="high" decoding="async">
+      </figure>
+      <figure class="hero__shot hero__shot--top">
+        <img src="https://picsum.photos/seed/celebra-hero-top/600/500"
+             alt="A decorator tying a balloon garland to a doorway frame"
+             width="600" height="500" loading="lazy" decoding="async">
+      </figure>
+      <figure class="hero__shot hero__shot--bottom">
+        <img src="https://picsum.photos/seed/celebra-hero-bottom/600/500"
+             alt="A candlelit table for two set up on a terrace at dusk"
+             width="600" height="500" loading="lazy" decoding="async">
+      </figure>
+
+      <div class="hero__proof">
+        <span class="hero__proof-dot" aria-hidden="true"></span>
+        <span class="hero__proof-text">
+          <strong>Rhea is 2 hours early</strong>
+          Setup #4821 &middot; Indiranagar
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------------ occasions #}
+<section class="section section--tight" aria-labelledby="occasions-title">
+  <div class="wrap">
+    <div class="scroller__head">
+      <h2 class="scroller__title" id="occasions-title">Browse by occasion</h2>
+      <a class="link-arrow" href="{% url 'core:categories' %}">All categories <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg></a>
+    </div>
+  </div>
+  <div class="scroller" data-scroller>
+    <div class="scroller__track wrap">
+      {% for category in occasions %}
+        {% include "core/partials/_category_chip.html" with category=category %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------- featured grid #}
+<section class="section" id="packages" aria-labelledby="featured-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Featured setups" title_id="featured-title" title="Booked most this month" lead="Every price below is final: materials, labour, travel inside city limits and clean-up." centered=1 %}
+
+    <div class="grid grid--cards">
+      {% for package in featured_packages %}
+        {% include "core/partials/_package_card.html" with package=package %}
+      {% endfor %}
+    </div>
+
+    <div class="section__foot">
+      <a class="btn btn--outline btn--lg" href="{% url 'core:categories' %}">
+        See all 500+ setups <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------- how it works #}
+<section class="section section--teal" id="how-it-works" aria-labelledby="how-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Four steps" title_id="how-title" title="How a booking works" lead="From tapping a card to walking into a finished room." centered=1 %}
+
+    <ol class="steps">
+      {% for step in how_it_works %}
+        <li class="step">
+          <span class="step__num">{{ step.step }}</span>
+          <span class="step__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ step.icon }}"></use></svg></span>
+          <h3 class="step__title">{{ step.title }}</h3>
+          <p class="step__text">{{ step.text }}</p>
+        </li>
+      {% endfor %}
+    </ol>
+
+    <div class="section__foot">
+      <a class="btn btn--gold btn--lg" href="{% url 'core:how_it_works' %}">Read the full process</a>
+    </div>
+  </div>
+</section>
+
+{# ---------------------------------------------------------- why us #}
+<section class="section" aria-labelledby="why-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Why Celebra" title_id="why-title" title="What you are actually paying for" lead="Six promises we put in writing on every booking confirmation." centered=1 %}
+
+    <div class="grid grid--features">
+      {% for feature in features %}
+        <article class="feature">
+          <span class="feature__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ feature.icon }}"></use></svg></span>
+          <h3 class="feature__title">{{ feature.title }}</h3>
+          <p class="feature__text">{{ feature.text }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ------------------------------------------------------ testimonials #}
+<section class="section section--ivory" id="reviews" aria-labelledby="reviews-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Reviews" title_id="reviews-title" title="What people said afterwards" lead="Collected after the decorator left, from bookings across ten cities." centered=1 %}
+
+    <div class="carousel" data-carousel data-carousel-autoplay="6000">
+      <div class="carousel__viewport" data-carousel-viewport>
+        <div class="carousel__track" data-carousel-track>
+          {% for testimonial in testimonials %}
+            <div class="carousel__slide">
+              {% include "core/partials/_testimonial_card.html" with testimonial=testimonial %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="carousel__controls">
+        <button class="carousel__arrow" type="button" aria-label="Previous review" data-carousel-prev>
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+        </button>
+        <div class="carousel__dots" data-carousel-dots></div>
+        <button class="carousel__arrow" type="button" aria-label="Next review" data-carousel-next>
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ----------------------------------------------------------- pricing #}
+<section class="section" id="pricing" aria-labelledby="pricing-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Pricing" title_id="pricing-title" title="What each occasion costs" lead="Ranges cover our smallest and largest setup in each category. The middle column is what most people book." centered=1 %}
+
+    <div class="table-card">
+      <table class="ptable">
+        <caption class="sr-only">Price ranges by occasion</caption>
+        <thead>
+          <tr>
+            <th scope="col">Occasion</th>
+            <th scope="col">Price range</th>
+            <th scope="col">Most booked</th>
+            <th scope="col">Setup time</th>
+            <th scope="col"><span class="sr-only">Link</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in pricing_rows %}
+            <tr>
+              <th scope="row" data-label="Occasion">{{ row.category }}</th>
+              <td data-label="Price range">{{ row.range }}</td>
+              <td data-label="Most booked"><span class="ptable__pop">{{ row.popular }}</span></td>
+              <td data-label="Setup time">{{ row.setup_time }}</td>
+              <td class="ptable__link">
+                <a class="link-arrow link-arrow--sm" href="{% url 'core:category_detail' row.slug %}">
+                  View <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="section__note">
+      <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
+      Prices include GST. Corporate bookings can be invoiced separately.
+    </p>
+  </div>
+</section>
+
+{# ------------------------------------------------------------- cities #}
+<section class="section section--teal" id="cities" aria-labelledby="cities-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Coverage" title_id="cities-title" title="Where we decorate" lead="Same-week slots in every metro, and a decorator network reaching another fifty-two cities." centered=1 %}
+
+    <div class="city-search">
+      <label class="field field--search">
+        <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+        <input type="search" placeholder="Type your city" aria-label="Search cities" data-city-filter="grid">
+      </label>
+    </div>
+
+    <ul class="city-grid" data-city-list="grid">
+      {% for city in cities %}
+        <li>
+          <a class="city-tag{% if city.is_metro %} city-tag--metro{% endif %}" href="?city={{ city.name|urlencode }}" data-city-name="{{ city.name }} {{ city.state }}">
+            {{ city.name }}
+            {% if city.is_metro %}<span class="city-tag__flag">Same day</span>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <p class="city-empty" data-city-empty="grid" hidden>
+      Not there yet. <a href="{% url 'core:contact' %}">Tell us your city</a> &mdash; we open five or six new ones a quarter.
+    </p>
+  </div>
+</section>
+
+{# --------------------------------------------------------------- faqs #}
+<section class="section" id="faq" aria-labelledby="faq-title" data-reveal>
+  <div class="wrap wrap--narrow">
+    {% include "core/partials/_section_head.html" with eyebrow="Questions" title_id="faq-title" title="Before you book" centered=1 %}
+
+    <div class="faq-list" data-faq-group>
+      {% for faq in faqs %}
+        {% include "core/partials/_faq_item.html" with faq=faq index=forloop.counter %}
+      {% endfor %}
+    </div>
+
+    <p class="section__note">
+      Still unsure? <a href="{% url 'core:contact' %}">Ask us directly</a> &mdash; we answer within the hour.
+    </p>
+  </div>
+</section>
+
+{# ---------------------------------------------------------- enquiry #}
+<section class="section enquiry" id="enquiry" aria-labelledby="enquiry-title" data-reveal>
+  <div class="wrap enquiry__inner">
+    <div class="enquiry__copy">
+      <p class="eyebrow">
+        <svg class="eyebrow__garland" viewBox="0 0 34 14" aria-hidden="true" focusable="false">
+          <path d="M2 12C2 5.9 5 2 9 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M32 12c0-6.1-3-10-7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="11.5" cy="4" r="2.2"/><circle cx="17" cy="6.6" r="2.6"/><circle cx="22.5" cy="4" r="2.2"/>
+        </svg>
+        Planning something bigger
+      </p>
+      <h2 class="section-title" id="enquiry-title">Tell us what you have in mind</h2>
+      <p class="section-lead">
+        Custom themes, venues with awkward rules, three-day weddings. Send the details and
+        a planner comes back with a quote and photographs of similar work.
+      </p>
+      <ul class="enquiry__points">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Quotes within one working day</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Free site visit above &#8377;25,000</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> One planner from enquiry to clean-up</li>
+      </ul>
+    </div>
+
+    <div class="enquiry__form card">
+      {% include "core/partials/_inquiry_form.html" %}
+    </div>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,231 @@
+/* ==========================================================================
+   Celebra — responsive.css
+   Mobile-first: style.css holds the small-screen state, everything here
+   scales it up. Breakpoints: 480, 640, 768, 1024, 1280, 1440.
+   ========================================================================== */
+
+/* ==========================================================================
+   >= 480px — large phones
+   ========================================================================== */
+@media (min-width: 480px) {
+  :root { --gutter: 1.5rem; }
+
+  .searchbar {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .searchbar__field--date { grid-column: span 2; }
+  .searchbar__submit { grid-column: span 2; }
+
+  .notfound__actions { flex-wrap: nowrap; }
+  .line { grid-template-columns: 110px 1fr; }
+  .footer__bottom { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* ==========================================================================
+   >= 640px — small tablets
+   ========================================================================== */
+@media (min-width: 640px) {
+  .trust { grid-template-columns: repeat(4, 1fr); }
+  .hero__proof { left: 1rem; bottom: 1rem; }
+
+  .grid { gap: 1.35rem; }
+
+  .carousel__slide { flex: 0 0 calc(50% - 0.575rem); }
+
+  .detail__facts { grid-template-columns: repeat(3, 1fr); }
+
+  .guarantee { grid-template-columns: auto 1fr; align-items: start; gap: 1.35rem; }
+
+  .review-summary { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 2.5rem; }
+  .review-summary__score { justify-items: start; text-align: left; }
+
+  .gallery__thumb { width: 100px; }
+  .booking { padding: 1.35rem; }
+
+  .band-cta__inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: stretch;
+    gap: 2rem;
+  }
+}
+
+/* ==========================================================================
+   >= 768px — tablets
+   ========================================================================== */
+@media (min-width: 768px) {
+  :root { --gutter: 2rem; --header-h: 74px; }
+
+  .announce__phone { display: inline-flex; }
+  .announce__inner { justify-content: space-between; }
+
+  .header__cta { display: inline-flex; }
+  .city-picker { display: block; }
+
+  .hero__inner { gap: 3rem; }
+  .searchbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    align-items: end;
+    padding: 1rem;
+  }
+  .searchbar__field--date,
+  .searchbar__submit { grid-column: auto; }
+  .searchbar__submit { min-height: 62px; padding-inline: 1.5rem; }
+
+  .hero__art { gap: 0.85rem; }
+  .hero__shot--main { aspect-ratio: 3 / 4; }
+
+  .page-head__inner {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 2.5rem;
+  }
+  .page-head__stats { grid-template-columns: repeat(2, 1fr); }
+
+  .cat-banner__inner { gap: 1.5rem; }
+
+  /* pricing: cards become a real table again */
+  .ptable thead { display: table-header-group; }
+  .ptable tr { display: table-row; padding: 0; }
+  .ptable th,
+  .ptable td {
+    display: table-cell;
+    padding: 1rem 1.15rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .ptable tbody tr:last-child th,
+  .ptable tbody tr:last-child td { border-bottom: 0; }
+  .ptable thead th {
+    font-family: var(--font-body);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-faint);
+    background: var(--color-surface-alt);
+  }
+  .ptable td::before,
+  .ptable th[data-label]:not([scope="row"])::before { content: none; }
+  .ptable th[scope="row"] { font-size: 1.05rem; padding-bottom: 1rem; }
+  .ptable tbody tr { transition: background-color var(--t-fast) var(--ease); }
+  .ptable tbody tr:hover { background: var(--color-primary-050); }
+  .ptable__link { text-align: right; }
+
+  .detail__split { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 2.5rem; }
+  .booking__row { grid-template-columns: 1.4fr 1fr; }
+
+  .enquiry__inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 3rem; align-items: start; }
+
+  .contact__inner { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 2rem; align-items: start; }
+
+  .story__item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 2.5rem; }
+  .story__item:nth-child(even) .story__copy { order: 2; }
+
+  .footer__top { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 3rem; }
+  .footer__cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .cart__inner { grid-template-columns: minmax(0, 1fr); }
+  .line { grid-template-columns: 132px 1fr; padding: 1.1rem; gap: 1.15rem; }
+
+  .lightbox { padding: 2rem; gap: 1rem; }
+}
+
+/* ==========================================================================
+   >= 1024px — laptops. The layout switches from stacked to columned here.
+   ========================================================================== */
+@media (min-width: 1024px) {
+  :root { --gutter: 2.5rem; }
+
+  /* header: full nav, no hamburger */
+  .nav-desktop { display: block; }
+  .hamburger { display: none; }
+  .logo__tagline { display: block; }
+  .logo__mark { width: 44px; height: 34px; }
+
+  /* hero becomes two columns */
+  .hero__inner {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: center;
+    gap: 3.5rem;
+  }
+  .hero__art { gap: 1rem; }
+
+  .scroller__arrows { display: flex; }
+
+  .carousel__slide { flex: 0 0 calc(33.3333% - 0.767rem); }
+
+  /* listing: sticky sidebar instead of a drawer */
+  .filters-open { display: none; }
+  .listing__inner {
+    grid-template-columns: 264px minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+  .filters {
+    position: sticky;
+    top: calc(var(--header-h) + 1.25rem);
+    width: auto;
+    height: auto;
+    max-height: calc(100dvh - var(--header-h) - 2.5rem);
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+    z-index: 1;
+  }
+  .filters__close { display: none; }
+  .filters__head { border-bottom-color: transparent; padding-bottom: 0; }
+
+  /* package detail: gallery beside the booking panel */
+  .detail__inner {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 3rem;
+    align-items: start;
+  }
+  .gallery { position: sticky; top: calc(var(--header-h) + 1.25rem); }
+  .gallery__stage { aspect-ratio: 5 / 4; }
+
+  /* the sticky booking bar is a small-screen affordance only */
+  .sticky-bar { display: none; }
+
+  /* cart: items and summary side by side */
+  .cart__inner { grid-template-columns: minmax(0, 1fr) 340px; gap: 2rem; align-items: start; }
+  .summary { position: sticky; top: calc(var(--header-h) + 1.25rem); }
+
+  .page-head__stats { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+  .footer__cols { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.5rem; }
+  .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .story__item { gap: 4rem; }
+}
+
+/* ==========================================================================
+   >= 1280px — desktops
+   ========================================================================== */
+@media (min-width: 1280px) {
+  .grid { gap: 1.75rem; }
+  .grid--cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 285px), 1fr)); }
+  .hero__inner { gap: 4.5rem; }
+  .section-lead { font-size: 1.1rem; }
+  .listing__inner { grid-template-columns: 288px minmax(0, 1fr); gap: 3rem; }
+}
+
+/* ==========================================================================
+   >= 1440px — wide desktops
+   ========================================================================== */
+@media (min-width: 1440px) {
+  :root { --wrap-max: 1340px; --gutter: 3rem; }
+  .hero { padding-block: 5rem 6rem; }
+  .scroller__track--cards > .pkg { width: 320px; }
+}
+
+/* ==========================================================================
+   Print
+   ========================================================================== */
+@media print {
+  .announce, .header, .drawer, .drawer-scrim, .footer, .sticky-bar,
+  .carousel__controls, .filters, .pkg__actions { display: none !important; }
+  body { background: #fff; }
+  .section { padding-block: 1rem; }
+}

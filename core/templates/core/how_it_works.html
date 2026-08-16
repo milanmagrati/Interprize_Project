@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}How Celebra works &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="page-head">
+  <div class="wrap page-head__inner">
+    <div>
+      <p class="eyebrow">
+        <svg class="eyebrow__garland" viewBox="0 0 34 14" aria-hidden="true" focusable="false">
+          <path d="M2 12C2 5.9 5 2 9 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M32 12c0-6.1-3-10-7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="11.5" cy="4" r="2.2"/><circle cx="17" cy="6.6" r="2.6"/><circle cx="22.5" cy="4" r="2.2"/>
+        </svg>
+        The process
+      </p>
+      <h1 class="page-head__title">Four steps, then you step back</h1>
+      <p class="page-head__lead">
+        Celebra started in {{ brand.founded_year }} because booking a decorator meant three phone calls,
+        a vague quote and a van that arrived whenever. Here is what replaced that.
+      </p>
+    </div>
+    <ul class="page-head__stats">
+      {% for badge in trust_badges %}
+        <li><strong>{{ badge.value }}</strong><span>{{ badge.label }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="steps-title" data-reveal>
+  <div class="wrap">
+    <h2 class="sr-only" id="steps-title">The four steps</h2>
+    <ol class="story">
+      {% for step in how_it_works %}
+        <li class="story__item">
+          <div class="story__copy">
+            <span class="story__num">Step {{ step.step }}</span>
+            <h3 class="story__title">
+              <span class="story__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ step.icon }}"></use></svg></span>
+              {{ step.title }}
+            </h3>
+            <p class="story__text">{{ step.text }}</p>
+          </div>
+          <figure class="story__media">
+            <img src="https://picsum.photos/seed/celebra-step-{{ step.step }}/800/600"
+                 alt="Step {{ step.step }}: {{ step.title }}"
+                 width="800" height="600" loading="lazy" decoding="async">
+          </figure>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</section>
+
+<section class="section section--teal" aria-labelledby="promises-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="In writing" title_id="promises-title" title="Six things we commit to" lead="Printed on every booking confirmation, not buried in terms." centered=1 %}
+    <div class="grid grid--features">
+      {% for feature in features %}
+        <article class="feature">
+          <span class="feature__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ feature.icon }}"></use></svg></span>
+          <h3 class="feature__title">{{ feature.title }}</h3>
+          <p class="feature__text">{{ feature.text }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="guarantee-title" data-reveal>
+  <div class="wrap wrap--narrow">
+    <div class="guarantee card card--pad">
+      <span class="guarantee__icon"><svg class="icon" aria-hidden="true"><use href="#i-award"></use></svg></span>
+      <div>
+        <h2 class="guarantee__title" id="guarantee-title">The on-time guarantee</h2>
+        <p class="guarantee__text">
+          Every booking gets a two-hour arrival window. If the setup is not finished by the end of it,
+          25% comes off that booking automatically. No form, no phone call. It applied to 1.4% of
+          bookings last quarter, and we would rather that number keep falling than keep the money.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section--ivory" aria-labelledby="hiw-faq-title" data-reveal>
+  <div class="wrap wrap--narrow">
+    {% include "core/partials/_section_head.html" with eyebrow="Questions" title_id="hiw-faq-title" title="Everything else people ask" centered=1 %}
+    <div class="faq-list" data-faq-group>
+      {% for faq in faqs %}
+        {% include "core/partials/_faq_item.html" with faq=faq index=forloop.counter %}
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section section--teal band-cta" data-reveal>
+  <div class="wrap band-cta__inner">
+    <div>
+      <h2 class="band-cta__title">Ready when you are</h2>
+      <p class="band-cta__text">Pick an occasion and see what is available in {{ active_city }} this week.</p>
+    </div>
+    <a class="btn btn--gold btn--lg" href="{% url 'core:categories' %}">Browse setups</a>
+  </div>
+</section>
+{% endblock %}

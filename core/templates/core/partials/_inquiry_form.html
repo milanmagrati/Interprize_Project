@@ -1,0 +1,64 @@
+{% comment %}
+Shared enquiry form. Nothing is wired up yet — it posts to itself and the
+CSRF token is already in place for when a real view handles it.
+
+    {% include "core/partials/_inquiry_form.html" with full=1 occasions=occasions %}
+{% endcomment %}
+<form class="form{% if full %} form--full{% endif %}" method="post" action="" novalidate>
+  {% csrf_token %}
+  <div class="form__grid">
+    <label class="field">
+      <span class="field__label">Your name</span>
+      <input type="text" name="name" autocomplete="name" placeholder="Ananya Raghavan" required>
+    </label>
+
+    <label class="field">
+      <span class="field__label">Phone</span>
+      <input type="tel" name="phone" autocomplete="tel" placeholder="98765 43210" required>
+    </label>
+
+    {% if full %}
+      <label class="field">
+        <span class="field__label">Email</span>
+        <input type="email" name="email" autocomplete="email" placeholder="you@example.com">
+      </label>
+    {% endif %}
+
+    <label class="field">
+      <span class="field__label">City</span>
+      <input type="text" name="city" list="city-options" placeholder="{{ active_city }}" autocomplete="address-level2" required>
+    </label>
+
+    {% if full %}
+      <label class="field">
+        <span class="field__label">Occasion</span>
+        <select name="occasion">
+          <option value="">Choose an occasion</option>
+          {% for category in occasions %}<option value="{{ category.slug }}">{{ category.name }}</option>{% endfor %}
+          <option value="other">Something else</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Event date</span>
+        <input type="date" name="event_date">
+      </label>
+    {% endif %}
+
+    <label class="field field--wide">
+      <span class="field__label">What are you planning?</span>
+      <textarea name="message" rows="{% if full %}5{% else %}3{% endif %}" placeholder="A first birthday at home, about 20 guests, evening slot."></textarea>
+    </label>
+  </div>
+
+  <datalist id="city-options">
+    {% for city in cities %}<option value="{{ city.name }}"></option>{% endfor %}
+  </datalist>
+
+  <div class="form__foot">
+    <button class="btn btn--accent" type="submit">
+      Send enquiry <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+    </button>
+    <p class="form__note">We reply within an hour, 9 AM to 11 PM. No sales calls afterwards.</p>
+  </div>
+</form>

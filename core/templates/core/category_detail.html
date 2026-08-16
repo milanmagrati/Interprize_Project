@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ category.name }} decoration packages &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="cat-banner">
+  <div class="wrap cat-banner__inner">
+    <span class="cat-banner__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg></span>
+    <div class="cat-banner__copy">
+      <h1 class="cat-banner__title">{{ category.name }} decoration</h1>
+      <p class="cat-banner__lead">{{ category.blurb }}</p>
+      <ul class="cat-banner__meta">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg> From &#8377;{{ category.price_from|intcomma }}</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg> Available in {{ active_city }}</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg> Same-day slots until 2 PM</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section listing" aria-labelledby="listing-title">
+  <div class="wrap listing__inner">
+
+    <button class="btn btn--outline filters-open" type="button" data-filters-toggle aria-expanded="false" aria-controls="filters">
+      <svg class="icon" aria-hidden="true"><use href="#i-sliders"></use></svg>
+      Filter and sort
+    </button>
+
+    <div class="filters-scrim" data-filters-scrim hidden></div>
+
+    <aside class="filters" id="filters" aria-label="Filter packages">
+      <div class="filters__head">
+        <h2 class="filters__title">Filters</h2>
+        <button class="icon-button filters__close" type="button" aria-label="Close filters" data-filters-close>
+          <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+        </button>
+      </div>
+
+      {# GET filter form: no CSRF token by design, it would leak the token into the URL. #}
+      <form class="filters__form" method="get" action="">
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Budget</legend>
+          <div class="range">
+            <input type="range" name="max_price" id="max-price"
+                   min="{{ price_floor }}" max="{{ price_ceiling }}" step="100"
+                   value="{{ max_price }}" data-range-input
+                   aria-describedby="max-price-out">
+            <p class="range__out" id="max-price-out">
+              Up to <strong data-range-output>&#8377;{{ max_price|intcomma }}</strong>
+            </p>
+            <p class="range__ends">
+              <span>&#8377;{{ price_floor|intcomma }}</span>
+              <span>&#8377;{{ price_ceiling|intcomma }}</span>
+            </p>
+          </div>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Rating</legend>
+          <label class="radio">
+            <input type="radio" name="rating" value=""{% if not min_rating %} checked{% endif %}>
+            <span>Any rating</span>
+          </label>
+          {% for option in rating_options %}
+            <label class="radio">
+              <input type="radio" name="rating" value="{{ option.value }}"{% if min_rating == option.value %} checked{% endif %}>
+              <span>{{ option.label }}</span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Sort by</legend>
+          <div class="select">
+            <select name="sort" aria-label="Sort packages">
+              {% for option in sort_options %}
+                <option value="{{ option.value }}"{% if sort == option.value %} selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+            <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+          </div>
+        </fieldset>
+
+        <div class="filters__actions">
+          <button class="btn btn--primary btn--block" type="submit">Apply filters</button>
+          <a class="btn btn--ghost btn--block" href="{% url 'core:category_detail' category.slug %}">Clear all</a>
+        </div>
+      </form>
+
+      <div class="filters__aside">
+        <p class="filters__label">Other occasions</p>
+        <ul class="filters__links">
+          {% for other in categories %}
+            {% if other.slug != category.slug %}
+              <li><a href="{% url 'core:category_detail' other.slug %}">{{ other.name }}</a></li>
+            {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+    </aside>
+
+    <div class="listing__main">
+      <div class="listing__bar">
+        <h2 class="listing__count" id="listing-title">
+          {{ result_count }} setup{{ result_count|pluralize }}
+          {% if result_count != total_count %}<span class="listing__of">of {{ total_count }}</span>{% endif %}
+        </h2>
+        <form class="listing__sort" method="get" action="">
+          {% if min_rating %}<input type="hidden" name="rating" value="{{ min_rating }}">{% endif %}
+          <input type="hidden" name="max_price" value="{{ max_price }}">
+          <label class="sr-only" for="sort-top">Sort packages</label>
+          <div class="select">
+            <select id="sort-top" name="sort" data-autosubmit>
+              {% for option in sort_options %}
+                <option value="{{ option.value }}"{% if sort == option.value %} selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+            <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+          </div>
+          <noscript><button class="btn btn--sm btn--outline" type="submit">Sort</button></noscript>
+        </form>
+      </div>
+
+      {% if packages %}
+        <div class="grid grid--cards grid--listing">
+          {% for package in packages %}
+            {% include "core/partials/_package_card.html" with package=package %}
+          {% endfor %}
+        </div>
+
+        {% include "core/partials/_pagination.html" with page_obj=page_obj querystring=querystring %}
+      {% else %}
+        <div class="empty">
+          <svg class="icon empty__icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <h3 class="empty__title">Nothing matches those filters</h3>
+          <p class="empty__text">Widen the budget or drop the rating filter to see the rest of the {{ category.name|lower }} setups.</p>
+          <a class="btn btn--primary" href="{% url 'core:category_detail' category.slug %}">Clear filters</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="section section--ivory" data-reveal>
+  <div class="wrap wrap--narrow">
+    {% include "core/partials/_section_head.html" with eyebrow="Coverage" title="Booking outside "|add:active_city|add:"?" centered=1 %}
+    <p class="section-lead center">
+      We deliver {{ category.name|lower }} setups in {{ cities|length }} cities. Pick yours from the header,
+      or <a href="{% url 'core:contact' %}">ask about a city</a> that is not listed yet.
+    </p>
+    <div class="chip-row center">
+      {% for city in popular_cities %}
+        <a class="chip chip--sm" href="?city={{ city.name|urlencode }}">{{ city.name }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

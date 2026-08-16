@@ -1,0 +1,76 @@
+{% load static %}
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer__top">
+      <div class="footer__brand">
+        <a class="logo logo--footer" href="{% url 'core:home' %}" aria-label="{{ brand.name }} home">
+          <svg class="logo__mark" viewBox="0 0 44 34" aria-hidden="true" focusable="false">
+            <path class="logo__arc" d="M3 27C3 12.6 11.5 4 22 4s19 8.6 19 23" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <circle class="logo__dot logo__dot--1" cx="9" cy="20" r="3.4"/>
+            <circle class="logo__dot logo__dot--2" cx="22" cy="11" r="4.2"/>
+            <circle class="logo__dot logo__dot--3" cx="35" cy="20" r="3.4"/>
+          </svg>
+          <span class="logo__text"><span class="logo__name">{{ brand.name }}</span></span>
+        </a>
+        <p class="footer__blurb">
+          We decorate about five thousand rooms, terraces and lobbies a month. Fixed prices,
+          verified decorators, and photos of the real setup before we leave.
+        </p>
+        <ul class="footer__contact">
+          <li><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg><a href="tel:{{ brand.phone_href }}">{{ brand.phone }}</a></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-mail"></use></svg><a href="mailto:{{ brand.email }}">{{ brand.email }}</a></li>
+          <li><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg><span>{{ brand.hours }}</span></li>
+        </ul>
+        <ul class="socials">
+          <li><a href="{{ brand.instagram }}" aria-label="{{ brand.name }} on Instagram"><svg class="icon" aria-hidden="true"><use href="#i-instagram"></use></svg></a></li>
+          <li><a href="{{ brand.facebook }}" aria-label="{{ brand.name }} on Facebook"><svg class="icon" aria-hidden="true"><use href="#i-facebook"></use></svg></a></li>
+          <li><a href="{{ brand.twitter }}" aria-label="{{ brand.name }} on X"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></a></li>
+          <li><a href="{{ brand.youtube }}" aria-label="{{ brand.name }} on YouTube"><svg class="icon" aria-hidden="true"><use href="#i-youtube"></use></svg></a></li>
+        </ul>
+      </div>
+
+      <div class="footer__cols">
+        <nav class="footer__col" aria-labelledby="footer-explore">
+          <h2 class="footer__heading" id="footer-explore">Explore</h2>
+          <ul>
+            <li><a href="{% url 'core:home' %}">Home</a></li>
+            <li><a href="{% url 'core:categories' %}">All categories</a></li>
+            <li><a href="{% url 'core:how_it_works' %}">How it works</a></li>
+            <li><a href="{% url 'core:home' %}#pricing">Pricing</a></li>
+            <li><a href="{% url 'core:home' %}#reviews">Reviews</a></li>
+            <li><a href="{% url 'core:contact' %}">Contact</a></li>
+          </ul>
+        </nav>
+
+        <nav class="footer__col" aria-labelledby="footer-occasions">
+          <h2 class="footer__heading" id="footer-occasions">Occasions</h2>
+          <ul>
+            {% for category in categories %}
+              <li><a href="{% url 'core:category_detail' category.slug %}">{{ category.name }}</a></li>
+            {% endfor %}
+          </ul>
+        </nav>
+
+        <nav class="footer__col footer__col--cities" aria-labelledby="footer-cities">
+          <h2 class="footer__heading" id="footer-cities">Cities</h2>
+          <ul>
+            {% for city in popular_cities %}
+              <li><a href="?city={{ city.name|urlencode }}">{{ city.name }}</a></li>
+            {% endfor %}
+            <li><a class="footer__more" href="{% url 'core:home' %}#cities">See all {{ cities|length }} cities</a></li>
+          </ul>
+        </nav>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <p>&copy; {% now "Y" %} {{ brand.name }} Decor Services Pvt. Ltd. All rights reserved.</p>
+      <ul class="footer__legal">
+        <li><a href="{% url 'core:contact' %}">Terms</a></li>
+        <li><a href="{% url 'core:contact' %}">Privacy</a></li>
+        <li><a href="{% url 'core:contact' %}">Cancellation policy</a></li>
+        <li><a href="{% url 'core:contact' %}">Partner with us</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>

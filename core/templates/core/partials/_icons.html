@@ -1,0 +1,184 @@
+{% comment %}
+Inline SVG sprite. Every icon is referenced as:
+
+    <svg class="icon" aria-hidden="true"><use href="#i-star"></use></svg>
+
+Stroke/fill are set on the <symbol> so they inherit through <use>; CSS only
+controls size and colour (via currentColor). Add new icons here, nowhere else.
+{% endcomment %}
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="stroke-defaults"></g>
+  </defs>
+
+  {# --- interface --- #}
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/>
+  </symbol>
+  <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/>
+  </symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="6 9 12 15 18 9"/>
+  </symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="15 18 9 12 15 6"/>
+  </symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="9 18 15 12 9 6"/>
+  </symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="4" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/>
+  </symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/>
+  </symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+    <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+    <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+  </symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="3 6 21 6"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/>
+    <path d="M5.5 6 6.6 20a2 2 0 0 0 2 1.9h6.8a2 2 0 0 0 2-1.9L18.5 6"/>
+    <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+  </symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.6"/><polyline points="21 15.5 16 10.5 5 21"/>
+  </symbol>
+
+  {# --- rating & trust --- #}
+  <symbol id="i-star" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z"/>
+  </symbol>
+  <symbol id="i-star-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z"/>
+  </symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22s8-3.8 8-9.8V5.2L12 2 4 5.2v7c0 6 8 9.8 8 9.8z"/><polyline points="9 12 11.2 14.2 15.4 10"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21.5 11.1V12a9.5 9.5 0 1 1-5.6-8.7"/><polyline points="21.5 4.5 12 14.1 9.2 11.3"/>
+  </symbol>
+  <symbol id="i-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8.5" r="5.8"/><polyline points="8.4 13.6 7.2 22 12 19.2 16.8 22 15.6 13.6"/>
+  </symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9.2"/><polyline points="12 6.4 12 12 15.8 14.2"/>
+  </symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.7-2.6h6.6L17 7h3a2 2 0 0 1 2 2z"/><circle cx="12" cy="13.2" r="3.8"/>
+  </symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9.2"/><line x1="2.8" y1="12" x2="21.2" y2="12"/>
+    <path d="M12 2.8a14 14 0 0 1 0 18.4 14 14 0 0 1 0-18.4z"/>
+  </symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="13.5 2 4 13.6 11.2 13.6 10.5 22 20 10.4 12.8 10.4"/>
+  </symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.6 13.2 13.2 20.6a2 2 0 0 1-2.8 0l-7-7V3.4h10.2l7.2 7.2a1.9 1.9 0 0 1 0 2.6z"/><circle cx="7.6" cy="7.6" r="1.5"/>
+  </symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 21v-1.8a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V21"/><circle cx="9" cy="7.2" r="3.8"/>
+    <path d="M22 21v-1.8a4 4 0 0 0-3-3.8"/><path d="M16.4 3.6a3.8 3.8 0 0 1 0 7.2"/>
+  </symbol>
+
+  {# --- booking flow --- #}
+  <symbol id="i-map-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 10.4c0 6.3-8 12.4-8 12.4s-8-6.1-8-12.4a8 8 0 0 1 16 0z"/><circle cx="12" cy="10.2" r="2.9"/>
+  </symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="4.8" width="18" height="16.2" rx="2.4"/><line x1="16" y1="2.4" x2="16" y2="7"/>
+    <line x1="8" y1="2.4" x2="8" y2="7"/><line x1="3" y1="10.4" x2="21" y2="10.4"/>
+  </symbol>
+  <symbol id="i-credit-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.2" y="5" width="19.6" height="14" rx="2.4"/><line x1="2.2" y1="10" x2="21.8" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/>
+  </symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.8 6.4h12.4v10.2H1.8z"/><path d="M14.2 9.6h3.6l3.4 3.8v3.2h-7z"/>
+    <circle cx="6" cy="18.4" r="1.9"/><circle cx="17.4" cy="18.4" r="1.9"/>
+  </symbol>
+  <symbol id="i-shopping-bag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.6 2.6 3 6.4V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.4l-2.6-3.8z"/>
+    <line x1="3" y1="6.4" x2="21" y2="6.4"/><path d="M16 10.4a4 4 0 0 1-8 0"/>
+  </symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21.5 16.9v2.8a1.9 1.9 0 0 1-2.1 1.9 18.8 18.8 0 0 1-8.2-2.9 18.5 18.5 0 0 1-5.7-5.7A18.8 18.8 0 0 1 2.6 4.7 1.9 1.9 0 0 1 4.5 2.6h2.8a1.9 1.9 0 0 1 1.9 1.6c.1 1 .4 1.9.7 2.8a1.9 1.9 0 0 1-.4 2L8.3 10.2a15 15 0 0 0 5.5 5.5l1.2-1.2a1.9 1.9 0 0 1 2-.4c.9.3 1.8.6 2.8.7a1.9 1.9 0 0 1 1.7 2.1z"/>
+  </symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.2" y="4.6" width="19.6" height="14.8" rx="2.4"/><polyline points="2.8 6.6 12 13.4 21.2 6.6"/>
+  </symbol>
+  <symbol id="i-message" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 11.6a8.4 8.4 0 0 1-12.6 7.3L3 20.6l1.7-5.2A8.4 8.4 0 1 1 21 11.6z"/>
+  </symbol>
+
+  {# --- occasions --- #}
+  <symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20 12.4 20 21.4 4 21.4 4 12.4"/><rect x="2.2" y="7.6" width="19.6" height="4.8" rx="1.2"/>
+    <line x1="12" y1="21.4" x2="12" y2="7.6"/>
+    <path d="M12 7.6H7.8a2.6 2.6 0 1 1 0-5.2C11 2.4 12 7.6 12 7.6z"/><path d="M12 7.6h4.2a2.6 2.6 0 1 0 0-5.2C13 2.4 12 7.6 12 7.6z"/>
+  </symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.4 5.2a5.2 5.2 0 0 0-7.4 0L12 6.2l-1-1a5.2 5.2 0 0 0-7.4 7.4l1 1L12 21l7.4-7.4 1-1a5.2 5.2 0 0 0 0-7.4z"/>
+  </symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17.8 19H7a4.6 4.6 0 0 1-.5-9.2 6.4 6.4 0 0 1 12.2 1.7A3.6 3.6 0 0 1 17.8 19z"/>
+  </symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 2.8 12.9 7.5 17.6 9.4 12.9 11.3 11 16 9.1 11.3 4.4 9.4 9.1 7.5z"/>
+    <path d="M18.4 14.6l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>
+  </symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22c4 0 7-2.7 7-6.6 0-4-3.1-6-4.6-9.6-1 2.2-2 3.2-3.5 4.2-1.5-1-2-3-2-5C6.4 7 5 10.1 5 13.6 5 19 8 22 12 22z"/>
+  </symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.8 10.6 12 2.8l9.2 7.8"/><path d="M5.2 9.4V21h13.6V9.4"/><path d="M9.8 21v-6h4.4v6"/>
+  </symbol>
+  <symbol id="i-briefcase" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.2" y="7.2" width="19.6" height="13.6" rx="2.2"/><path d="M15.8 20.8V5.2a2 2 0 0 0-2-2h-3.6a2 2 0 0 0-2 2v15.6"/>
+  </symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4.2"/>
+    <line x1="12" y1="1.6" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22.4"/>
+    <line x1="4.2" y1="4.2" x2="5.9" y2="5.9"/><line x1="18.1" y1="18.1" x2="19.8" y2="19.8"/>
+    <line x1="1.6" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22.4" y2="12"/>
+    <line x1="4.2" y1="19.8" x2="5.9" y2="18.1"/><line x1="18.1" y1="5.9" x2="19.8" y2="4.2"/>
+  </symbol>
+
+  {# --- flourishes & social --- #}
+  <symbol id="i-quote" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M7.6 5.4C4.9 5.4 3 7.6 3 10.4c0 2.5 1.7 4.3 4 4.3.4 0 .8 0 1.1-.2-.6 2-2.2 3.5-4.3 4.1l.7 2c4.2-1.1 7.1-4.8 7.1-9.2 0-3.6-1.8-6-4-6zm9.2 0c-2.7 0-4.6 2.2-4.6 5 0 2.5 1.7 4.3 4 4.3.4 0 .8 0 1.1-.2-.6 2-2.2 3.5-4.3 4.1l.7 2c4.2-1.1 7.1-4.8 7.1-9.2 0-3.6-1.8-6-4-6z"/>
+  </symbol>
+  <symbol id="i-balloon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2.4c3.4 0 6 2.8 6 6.4 0 4.2-3.4 7.6-6 7.6S6 13 6 8.8c0-3.6 2.6-6.4 6-6.4z"/>
+    <path d="M12 16.4v1.4"/><path d="M12 17.8c-1.2 1-1.2 2.2 0 3.2"/>
+  </symbol>
+  <symbol id="i-instagram" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5.2"/><circle cx="12" cy="12" r="4"/><line x1="17.4" y1="6.6" x2="17.42" y2="6.6"/>
+  </symbol>
+  <symbol id="i-facebook" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17.4 2.6h-2.8a4.8 4.8 0 0 0-4.8 4.8v2.8H6.6v4h3.2v8.2h4v-8.2h3.2l.8-4h-4V7.4a1 1 0 0 1 1-1h2.6z"/>
+  </symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M17.4 3h3.2l-7 8 8.2 10.9h-6.4l-5-6.6-5.8 6.6H1.4l7.5-8.6L1 3h6.6l4.5 6zM16.3 20h1.8L7.8 4.8H5.9z"/>
+  </symbol>
+  <symbol id="i-youtube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22.2 7.6a2.7 2.7 0 0 0-1.9-1.9C18.6 5.2 12 5.2 12 5.2s-6.6 0-8.3.5A2.7 2.7 0 0 0 1.8 7.6 28 28 0 0 0 1.4 12a28 28 0 0 0 .4 4.4 2.7 2.7 0 0 0 1.9 1.9c1.7.5 8.3.5 8.3.5s6.6 0 8.3-.5a2.7 2.7 0 0 0 1.9-1.9 28 28 0 0 0 .4-4.4 28 28 0 0 0-.4-4.4z"/>
+    <polygon points="9.9 15.2 15.4 12 9.9 8.8"/>
+  </symbol>
+  <symbol id="i-whatsapp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 11.6a8.4 8.4 0 0 1-12.6 7.3L3 20.6l1.7-5.2A8.4 8.4 0 1 1 21 11.6z"/>
+    <path d="M8.9 9.2c.2-.4.4-.4.6-.4h.5c.2 0 .4 0 .6.5l.7 1.5c.1.2 0 .4-.1.5l-.4.5c-.1.2-.2.3 0 .5.3.5.8 1.2 1.4 1.6.6.5 1.1.6 1.4.7.2 0 .3 0 .5-.2l.5-.6c.1-.2.3-.2.5-.1l1.5.7c.2.1.3.2.3.4 0 .3-.1.8-.4 1.1-.3.3-.9.5-1.5.5-.9 0-2.5-.6-3.9-2-1.4-1.3-2.2-2.9-2.2-3.9 0-.5.1-1.1.3-1.3z"/>
+  </symbol>
+</svg>
