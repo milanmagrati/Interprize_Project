@@ -1,0 +1,176 @@
+{% comment %}
+Homepage hero slider — images and videos in one deck.
+
+Context:
+  hero_slides  list of dicts from core.sample_data.hero_slides()
+
+Progressive enhancement contract:
+  * Slide 1 is server-rendered active, with a real srcset and fetchpriority.
+  * Slides 2..n carry data-srcset / data-src only. main.js hydrates the active
+    slide and its neighbour, so a five-slide hero costs one image on first
+    paint instead of five. With JS off, slide 1 alone stays visible and the
+    block degrades to a static hero — nothing else is ever needed.
+  * A video slide is an image slide with a <video> layered over the poster
+    picture. The poster carries the srcset (the `poster` attribute cannot), and
+    the video file is fetched only when that slide is about to come up. If
+    autoplay is refused — Low Power Mode, a data saver — the poster simply
+    stays put.
+{% endcomment %}
+
+<section class="hero"
+         aria-roledescription="carousel"
+         aria-label="Featured occasions"
+         data-hero>
+
+  <div class="hero__stage" data-hero-stage>
+    <ul class="hero__slides" id="hero-slides">
+      {% for slide in hero_slides %}
+        <li class="hero-slide hero-slide--{{ slide.tint }}{% if slide.is_first %} is-active{% endif %}"
+            id="hero-slide-{{ slide.id }}"
+            role="group"
+            aria-roledescription="slide"
+            aria-label="{{ forloop.counter }} of {{ hero_slides|length }} &mdash; {{ slide.eyebrow }}"
+            {% if not slide.is_first %}aria-hidden="true"{% endif %}
+            data-hero-slide
+            data-hero-duration="{{ slide.duration }}">
+
+          <div class="hero-slide__media">
+            {% comment %}
+              An uploaded image has no width derivatives, so image_srcset comes
+              back empty and the <source> elements are skipped entirely — the
+              <img> below then serves every viewport.
+            {% endcomment %}
+            <picture>
+              {% if slide.image_srcset %}
+                {% if slide.is_first %}
+                  <source media="(min-width: 700px)" srcset="{{ slide.image_srcset }}" sizes="100vw">
+                  <source srcset="{{ slide.image_tall_srcset }}" sizes="100vw">
+                {% else %}
+                  <source media="(min-width: 700px)" data-srcset="{{ slide.image_srcset }}" sizes="100vw">
+                  <source data-srcset="{{ slide.image_tall_srcset }}" sizes="100vw">
+                {% endif %}
+              {% endif %}
+              <img class="hero-slide__img"
+                   {% if slide.is_first %}
+                     src="{{ slide.image }}"
+                     fetchpriority="high"
+                   {% else %}
+                     src="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='9'%3E%3C/svg%3E"
+                     data-src="{{ slide.image }}"
+                     loading="lazy"
+                   {% endif %}
+                   alt="{{ slide.alt }}"
+                   width="1920" height="1080"
+                   style="object-position: {{ slide.focal }}"
+                   decoding="async">
+            </picture>
+
+            {% if slide.is_video %}
+              {% comment %}
+                muted + playsinline are what make inline autoplay legal on
+                mobile; main.js also sets .muted from script, which WebKit
+                wants before it will honour play().
+              {% endcomment %}
+              <video class="hero-slide__video"
+                     style="object-position: {{ slide.focal }}"
+                     muted loop playsinline preload="none"
+                     disablepictureinpicture
+                     aria-hidden="true" tabindex="-1"
+                     data-hero-video>
+                {% if slide.video_webm %}
+                  <source data-src="{{ slide.video_webm }}" type="video/webm">
+                {% endif %}
+                <source data-src="{{ slide.video_src }}" type="video/mp4">
+              </video>
+            {% endif %}
+          </div>
+
+          <div class="hero-slide__scrim" aria-hidden="true"></div>
+
+          <div class="wrap hero-slide__inner">
+            <div class="hero-slide__copy">
+              <p class="hero-slide__eyebrow">
+                <span class="hero-slide__eyebrow-dot" aria-hidden="true"></span>
+                {{ slide.eyebrow }}
+              </p>
+
+              {% if slide.is_first %}
+                <h1 class="hero-slide__title">{{ slide.heading }}<br><em>{{ slide.heading_accent }}</em></h1>
+              {% else %}
+                <h2 class="hero-slide__title">{{ slide.heading }}<br><em>{{ slide.heading_accent }}</em></h2>
+              {% endif %}
+
+              <p class="hero-slide__lead">{{ slide.description }}</p>
+
+              <div class="hero-slide__actions">
+                <a class="btn btn--gold btn--lg" href="{{ slide.cta_url }}"
+                   {% if not slide.is_first %}tabindex="-1"{% endif %}>
+                  {{ slide.cta_label }}
+                  <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+                </a>
+                {% if slide.cta2_label %}
+                  <a class="btn btn--glass btn--lg" href="{{ slide.cta2_url }}"
+                     {% if not slide.is_first %}tabindex="-1"{% endif %}>
+                    {{ slide.cta2_label }}
+                  </a>
+                {% endif %}
+              </div>
+
+              {% if slide.meta %}
+                <p class="hero-slide__meta">
+                  <svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>
+                  {{ slide.meta }}
+                </p>
+              {% endif %}
+            </div>
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+
+    {% comment %}
+      Controls sit inside the stage so they read as part of the media, but
+      borrow .wrap to stay on the page gutter.
+    {% endcomment %}
+    <div class="hero__controls wrap">
+      <div class="hero__arrows">
+        <button class="hero__arrow" type="button" data-hero-prev
+                aria-controls="hero-slides" aria-label="Previous slide">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg>
+        </button>
+        <button class="hero__arrow" type="button" data-hero-next
+                aria-controls="hero-slides" aria-label="Next slide">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+      </div>
+
+      <div class="hero__dots" data-hero-dots>
+        {% for slide in hero_slides %}
+          <button class="hero__dot{% if slide.is_first %} is-active{% endif %}"
+                  type="button"
+                  data-hero-dot="{{ forloop.counter0 }}"
+                  aria-controls="hero-slides"
+                  {% if slide.is_first %}aria-current="true"{% endif %}>
+            <span class="hero__dot-track" aria-hidden="true">
+              <span class="hero__dot-fill" data-hero-fill></span>
+            </span>
+            <span class="sr-only">Show slide {{ forloop.counter }}: {{ slide.eyebrow }}</span>
+          </button>
+        {% endfor %}
+      </div>
+
+      <div class="hero__meta">
+        <p class="hero__counter" aria-hidden="true">
+          <span data-hero-current>1</span><span class="hero__counter-sep">/</span><span>{{ hero_slides|length }}</span>
+        </p>
+        <button class="hero__toggle" type="button" data-hero-toggle>
+          <svg class="icon hero__toggle-icon hero__toggle-icon--pause" aria-hidden="true"><use href="#i-pause"></use></svg>
+          <svg class="icon hero__toggle-icon hero__toggle-icon--play" aria-hidden="true"><use href="#i-play"></use></svg>
+          <span class="sr-only" data-hero-toggle-label>Pause slideshow</span>
+        </button>
+      </div>
+    </div>
+
+    <p class="sr-only" aria-live="polite" data-hero-live></p>
+  </div>
+</section>

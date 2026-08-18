@@ -1,16 +1,18 @@
 """Context available to every template: brand chrome, nav, city list."""
 
-from . import sample_data
+from . import queries
 
 
 def site_chrome(request):
+    settings_row = queries.brand()
+    cities = queries.cities()
+    default_city = getattr(settings_row, "default_city", "Bengaluru")
     return {
-        "brand": sample_data.BRAND,
-        "nav_links": sample_data.NAV_LINKS,
-        "cities": sample_data.CITIES,
-        "popular_cities": sample_data.POPULAR_CITIES,
-        "categories": sample_data.CATEGORIES,
-        # Cart badge count. Real implementation reads the session/cart model.
-        "cart_count": len(sample_data.CART_ITEMS),
-        "active_city": request.GET.get("city") or sample_data.DEFAULT_CITY,
+        "brand": settings_row,
+        "nav_links": queries.nav_links(),
+        "cities": cities,
+        "popular_cities": queries.popular_cities(),
+        "categories": queries.categories(),
+        "cart_count": queries.cart_count(),
+        "active_city": request.GET.get("city") or default_city,
     }

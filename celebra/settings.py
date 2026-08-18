@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",  # {{ price|intcomma }} in templates
     "core",
+    "panel",  # the staff control panel at /manage/
 ]
 
 MIDDLEWARE = [
@@ -85,7 +86,30 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Uploads come from signed-in staff only, but a 25 MB ceiling still keeps a
+# mistyped video from filling the disk.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 26_214_400
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5_242_880
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ---------------------------------------------------------------------------
+# Control panel
+# ---------------------------------------------------------------------------
+
+# Where @panel_login_required sends anonymous visitors, and where the panel
+# drops you after signing in or out.
+LOGIN_URL = "/manage/login/"
+LOGIN_REDIRECT_URL = "/manage/"
+LOGOUT_REDIRECT_URL = "/manage/login/"
+
+# Staff sessions last a fortnight but end when the browser closes on a shared
+# machine only if you flip this to True.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
+
+MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"

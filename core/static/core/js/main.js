@@ -18,6 +18,7 @@
      12. Cart steppers and removal
      13. Add-to-cart toast
      14. Auth modal (sign in / sign up) — OTP flow, simulated client-side
+     15. Hero slider (images + autoplaying video)
    ========================================================================== */
 
 (function () {
@@ -991,5 +992,308 @@
     });
 
     updateTriggers(readSession());
+  })();
+
+  /* --------------------------------------------------------------- 15. */
+  (function heroSlider() {
+    var root = $("[data-hero]");
+    if (!root) return;
+
+    var stage = $("[data-hero-stage]", root);
+    var slides = $$("[data-hero-slide]", root);
+    var dots = $$("[data-hero-dot]", root);
+    var prevBtn = $("[data-hero-prev]", root);
+    var nextBtn = $("[data-hero-next]", root);
+    var toggleBtn = $("[data-hero-toggle]", root);
+    var toggleLabel = $("[data-hero-toggle-label]", root);
+    var currentEl = $("[data-hero-current]", root);
+    var live = $("[data-hero-live]", root);
+    var controls = $(".hero__controls", root);
+    if (!stage || !slides.length) return;
+
+    var DEFAULT_DURATION = 6000;
+    var SWIPE_THRESHOLD = 45;
+
+    var index = 0;
+    slides.forEach(function (slide, i) {
+      if (slide.classList.contains("is-active")) index = i;
+    });
+
+    var timer = null;
+    var offscreen = false;
+    var focusHeld = false;
+    // Reduced motion opens paused rather than disabled: the reader can still
+    // press play, they just do not get movement they did not ask for.
+    var playing = !reducedMotion.matches;
+    var everPlayed = playing;
+
+    // A one-slide deck is a static hero. Hydrate it and drop the chrome.
+    if (slides.length < 2) {
+      hydrate(slides[index]);
+      if (controls) controls.hidden = true;
+      startVideoWhenLoaded(slides[index]);
+      return;
+    }
+
+    function durationOf(slide) {
+      return parseInt(slide.getAttribute("data-hero-duration"), 10) || DEFAULT_DURATION;
+    }
+
+    function videoOf(slide) { return $("[data-hero-video]", slide); }
+
+    function running() {
+      return playing && !offscreen && !focusHeld && !document.hidden;
+    }
+
+    /* -- lazy media ------------------------------------------------------- */
+
+    /* Slides past the first ship with data-srcset / data-src only, so the page
+       loads one hero frame instead of five. Sources are filled before the img
+       so the <picture> picks the right one the first time it evaluates. */
+    function hydrate(slide) {
+      if (!slide || slide.getAttribute("data-hero-ready") === "1") return;
+      slide.setAttribute("data-hero-ready", "1");
+
+      $$("picture source[data-srcset]", slide).forEach(function (source) {
+        source.setAttribute("srcset", source.getAttribute("data-srcset"));
+        source.removeAttribute("data-srcset");
+      });
+
+      var img = $(".hero-slide__img[data-src]", slide);
+      if (!img) return;
+      img.removeAttribute("loading");
+      img.setAttribute("src", img.getAttribute("data-src"));
+      img.removeAttribute("data-src");
+    }
+
+    /* The video file is only fetched when its slide is about to be seen. */
+    function hydrateVideo(slide) {
+      var video = videoOf(slide);
+      if (!video) return null;
+      if (video.getAttribute("data-hero-ready") === "1") return video;
+      video.setAttribute("data-hero-ready", "1");
+
+      $$("source[data-src]", video).forEach(function (source) {
+        source.setAttribute("src", source.getAttribute("data-src"));
+        source.removeAttribute("data-src");
+      });
+      // WebKit checks the property, not the attribute, before allowing autoplay.
+      video.muted = true;
+      video.load();
+      return video;
+    }
+
+    function playVideo(slide) {
+      var video = hydrateVideo(slide);
+      if (!video) return;
+      video.muted = true;
+
+      var attempt = video.play();
+      if (!attempt || !attempt.then) {
+        slide.classList.add("is-playing");
+        return;
+      }
+      attempt.then(function () {
+        slide.classList.add("is-playing");
+      }).catch(function () {
+        // Autoplay refused — Low Power Mode, a data saver, a strict setting.
+        // The poster frame is already underneath, so the slide still works.
+        slide.classList.remove("is-playing");
+      });
+    }
+
+    function stopVideo(slide) {
+      var video = videoOf(slide);
+      if (!video) return;
+      slide.classList.remove("is-playing");
+      video.pause();
+      try { video.currentTime = 0; } catch (error) { /* not seekable yet */ }
+    }
+
+    /* Starting a video competes with the first hero image for bandwidth, so
+       the opening slide waits for load. Later slides are already past that. */
+    function startVideoWhenLoaded(slide) {
+      if (!videoOf(slide) || !playing) return;
+      var begin = function () {
+        if (slides[index] === slide && running()) playVideo(slide);
+      };
+      if (document.readyState === "complete") begin();
+      else window.addEventListener("load", begin, { once: true });
+    }
+
+    /* -- state ------------------------------------------------------------ */
+
+    function setInteractive(slide, on) {
+      $$("a, button", slide).forEach(function (el) {
+        if (on) el.removeAttribute("tabindex"); else el.setAttribute("tabindex", "-1");
+      });
+    }
+
+    function paint() {
+      dots.forEach(function (dot, i) {
+        dot.classList.toggle("is-active", i === index);
+        if (i === index) dot.setAttribute("aria-current", "true");
+        else dot.removeAttribute("aria-current");
+      });
+      if (currentEl) currentEl.textContent = index + 1;
+      if (toggleLabel) toggleLabel.textContent = playing ? "Pause slideshow" : "Play slideshow";
+      root.classList.toggle("is-paused", !playing);
+      root.classList.toggle("is-halted", !running());
+      root.classList.toggle("is-static", !everPlayed);
+    }
+
+    /* The progress bar is a CSS animation; restarting it means clearing the
+       property, forcing a reflow, then handing it back. */
+    function restartProgress() {
+      var dot = dots[index];
+      if (!dot) return;
+      var fill = $("[data-hero-fill]", dot);
+      if (!fill) return;
+      dot.style.setProperty("--hero-progress", durationOf(slides[index]) + "ms");
+      fill.style.animation = "none";
+      void fill.offsetWidth;
+      fill.style.animation = "";
+    }
+
+    function schedule() {
+      window.clearTimeout(timer);
+      timer = null;
+      paint();
+      if (!running()) return;
+      restartProgress();
+      timer = window.setTimeout(function () { show(index + 1); }, durationOf(slides[index]));
+    }
+
+    /* `fromUser` distinguishes an arrow/dot/swipe/key from the autoplay tick.
+       Only the former is announced — a live region firing every six seconds
+       would talk over whatever else a screen reader is reading. */
+    function show(target, fromUser) {
+      var count = slides.length;
+      var next = ((target % count) + count) % count;
+      if (next === index) return;
+
+      var outgoing = slides[index];
+      var incoming = slides[next];
+
+      hydrate(incoming);
+
+      outgoing.classList.remove("is-active");
+      outgoing.setAttribute("aria-hidden", "true");
+      setInteractive(outgoing, false);
+      stopVideo(outgoing);
+
+      index = next;
+      incoming.classList.add("is-active");
+      incoming.removeAttribute("aria-hidden");
+      setInteractive(incoming, true);
+      if (running()) playVideo(incoming);
+
+      // One slide of runway, so the next crossfade never waits on a download.
+      hydrate(slides[(index + 1) % count]);
+      if (fromUser && live) {
+        live.textContent = "Slide " + (index + 1) + " of " + count + ": " +
+          (incoming.getAttribute("aria-label") || "").split("—").pop().trim();
+      }
+      schedule();
+    }
+
+    function setPlaying(next) {
+      playing = next;
+      if (playing) everPlayed = true;
+      if (playing) {
+        if (running()) playVideo(slides[index]);
+      } else {
+        var video = videoOf(slides[index]);
+        if (video) video.pause();
+      }
+      schedule();
+    }
+
+    /* -- wiring ----------------------------------------------------------- */
+
+    if (prevBtn) prevBtn.addEventListener("click", function () { show(index - 1, true); });
+    if (nextBtn) nextBtn.addEventListener("click", function () { show(index + 1, true); });
+    if (toggleBtn) toggleBtn.addEventListener("click", function () { setPlaying(!playing); });
+
+    dots.forEach(function (dot) {
+      dot.addEventListener("click", function () {
+        show(parseInt(dot.getAttribute("data-hero-dot"), 10) || 0, true);
+      });
+    });
+
+    root.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowLeft") { event.preventDefault(); show(index - 1, true); }
+      if (event.key === "ArrowRight") { event.preventDefault(); show(index + 1, true); }
+    });
+
+    // A keyboard reader working through the CTAs should not have the slide
+    // change under them, so focus anywhere inside holds the deck still.
+    root.addEventListener("focusin", function (event) {
+      // Clicking an arrow focuses it too, and stopping the deck on every
+      // mouse click would be a trap — only a visible focus ring counts.
+      var keyboard = true;
+      try { keyboard = event.target.matches(":focus-visible"); } catch (error) { /* older engine */ }
+      if (!keyboard) return;
+      focusHeld = true;
+      schedule();
+    });
+    root.addEventListener("focusout", function (event) {
+      if (root.contains(event.relatedTarget)) return;
+      focusHeld = false;
+      schedule();
+    });
+
+    document.addEventListener("visibilitychange", function () {
+      var video = videoOf(slides[index]);
+      if (document.hidden && video) video.pause();
+      else if (!document.hidden && running()) playVideo(slides[index]);
+      schedule();
+    });
+
+    if ("IntersectionObserver" in window) {
+      var observer = new IntersectionObserver(function (entries) {
+        offscreen = !entries[0].isIntersecting;
+        var video = videoOf(slides[index]);
+        if (offscreen) { if (video) video.pause(); }
+        else if (running()) playVideo(slides[index]);
+        schedule();
+      }, { threshold: 0.2 });
+      observer.observe(root);
+    }
+
+    if (reducedMotion.addEventListener) {
+      reducedMotion.addEventListener("change", function (event) {
+        if (event.matches && playing) setPlaying(false);
+      });
+    }
+
+    /* Swipe. Vertical drags are left alone so the page still scrolls. */
+    var startX = null;
+    var startY = null;
+
+    stage.addEventListener("pointerdown", function (event) {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (event.target.closest && event.target.closest("a, button")) return;
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+    stage.addEventListener("pointerup", function (event) {
+      if (startX === null) return;
+      var dx = event.clientX - startX;
+      var dy = event.clientY - startY;
+      startX = null;
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+        show(index + (dx < 0 ? 1 : -1), true);
+      }
+    });
+    stage.addEventListener("pointercancel", function () { startX = null; });
+
+    /* -- go --------------------------------------------------------------- */
+
+    hydrate(slides[index]);
+    hydrate(slides[(index + 1) % slides.length]);
+    setInteractive(slides[index], true);
+    startVideoWhenLoaded(slides[index]);
+    schedule();
   })();
 })();

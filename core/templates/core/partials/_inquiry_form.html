@@ -1,10 +1,11 @@
 {% comment %}
-Shared enquiry form. Nothing is wired up yet — it posts to itself and the
-CSRF token is already in place for when a real view handles it.
+Shared enquiry form. Posts to whichever page it sits on; `core.views
+.handle_enquiry` validates it, saves an Enquiry and redirects back here, so the
+message appears in the control panel's inbox.
 
     {% include "core/partials/_inquiry_form.html" with full=1 occasions=occasions %}
 {% endcomment %}
-<form class="form{% if full %} form--full{% endif %}" method="post" action="" novalidate>
+<form class="form{% if full %} form--full{% endif %}" id="enquiry" method="post" action="" novalidate>
   {% csrf_token %}
   <div class="form__grid">
     <label class="field">

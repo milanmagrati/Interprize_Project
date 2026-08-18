@@ -1,0 +1,74 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block subheading %}
+  <p class="topbar__sub">Every create, edit and delete made through this panel.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <form class="filters" method="get" data-autosubmit>
+    <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+    <label class="filters__one">
+      <span class="sr-only">Person</span>
+      <select name="user" data-submit>
+        <option value="">Everyone</option>
+        {% for person in people %}
+          <option value="{{ person.user_id }}"{% if selected_user == person.user_id|stringformat:"s" %} selected{% endif %}>
+            {{ person.display_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filters__one">
+      <span class="sr-only">Action</span>
+      <select name="action" data-submit>
+        <option value="">Any action</option>
+        {% for value, label in actions %}
+          <option value="{{ value }}"{% if selected_action == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if selected_user or selected_action %}
+      <a class="filters__reset" href="{% url 'panel:activity' %}">Clear</a>
+    {% endif %}
+    <noscript><button class="btn btn--ghost btn--sm" type="submit">Apply</button></noscript>
+  </form>
+
+  {% if rows %}
+    <div class="tablewrap">
+      <table class="table">
+        <thead>
+          <tr><th>When</th><th>Who</th><th>Action</th><th>What</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+          {% for entry in rows %}
+            <tr>
+              <td>
+                <span class="cell__main">{{ entry.created_at|date:"j M Y" }}</span>
+                <span class="cell__hint">{{ entry.created_at|date:"H:i" }}</span>
+              </td>
+              <td><span class="cell__main">{{ entry.user|default:"— removed —" }}</span></td>
+              <td><span class="pill pill--{{ entry.action|action_tone }}">{{ entry.get_action_display }}</span></td>
+              <td>
+                <span class="cell__main">{{ entry.model_label }}</span>
+                {% if entry.object_label %}<span class="cell__hint">{{ entry.object_label|excerpt:60 }}</span>{% endif %}
+              </td>
+              <td><span class="cell__excerpt">{{ entry.detail|default:"—" }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% include "panel/partials/_pagination.html" %}
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><svg class="icon"><use href="#p-activity"></use></svg></span>
+      <h2>Nothing logged</h2>
+      <p>Changes made through the panel will appear here.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

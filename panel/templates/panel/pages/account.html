@@ -1,0 +1,89 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block content %}
+<div class="page page--form">
+  <div class="form__body">
+    <div class="form__main">
+
+      <form class="card" method="post" novalidate>
+        {% csrf_token %}
+        <h2 class="card__title">Your details</h2>
+        <div class="grid">
+          {% for bound in form %}{% field bound %}{% endfor %}
+        </div>
+        <button class="btn btn--primary" type="submit" name="save_profile">
+          <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Save
+        </button>
+      </form>
+
+      <form class="card" method="post" novalidate>
+        {% csrf_token %}
+        <div class="card__head">
+          <h2 class="card__title">Change your password</h2>
+          {% if password_form.rules %}
+            <ul class="rules">
+              {% for rule in password_form.rules %}
+                <li class="rules__item">
+                  <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>{{ rule }}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+        {% if password_form.non_field_errors %}
+          <div class="notice notice--red">
+            <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+            <div>{% for error in password_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+          </div>
+        {% endif %}
+        <div class="grid">
+          {% for bound in password_form %}{% field bound %}{% endfor %}
+        </div>
+        <button class="btn btn--primary" type="submit" name="change_password">
+          <svg class="icon" aria-hidden="true"><use href="#p-key"></use></svg>Change password
+        </button>
+      </form>
+    </div>
+
+    <aside class="form__side">
+      <div class="card">
+        <h2 class="card__title">Access</h2>
+        <div class="whoami">
+          <span class="avatar avatar--lg" aria-hidden="true">{{ profile.initials }}</span>
+          <div>
+            <strong>{{ profile.display_name }}</strong>
+            <span class="pill pill--{{ profile.role|role_tone }}">{{ profile.role|capfirst }}</span>
+          </div>
+        </div>
+        <p class="card__note">{{ profile.get_role_display }}</p>
+        <dl class="meta">
+          <dt>Username</dt><dd>{{ profile.user.username }}</dd>
+          <dt>Joined</dt><dd>{{ profile.created_at|date:"j M Y" }}</dd>
+          <dt>Last seen</dt><dd>{{ profile.last_seen|timesince|default:"now" }} ago</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h2 class="card__title">What you changed</h2>
+        {% if recent %}
+          <ul class="feed">
+            {% for entry in recent %}
+              <li>
+                <span class="pill pill--{{ entry.action|action_tone }}">{{ entry.get_action_display }}</span>
+                <span class="feed__text">
+                  <strong>{{ entry.model_label }}</strong>
+                  {% if entry.object_label %}<span>{{ entry.object_label|excerpt:40 }}</span>{% endif %}
+                </span>
+                <time>{{ entry.created_at|timesince }} ago</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="card__note">Nothing yet.</p>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

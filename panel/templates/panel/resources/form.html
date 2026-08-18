@@ -1,0 +1,129 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+Create and edit, one template. Forms that declare `sections()` are rendered as
+grouped cards; anything else falls back to a single column of fields.
+{% endcomment %}
+
+{% block heading %}{{ title }}{% endblock %}
+
+{% block subheading %}
+  <p class="topbar__sub">
+    <a href="{% url 'panel:resource_list' resource.slug %}">{{ resource.plural }}</a>
+    {% if instance %}<span aria-hidden="true">/</span> {{ instance }}{% endif %}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+
+  <form class="form" method="post" enctype="multipart/form-data" novalidate data-dirty-guard>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="notice notice--red">
+        <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+        <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+      </div>
+    {% endif %}
+
+    <div class="form__body">
+      <div class="form__main">
+        {% if sections %}
+          {% for section_title, fields in sections %}
+            <section class="card">
+              <h2 class="card__title">{{ section_title }}</h2>
+              <div class="grid">
+                {% for bound in fields %}{% field bound %}{% endfor %}
+              </div>
+            </section>
+          {% endfor %}
+        {% else %}
+          <section class="card">
+            <div class="grid">
+              {% for bound in form %}{% field bound %}{% endfor %}
+            </div>
+          </section>
+        {% endif %}
+
+        {% if related_images is not None %}
+          <section class="card">
+            <h2 class="card__title">Gallery photos</h2>
+            {% if related_images %}
+              <ul class="minigrid">
+                {% for shot in related_images %}
+                  <li>
+                    <a href="{% url 'panel:resource_edit' 'gallery' shot.pk %}">
+                      <img src="{{ shot.image }}" alt="{{ shot.alt }}" width="160" height="120" loading="lazy">
+                      <span>{{ shot.alt|default:"Untitled" }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="card__note">
+                No photos uploaded, so the detail page falls back to placeholders.
+              </p>
+            {% endif %}
+            <a class="btn btn--ghost btn--sm" href="{% url 'panel:resource_create' 'gallery' %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Add a gallery photo
+            </a>
+          </section>
+        {% endif %}
+      </div>
+
+      <aside class="form__side">
+        {% if not writable %}
+          <div class="card card--sticky">
+            <h2 class="card__title">Read only</h2>
+            <p class="card__note">
+              Your role can open {{ resource.plural|lower }} but not change them.
+              Ask an owner if you need editing rights.
+            </p>
+            <a class="btn btn--quiet btn--block" href="{% url 'panel:resource_list' resource.slug %}">Back to the list</a>
+          </div>
+        {% else %}
+        <div class="card card--sticky">
+          <h2 class="card__title">Save</h2>
+          <div class="stack">
+            <button class="btn btn--primary btn--block" type="submit" name="save">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>
+              {% if instance %}Save changes{% else %}Create {{ resource.label|lower }}{% endif %}
+            </button>
+            <button class="btn btn--ghost btn--block" type="submit" name="save_and_stay">Save and keep editing</button>
+            {% if resource.can_create %}
+              <button class="btn btn--ghost btn--block" type="submit" name="save_and_add">Save and add another</button>
+            {% endif %}
+            <a class="btn btn--quiet btn--block" href="{% url 'panel:resource_list' resource.slug %}">Cancel</a>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if instance %}
+          <div class="card">
+            <h2 class="card__title">This record</h2>
+            <dl class="meta">
+              <dt>ID</dt><dd>#{{ instance.pk }}</dd>
+              {% if instance.created_at %}<dt>Created</dt><dd>{{ instance.created_at|date:"j M Y, H:i" }}</dd>{% endif %}
+              {% if instance.updated_at %}<dt>Updated</dt><dd>{{ instance.updated_at|date:"j M Y, H:i" }}</dd>{% endif %}
+            </dl>
+            <div class="stack">
+              {% if preview_url %}
+                <a class="btn btn--ghost btn--block" href="{{ preview_url }}" target="_blank" rel="noopener">
+                  <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>View on the site
+                </a>
+              {% endif %}
+              {% if resource.can_delete and writable %}
+                <a class="btn btn--danger btn--block" href="{% url 'panel:resource_delete' resource.slug instance.pk %}">
+                  <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>Delete
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

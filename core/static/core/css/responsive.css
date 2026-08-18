@@ -27,7 +27,10 @@
    ========================================================================== */
 @media (min-width: 640px) {
   .trust { grid-template-columns: repeat(4, 1fr); }
-  .hero__proof { left: 1rem; bottom: 1rem; }
+
+  .hero { --hero-h: clamp(31rem, calc(72 * var(--hero-vh)), 36rem); }
+  .hero__dot { width: 26px; }
+  .hero__dot.is-active { width: 60px; }
 
   .grid { gap: 1.35rem; }
 
@@ -81,7 +84,15 @@
   .header__signin:hover { border-color: var(--color-primary-300); background: var(--color-surface); }
   .header__signin-label { display: inline; }
 
-  .hero__inner { gap: 3rem; }
+  .hero {
+    --hero-h: clamp(33rem, calc(74 * var(--hero-vh)), 40rem);
+    --hero-controls-space: 6.5rem;
+  }
+  .hero__counter { display: flex; }
+  .hero__arrow,
+  .hero__toggle { width: 44px; height: 44px; }
+  .hero__controls { gap: 1.5rem; }
+
   .searchbar {
     grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
     align-items: end;
@@ -90,9 +101,6 @@
   .searchbar__field--date,
   .searchbar__submit { grid-column: auto; }
   .searchbar__submit { min-height: 62px; padding-inline: 1.5rem; }
-
-  .hero__art { gap: 0.85rem; }
-  .hero__shot--main { aspect-ratio: 3 / 4; }
 
   .page-head__inner {
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
@@ -162,13 +170,13 @@
   .logo__tagline { display: block; }
   .logo__mark { width: 44px; height: 34px; }
 
-  /* hero becomes two columns */
-  .hero__inner {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-    align-items: center;
-    gap: 3.5rem;
+  /* hero: taller deck, and the copy gets room to breathe */
+  .hero {
+    --hero-h: clamp(36rem, calc(82 * var(--hero-vh)), 46rem);
+    --hero-controls-space: 7rem;
   }
-  .hero__art { gap: 1rem; }
+  .hero-slide__copy { max-width: 42rem; }
+  .hero-slide__lead { margin-bottom: 2.25rem; }
 
   .scroller__arrows { display: flex; }
 
@@ -224,7 +232,6 @@
 @media (min-width: 1280px) {
   .grid { gap: 1.75rem; }
   .grid--cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 285px), 1fr)); }
-  .hero__inner { gap: 4.5rem; }
   .section-lead { font-size: 1.1rem; }
   .listing__inner { grid-template-columns: 288px minmax(0, 1fr); gap: 3rem; }
 }
@@ -234,7 +241,7 @@
    ========================================================================== */
 @media (min-width: 1440px) {
   :root { --wrap-max: 1340px; --gutter: 3rem; }
-  .hero { padding-block: 5rem 6rem; }
+  .hero { --hero-h: clamp(38rem, calc(84 * var(--hero-vh)), 50rem); }
   .scroller__track--cards > .pkg { width: 320px; }
 }
 
@@ -243,7 +250,11 @@
    ========================================================================== */
 @media print {
   .announce, .header, .drawer, .drawer-scrim, .footer, .sticky-bar,
-  .carousel__controls, .filters, .pkg__actions { display: none !important; }
+  .carousel__controls, .filters, .pkg__actions,
+  .hero__controls, .hero-slide__video { display: none !important; }
   body { background: #fff; }
   .section { padding-block: 1rem; }
+  /* Only the slide on screen prints, and at a sane height. */
+  .hero { --hero-h: 18rem; }
+  .hero-slide:not(.is-active) { display: none; }
 }

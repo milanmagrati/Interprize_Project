@@ -1,0 +1,52 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block subheading %}
+  <p class="topbar__sub">Brand details, contact information and checkout numbers. Saved changes show on the public site immediately.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+  <form class="form" method="post" novalidate data-dirty-guard>
+    {% csrf_token %}
+
+    <div class="form__body">
+      <div class="form__main">
+        {% for section_title, fields in sections %}
+          <section class="card">
+            <h2 class="card__title">{{ section_title }}</h2>
+            <div class="grid">
+              {% for bound in fields %}{% field bound %}{% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+      </div>
+
+      <aside class="form__side">
+        <div class="card card--sticky">
+          <h2 class="card__title">Save</h2>
+          <div class="stack">
+            <button class="btn btn--primary btn--block" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Save settings
+            </button>
+            <a class="btn btn--quiet btn--block" href="{% url 'panel:dashboard' %}">Cancel</a>
+          </div>
+          <p class="card__note">
+            Last saved {{ form.instance.updated_at|date:"j M Y, H:i"|default:"never" }}.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">Where these show</h2>
+          <ul class="ticks">
+            <li>Name and tagline — every page title and the footer</li>
+            <li>Phone and email — header, footer and contact page</li>
+            <li>Announcement — the strip above the header</li>
+            <li>Checkout numbers — the cart totals</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

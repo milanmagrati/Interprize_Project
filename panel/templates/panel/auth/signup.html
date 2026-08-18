@@ -1,0 +1,52 @@
+{% extends "panel/auth/base.html" %}
+{% load panel_tags %}
+
+{% block title %}Create an account{% endblock %}
+
+{% block art_quote %}
+  {% if bootstrap %}Set up the panel in one step.{% else %}Join the team.{% endif %}
+{% endblock %}
+
+{% block form %}
+  <h1 class="gate__title">{% if bootstrap %}Create the owner account{% else %}Create your account{% endif %}</h1>
+
+  {% if bootstrap %}
+    <div class="notice notice--green">
+      <svg class="icon" aria-hidden="true"><use href="#p-key"></use></svg>
+      <div>
+        <p><strong>This is the first account.</strong> It becomes the owner — full
+          access, including the ability to invite everybody else. After this, new
+          accounts need an invite code, so this page stops being an open door.</p>
+      </div>
+    </div>
+  {% else %}
+    <p class="gate__lead">
+      The panel already has accounts, so you need an invite code from an owner.
+    </p>
+  {% endif %}
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="notice notice--red">
+        <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+        <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+      </div>
+    {% endif %}
+
+    {% if not bootstrap %}{% field form.invite_code %}{% endif %}
+    {% field form.first_name %}
+    {% field form.email %}
+    {% field form.username %}
+    {% field form.job_title %}
+    {% field form.password1 %}
+    {% field form.password2 %}
+
+    <button class="btn btn--primary btn--block btn--lg" type="submit">
+      {% if bootstrap %}Create the panel{% else %}Create my account{% endif %}
+    </button>
+  </form>
+
+  <p class="gate__alt">Already have an account? <a href="{% url 'panel:login' %}">Sign in</a>.</p>
+{% endblock %}

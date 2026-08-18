@@ -1,0 +1,48 @@
+{% extends "panel/base.html" %}
+
+{% block subheading %}
+  <p class="topbar__sub">
+    Everything uploaded through the panel, and what is using it.
+    Files are attached to a record, so replace one by editing that record.
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+  {% if items %}
+    <ul class="medialist">
+      {% for item in items %}
+        <li class="mediacard">
+          <a class="mediacard__frame" href="{{ item.url_to }}">
+            {% if item.is_video %}
+              <span class="mediacard__video" aria-hidden="true">
+                <svg class="icon"><use href="#p-slides"></use></svg>
+              </span>
+            {% else %}
+              <img src="{{ item.url }}" alt="" loading="lazy" decoding="async">
+            {% endif %}
+          </a>
+          <div class="mediacard__body">
+            <span class="pill pill--grey">{{ item.kind }}</span>
+            <strong>{{ item.used_by }}</strong>
+            <span class="mediacard__file">{{ item.name }}</span>
+          </div>
+          <a class="mediacard__open" href="{{ item.url }}" target="_blank" rel="noopener" title="Open the file">
+            <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true"><svg class="icon"><use href="#p-image"></use></svg></span>
+      <h2>No uploads yet</h2>
+      <p>
+        Everything is currently using placeholder pictures. Upload a photo on a
+        package, an occasion or a hero slide and it will be listed here.
+      </p>
+      <a class="btn btn--primary" href="{% url 'panel:resource_list' 'packages' %}">Go to packages</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

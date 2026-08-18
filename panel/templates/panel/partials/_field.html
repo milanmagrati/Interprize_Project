@@ -1,0 +1,47 @@
+{% comment %}
+One form field. Checkboxes get the switch treatment, file inputs get a preview
+of whatever is already stored, everything else is a labelled control.
+{% endcomment %}
+<div class="field{% if wide %} field--wide{% endif %}{% if field.errors %} field--error{% endif %}"
+     data-field="{{ field.name }}">
+
+  {% if field.field.widget.input_type == "checkbox" %}
+    <label class="switch-row">
+      {{ field }}
+      <span class="switch__track" aria-hidden="true"><span class="switch__dot"></span></span>
+      <span class="switch-row__text">
+        <strong>{{ field.label }}</strong>
+        {% if field.help_text %}<span>{{ field.help_text }}</span>{% endif %}
+      </span>
+    </label>
+
+  {% else %}
+    <label class="field__label" for="{{ field.id_for_label }}">
+      {{ field.label }}{% if field.field.required %} <span class="field__req" title="Required">*</span>{% endif %}
+    </label>
+
+    {% if field.name == "image_file" or field.name == "video_file" %}
+      {% with current=field.value %}
+        {% if current %}
+          <div class="field__current">
+            {% if field.name == "video_file" %}
+              <svg class="icon" aria-hidden="true"><use href="#p-slides"></use></svg>
+            {% else %}
+              <img src="{{ current.url|default:current }}" alt="" width="72" height="54" loading="lazy">
+            {% endif %}
+            <span>Currently: {{ current }}</span>
+          </div>
+        {% endif %}
+      {% endwith %}
+    {% endif %}
+
+    {{ field }}
+    {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
+  {% endif %}
+
+  {% for error in field.errors %}
+    <p class="field__err">
+      <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>{{ error }}
+    </p>
+  {% endfor %}
+</div>

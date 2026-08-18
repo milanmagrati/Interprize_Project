@@ -1,0 +1,38 @@
+{% extends "panel/auth/base.html" %}
+{% load panel_tags %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block form %}
+  <h1 class="gate__title">Sign in</h1>
+  <p class="gate__lead">Manage the catalogue, the homepage and every booking.</p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+
+    {% if form.non_field_errors %}
+      <div class="notice notice--red">
+        <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+        <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+      </div>
+    {% endif %}
+
+    {% field form.username %}
+    {% field form.password %}
+
+    <button class="btn btn--primary btn--block btn--lg" type="submit">
+      Sign in
+      <svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+    </button>
+  </form>
+
+  <p class="gate__alt">
+    {% if has_accounts %}
+      Been invited? <a href="{% url 'panel:signup' %}">Create your account</a>.
+    {% else %}
+      Nobody has set this panel up yet.
+      <a href="{% url 'panel:signup' %}">Create the owner account</a>.
+    {% endif %}
+  </p>
+{% endblock %}

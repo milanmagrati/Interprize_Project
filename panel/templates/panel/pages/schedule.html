@@ -1,0 +1,87 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block subheading %}
+  <p class="topbar__sub">
+    {{ range_start|date:"j M" }} &ndash; {{ range_end|date:"j M Y" }} ·
+    {{ booked }} job{{ booked|pluralize }} worth {{ value|money }}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="toolbar">
+    <div class="weeknav">
+      <a class="btn btn--ghost btn--sm" href="?w={{ offset|add:'-2' }}">
+        <svg class="icon" aria-hidden="true"><use href="#p-chevron-left"></use></svg>Earlier
+      </a>
+      <a class="btn btn--ghost btn--sm" href="{% url 'panel:schedule' %}">This week</a>
+      <a class="btn btn--ghost btn--sm" href="?w={{ offset|add:'2' }}">
+        Later<svg class="icon" aria-hidden="true"><use href="#p-chevron-right"></use></svg>
+      </a>
+    </div>
+    <div class="toolbar__actions">
+      {% if can_write %}
+        <a class="btn btn--primary" href="{% url 'panel:resource_create' 'bookings' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New booking
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="calwrap">
+    <table class="cal">
+      <caption class="sr-only">
+        Bookings from {{ range_start|date:"j F Y" }} to {{ range_end|date:"j F Y" }}
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col"><abbr title="Monday">Mon</abbr></th>
+          <th scope="col"><abbr title="Tuesday">Tue</abbr></th>
+          <th scope="col"><abbr title="Wednesday">Wed</abbr></th>
+          <th scope="col"><abbr title="Thursday">Thu</abbr></th>
+          <th scope="col"><abbr title="Friday">Fri</abbr></th>
+          <th scope="col"><abbr title="Saturday">Sat</abbr></th>
+          <th scope="col"><abbr title="Sunday">Sun</abbr></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for week in weeks %}
+          <tr>
+            {% for day in week %}
+              <td class="cal__day{% if day.is_today %} is-today{% endif %}{% if day.is_past %} is-past{% endif %}{% if day.is_weekend %} is-weekend{% endif %}">
+                <p class="cal__date">
+                  <span>{{ day.date|date:"j" }}</span>
+                  {% if day.date|date:"j" == "1" %}<em>{{ day.date|date:"M" }}</em>{% endif %}
+                  {% if day.value %}<b class="cal__value">{{ day.value|money }}</b>{% endif %}
+                </p>
+                <ul class="cal__jobs">
+                  {% for job in day.jobs %}
+                    <li>
+                      <a class="cal__job cal__job--{{ job.status|status_tone }}"
+                         href="{% url 'panel:resource_edit' 'bookings' job.pk %}"
+                         title="{{ job.reference }} · {{ job.customer_name }} · {{ job.get_status_display }}{% if job.decorator %} · {{ job.decorator }}{% endif %}">
+                        <span class="cal__job-time">{{ job.time_slot|default:"—"|truncatechars:9 }}</span>
+                        <span class="cal__job-who">{{ job.customer_name }}</span>
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="legend">
+    <span class="legend__one"><i class="dot dot--amber"></i>New</span>
+    <span class="legend__one"><i class="dot dot--blue"></i>Confirmed</span>
+    <span class="legend__one"><i class="dot dot--violet"></i>Assigned</span>
+    <span class="legend__one"><i class="dot dot--green"></i>Completed</span>
+    <span class="legend__one"><i class="dot dot--red"></i>Cancelled</span>
+  </p>
+</div>
+{% endblock %}

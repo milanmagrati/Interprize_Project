@@ -24,7 +24,29 @@
 
   <a class="skip-link" href="#main">Skip to content</a>
 
+  {% if brand.maintenance_mode %}
+    {# Switched on from the panel under Site settings. #}
+    <p class="holding" role="status">
+      <svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>
+      We&rsquo;re updating the site right now. Bookings may be paused for a few
+      minutes &mdash; call <a href="tel:{{ brand.phone_href }}">{{ brand.phone }}</a> and we&rsquo;ll sort it out.
+    </p>
+  {% endif %}
+
   {% include "core/partials/_navbar.html" %}
+
+  {% if messages %}
+    <div class="flashes wrap" role="status" aria-live="polite">
+      {% for message in messages %}
+        <p class="flash flash--{{ message.tags|default:'info' }}">
+          <svg class="icon" aria-hidden="true">
+            <use href="#i-{% if 'error' in message.tags %}alert-circle{% else %}check-circle{% endif %}"></use>
+          </svg>
+          {{ message }}
+        </p>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   <main id="main" class="main">
     {% block content %}{% endblock %}

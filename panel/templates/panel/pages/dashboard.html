@@ -1,0 +1,230 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block heading %}Good to see you, {{ profile.display_name|truncatewords:1 }}{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">Here is where the business stands today.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ---------------------------------------------------------------- alerts #}
+  {% if alerts %}
+    <ul class="alerts">
+      {% for alert in alerts %}
+        <li class="alert alert--{{ alert.tone }}">
+          <svg class="icon" aria-hidden="true"><use href="#p-{{ alert.icon }}"></use></svg>
+          <p>{{ alert.text }}</p>
+          <a class="alert__cta" href="{{ alert.url }}">{{ alert.cta }}
+            <svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ kpis #}
+  <ul class="kpis">
+    {% for kpi in kpis %}
+      <li class="kpi kpi--{{ kpi.tone }}">
+        <span class="kpi__icon" aria-hidden="true">
+          <svg class="icon"><use href="#p-{{ kpi.icon }}"></use></svg>
+        </span>
+        <p class="kpi__label">{{ kpi.label }}</p>
+        <p class="kpi__value">{{ kpi.value }}</p>
+        <p class="kpi__foot">
+          {% if kpi.trend.pct is not None %}
+            <span class="trend trend--{{ kpi.trend.direction }}">
+              <svg class="icon" aria-hidden="true">
+                <use href="#p-arrow-{% if kpi.trend.direction == 'down' %}down{% else %}up{% endif %}"></use>
+              </svg>{{ kpi.trend.pct }}%
+            </span>
+          {% endif %}
+          {{ kpi.foot }}
+        </p>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div class="cols cols--2-1">
+
+    {# ----------------------------------------------------------- the chart #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Bookings taken</h2>
+        <p class="card__note">{{ chart_total }} in the last 14 days</p>
+      </div>
+      <div class="chart" role="img"
+           aria-label="Bookings taken per day over the last fourteen days, {{ chart_total }} in total">
+        {% for bar in chart %}
+          <div class="chart__col{% if bar.is_today %} is-today{% endif %}">
+            <span class="chart__bar" style="height: {{ bar.height }}%">
+              <span class="chart__tip">{{ bar.value }} on {{ bar.label }}</span>
+            </span>
+            <span class="chart__x">{{ bar.day|date:"j" }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# --------------------------------------------------------- status mix #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Where jobs stand</h2>
+      </div>
+      <ul class="bars">
+        {% for status in statuses %}
+          <li>
+            <p class="bars__row">
+              <span class="dot dot--{{ status.tone }}" aria-hidden="true"></span>
+              <span class="bars__label">{{ status.label }}</span>
+              <strong>{{ status.count }}</strong>
+            </p>
+            <span class="bars__track">
+              <span class="bars__fill bars__fill--{{ status.tone }}" style="width: {{ status.pct }}%"></span>
+            </span>
+          </li>
+        {% empty %}
+          <li><p class="card__note">No bookings yet.</p></li>
+        {% endfor %}
+      </ul>
+      <a class="card__more" href="{% url 'panel:resource_list' 'bookings' %}">
+        All bookings<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+      </a>
+    </section>
+  </div>
+
+  <div class="cols cols--2-1">
+
+    {# ------------------------------------------------------------- upcoming #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Next out of the door</h2>
+        <a class="card__more" href="{% url 'panel:schedule' %}">
+          Schedule<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+
+      {% if overdue %}
+        <div class="notice notice--red">
+          <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+          <div>
+            <p><strong>{{ overdue|length }} still open past their date.</strong></p>
+            <ul class="ticks">
+              {% for job in overdue %}
+                <li><a href="{% url 'panel:resource_edit' 'bookings' job.pk %}">{{ job.reference }}</a>
+                  — {{ job.customer_name }}, {{ job.event_date|date:"j M" }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if upcoming %}
+        <ul class="joblist">
+          {% for job in upcoming %}
+            <li>
+              <a href="{% url 'panel:resource_edit' 'bookings' job.pk %}">
+                <span class="joblist__day">
+                  <strong>{{ job.event_date|date:"j" }}</strong>
+                  <span>{{ job.event_date|date:"M" }}</span>
+                </span>
+                <span class="joblist__body">
+                  <strong>{{ job.customer_name }}</strong>
+                  <span>{{ job.package.title|default:"Custom setup" }} · {{ job.city|default:"—" }}</span>
+                </span>
+                <span class="joblist__side">
+                  <span class="pill pill--{{ job.status|status_tone }}">{{ job.get_status_display }}</span>
+                  <span class="num">{{ job.amount|money }}</span>
+                </span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="card__note">Nothing booked ahead. A quiet week.</p>
+      {% endif %}
+    </section>
+
+    {# --------------------------------------------------------- top sellers #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Earning the most</h2>
+      </div>
+      {% if top_packages %}
+        <ol class="ranklist">
+          {% for package in top_packages %}
+            <li>
+              <a href="{% url 'panel:resource_edit' 'packages' package.pk %}">
+                <img src="{{ package.image }}" alt="" width="44" height="34" loading="lazy">
+                <span class="ranklist__body">
+                  <strong>{{ package.title }}</strong>
+                  <span>{{ package.jobs }} booking{{ package.jobs|pluralize }}</span>
+                </span>
+                <span class="num">{{ package.earned|money }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="card__note">No completed bookings to rank yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="cols cols--1-1">
+
+    {# ------------------------------------------------------------ enquiries #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Unopened enquiries</h2>
+        <a class="card__more" href="{% url 'panel:resource_list' 'enquiries' %}">
+          All<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+      {% if recent_enquiries %}
+        <ul class="notelist">
+          {% for enquiry in recent_enquiries %}
+            <li>
+              <a href="{% url 'panel:resource_edit' 'enquiries' enquiry.pk %}">
+                <strong>{{ enquiry.name }}</strong>
+                <span>{{ enquiry.message|excerpt:70 }}</span>
+                <time>{{ enquiry.created_at|timesince }} ago</time>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="card__note">Inbox clear.</p>
+      {% endif %}
+    </section>
+
+    {# ------------------------------------------------------------- activity #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Recent changes</h2>
+        <a class="card__more" href="{% url 'panel:activity' %}">
+          Full log<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+      {% if activity %}
+        <ul class="feed">
+          {% for entry in activity %}
+            <li>
+              <span class="pill pill--{{ entry.action|action_tone }}">{{ entry.get_action_display }}</span>
+              <span class="feed__text">
+                <strong>{{ entry.model_label }}</strong>
+                {% if entry.object_label %}<span>{{ entry.object_label|excerpt:44 }}</span>{% endif %}
+              </span>
+              <time>{{ entry.created_at|timesince }} ago</time>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="card__note">Nothing has been edited yet.</p>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

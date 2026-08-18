@@ -1,9 +1,14 @@
 {% load static %}
 <div class="announce">
   <div class="wrap announce__inner">
+    {# Editable in the panel under Site settings; this is the fallback line. #}
     <p class="announce__text">
       <svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>
-      Book before 2 PM for a same-day evening setup in {{ active_city }}.
+      {% if brand.announcement %}
+        {{ brand.announcement }}
+      {% else %}
+        Book before 2 PM for a same-day evening setup in {{ active_city }}.
+      {% endif %}
     </p>
     <a class="announce__phone" href="tel:{{ brand.phone_href }}">
       <svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg>

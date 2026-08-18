@@ -1,0 +1,42 @@
+{% extends "panel/base.html" %}
+
+{% block content %}
+<div class="page page--narrow">
+  <div class="card card--danger">
+    <h2 class="card__title">Delete this {{ resource.label|lower }}?</h2>
+
+    <p class="lead">
+      <strong>{{ instance }}</strong> will be removed. This cannot be undone.
+    </p>
+
+    {% if related %}
+      <div class="notice notice--amber">
+        <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+        <div>
+          <p>Other records point at this one:</p>
+          <ul class="ticks">
+            {% for row in related %}
+              <li>
+                {{ row.count }} {{ row.label|lower }}
+                {% if row.protects %}
+                  — <strong>these block the delete</strong>, move them first
+                {% else %}
+                  — these will be removed with it
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    <form method="post" class="row-actions">
+      {% csrf_token %}
+      <button class="btn btn--danger" type="submit">
+        <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>Yes, delete it
+      </button>
+      <a class="btn btn--ghost" href="{% url 'panel:resource_list' resource.slug %}">Keep it</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

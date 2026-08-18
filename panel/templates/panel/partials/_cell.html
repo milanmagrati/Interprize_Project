@@ -1,0 +1,56 @@
+{% load panel_tags %}{% spaceless %}
+{% comment %}
+One table cell. Every list page renders every column through this, so a new
+column kind is a branch here rather than a change to each list template.
+{% endcomment %}
+
+{% if column.kind == "image" %}
+  <span class="thumb">
+    {% if value %}<img src="{{ value }}" alt="" width="56" height="42" loading="lazy" decoding="async">
+    {% else %}<svg class="icon" aria-hidden="true"><use href="#p-image"></use></svg>{% endif %}
+  </span>
+
+{% elif column.kind == "toggle" %}
+  {% if can_write %}
+    <button class="switch{% if value %} is-on{% endif %}" type="button" role="switch"
+            aria-checked="{{ value|yesno:'true,false' }}"
+            data-toggle="{% url 'panel:resource_toggle' resource.slug row.pk column.name %}"
+            aria-label="{{ column.label }} for {{ row }}">
+      <span class="switch__track" aria-hidden="true"><span class="switch__dot"></span></span>
+    </button>
+  {% else %}
+    <span class="pill pill--{% if value %}green{% else %}grey{% endif %}">{{ value|yesno:"On,Off" }}</span>
+  {% endif %}
+
+{% elif column.kind == "badge" %}
+  <span class="pill pill--{{ tone }}">{{ value|title }}</span>
+
+{% elif column.kind == "money" %}
+  <span class="num">{{ value|money }}</span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% elif column.kind == "rating" %}
+  <span class="rating">
+    <svg class="icon" aria-hidden="true"><use href="#p-star"></use></svg>{{ value }}
+  </span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% elif column.kind == "chip" %}
+  <span class="chip">{{ value }}</span>
+
+{% elif column.kind == "excerpt" %}
+  <span class="cell__excerpt">{{ value|excerpt }}</span>
+
+{% elif column.kind == "date" %}
+  <span class="cell__main">{{ value|date:"D j M Y" }}</span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% elif column.kind == "datetime" %}
+  <span class="cell__main">{{ value|date:"j M, H:i" }}</span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% else %}
+  <span class="cell__main">{{ value|default:"—" }}</span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+{% endif %}
+{% endspaceless %}

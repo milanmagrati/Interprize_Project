@@ -1,0 +1,133 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block subheading %}
+  <p class="topbar__sub">Who can sign in, what they can change, and the invite codes that let new people join.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="cols cols--2-1">
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Accounts</h2>
+        <p class="card__note">{{ profiles|length }} in total</p>
+      </div>
+
+      <div class="tablewrap">
+        <table class="table">
+          <thead>
+            <tr><th>Person</th><th>Role</th><th>Last seen</th><th>State</th><th class="table__end"><span class="sr-only">Actions</span></th></tr>
+          </thead>
+          <tbody>
+            {% for member in profiles %}
+              <tr>
+                <td>
+                  <span class="who">
+                    <span class="avatar" aria-hidden="true">{{ member.initials }}</span>
+                    <span class="cell__stack">
+                      <span class="cell__main">{{ member.display_name }}</span>
+                      <span class="cell__hint">{{ member.job_title|default:member.user.email }}</span>
+                    </span>
+                  </span>
+                </td>
+                <td><span class="pill pill--{{ member.role|role_tone }}">{{ member.role|capfirst }}</span></td>
+                <td>
+                  <span class="cell__main">
+                    {% if member.last_seen %}{{ member.last_seen|timesince }} ago{% else %}Never{% endif %}
+                  </span>
+                </td>
+                <td>
+                  <span class="pill pill--{% if member.user.is_active %}green{% else %}grey{% endif %}">
+                    {{ member.user.is_active|yesno:"Active,Disabled" }}
+                  </span>
+                </td>
+                <td class="table__end">
+                  <a class="icon-btn icon-btn--sm" href="{% url 'panel:staff_edit' member.pk %}" title="Edit access">
+                    <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">What each role can do</h2>
+      <ul class="rolelist">
+        <li><span class="pill pill--violet">Owner</span> Everything, plus staff accounts and invites.</li>
+        <li><span class="pill pill--blue">Admin</span> Everything except staff accounts.</li>
+        <li><span class="pill pill--green">Editor</span> Content and bookings. No settings, cities or coupons.</li>
+        <li><span class="pill pill--grey">Viewer</span> Reads everything, changes nothing.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="cols cols--2-1">
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Invite codes</h2>
+        <p class="card__note">Signup URL: <code>{{ signup_url }}</code></p>
+      </div>
+
+      {% if invites %}
+        <div class="tablewrap">
+          <table class="table">
+            <thead>
+              <tr><th>Code</th><th>Role</th><th>For</th><th>State</th><th class="table__end"><span class="sr-only">Revoke</span></th></tr>
+            </thead>
+            <tbody>
+              {% for invite in invites %}
+                <tr>
+                  <td><code class="code" data-copy="{{ invite.code }}" title="Click to copy">{{ invite.code }}</code></td>
+                  <td><span class="pill pill--{{ invite.role|role_tone }}">{{ invite.role|capfirst }}</span></td>
+                  <td>
+                    <span class="cell__main">{{ invite.note|default:"—" }}</span>
+                    {% if invite.used_by %}<span class="cell__hint">used by {{ invite.used_by }}</span>{% endif %}
+                  </td>
+                  <td>
+                    <span class="pill pill--{% if invite.state == 'open' %}green{% else %}grey{% endif %}">{{ invite.state|capfirst }}</span>
+                  </td>
+                  <td class="table__end">
+                    {% if invite.state == 'open' %}
+                      <form method="post" action="{% url 'panel:invite_delete' invite.pk %}">
+                        {% csrf_token %}
+                        <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit"
+                                data-confirm="Revoke this invite?" title="Revoke">
+                          <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="card__note">No invites yet. Create one and send the code to your colleague.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Invite someone</h2>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="form" value="invite">
+        <div class="grid">
+          {% for bound in invite_form %}{% field bound %}{% endfor %}
+        </div>
+        <button class="btn btn--primary btn--block" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#p-key"></use></svg>Generate a code
+        </button>
+      </form>
+      <p class="card__note">
+        A code works once. Until someone uses it, the signup page turns everyone else away.
+      </p>
+    </section>
+  </div>
+</div>
+{% endblock %}

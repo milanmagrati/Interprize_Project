@@ -1,0 +1,182 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+The one list page. Search, filters, sorting, inline switches, drag ordering,
+bulk actions, CSV export and pagination all come from the Resource declaration,
+so every section of the panel behaves identically.
+{% endcomment %}
+
+{% block subheading %}
+  <p class="topbar__sub">{{ resource.blurb }}</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ------------------------------------------------------------- toolbar #}
+  <div class="toolbar">
+    <form class="toolbar__search" method="get" role="search">
+      {% for key, value in request.GET.items %}
+        {% if key != 'q' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
+      {% endfor %}
+      <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+      <input type="search" name="q" value="{{ q }}" placeholder="Search {{ resource.plural|lower }}…"
+             aria-label="Search {{ resource.plural|lower }}">
+      {% if q %}
+        <a class="toolbar__clear" href="{% querystring q=None %}" aria-label="Clear search">
+          <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+        </a>
+      {% endif %}
+    </form>
+
+    <div class="toolbar__actions">
+      <a class="btn btn--ghost" href="{% url 'panel:resource_export' resource.slug %}?{{ querystring }}">
+        <svg class="icon" aria-hidden="true"><use href="#p-download"></use></svg>Export
+      </a>
+      {% if can_write and resource.can_create %}
+        <a class="btn btn--primary" href="{% url 'panel:resource_create' resource.slug %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>{{ resource.create_label }}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# -------------------------------------------------------------- filters #}
+  {% if filters %}
+    <form class="filters" method="get" data-autosubmit>
+      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+      <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+      {% for filter in filters %}
+        <label class="filters__one">
+          <span class="sr-only">{{ filter.label }}</span>
+          <select name="{{ filter.param }}" data-submit>
+            <option value="">{{ filter.label }}: any</option>
+            {% for value, label in filter.choices %}
+              <option value="{{ value }}"{% if filter.value == value %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      {% endfor %}
+      {% if is_filtered %}
+        <a class="filters__reset" href="{% url 'panel:resource_list' resource.slug %}">Clear all</a>
+      {% endif %}
+      <noscript><button class="btn btn--ghost btn--sm" type="submit">Apply</button></noscript>
+    </form>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- table #}
+  {% if rows %}
+    <form method="post" data-bulk>
+      {% csrf_token %}
+      <input type="hidden" name="querystring" value="{{ querystring }}">
+
+      <div class="bulkbar" data-bulk-bar hidden>
+        <p><strong data-bulk-count>0</strong> selected</p>
+        <select name="action" aria-label="Bulk action">
+          <option value="">Choose an action…</option>
+          {% for action in bulk_actions %}
+            <option value="{{ action.value }}">{{ action.label }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn--primary btn--sm" type="submit"
+                data-confirm="Apply this to the selected rows?">Apply</button>
+        <button class="btn btn--ghost btn--sm" type="button" data-bulk-clear>Cancel</button>
+      </div>
+
+      <div class="tablewrap">
+        <table class="table{% if resource.orderable and can_write %} table--drag{% endif %}"
+               {% if resource.orderable and can_write %}data-sortable="{% url 'panel:resource_reorder' resource.slug %}"{% endif %}>
+          <thead>
+            <tr>
+              <th class="table__check">
+                <input type="checkbox" data-bulk-all aria-label="Select all rows on this page">
+              </th>
+              {% if resource.orderable and can_write %}<th class="table__drag"><span class="sr-only">Reorder</span></th>{% endif %}
+              {% for column in resource.columns %}
+                <th{% if column.align %} class="is-end"{% endif %}>
+                  {% if column.sortable %}
+                    <a class="table__sort is-{% sort_state column.sortable %}" href="{% sort_link column.sortable %}">
+                      {{ column.label }}
+                      <svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg>
+                    </a>
+                  {% else %}{{ column.label }}{% endif %}
+                </th>
+              {% endfor %}
+              <th class="table__end"><span class="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody{% if resource.orderable and can_write %} data-sortable-body{% endif %}>
+            {% for row in rows %}
+              <tr data-id="{{ row.pk }}">
+                <td class="table__check">
+                  <input type="checkbox" name="ids" value="{{ row.pk }}" data-bulk-one
+                         aria-label="Select {{ row }}">
+                </td>
+                {% if resource.orderable and can_write %}
+                  <td class="table__drag">
+                    <span class="drag" data-drag-handle title="Drag to reorder" aria-hidden="true">
+                      <svg class="icon"><use href="#p-drag"></use></svg>
+                    </span>
+                  </td>
+                {% endif %}
+                {% for column in resource.columns %}
+                  <td{% if column.align %} class="is-end"{% endif %}>{% cell row column resource %}</td>
+                {% endfor %}
+                <td class="table__end">
+                  <div class="rowacts">
+                    {% if resource.preview_url and row.get_absolute_url %}
+                      <a class="icon-btn icon-btn--sm" href="{{ row.get_absolute_url }}" target="_blank"
+                         rel="noopener" title="View on the site">
+                        <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
+                      </a>
+                    {% endif %}
+                    {% if can_write %}
+                      <a class="icon-btn icon-btn--sm" href="{% url 'panel:resource_edit' resource.slug row.pk %}" title="Edit">
+                        <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
+                      </a>
+                      {% if resource.can_delete %}
+                        <a class="icon-btn icon-btn--sm icon-btn--danger"
+                           href="{% url 'panel:resource_delete' resource.slug row.pk %}" title="Delete">
+                          <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                        </a>
+                      {% endif %}
+                    {% else %}
+                      <a class="icon-btn icon-btn--sm" href="{% url 'panel:resource_edit' resource.slug row.pk %}" title="Open">
+                        <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
+                      </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+
+    {% include "panel/partials/_pagination.html" %}
+
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true">
+        <svg class="icon"><use href="#p-{{ resource.icon }}"></use></svg>
+      </span>
+      {% if is_filtered %}
+        <h2>Nothing matches that</h2>
+        <p>No {{ resource.plural|lower }} match the current search or filters.</p>
+        <a class="btn btn--ghost" href="{% url 'panel:resource_list' resource.slug %}">Clear the filters</a>
+      {% else %}
+        <h2>No {{ resource.plural|lower }} yet</h2>
+        <p>{{ resource.blurb }}</p>
+        {% if can_write and resource.can_create %}
+          <a class="btn btn--primary" href="{% url 'panel:resource_create' resource.slug %}">
+            <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>{{ resource.create_label }}
+          </a>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

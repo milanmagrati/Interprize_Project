@@ -1,0 +1,229 @@
+{% load static panel_tags %}<!DOCTYPE html>
+<html lang="en" class="no-js" data-theme="{{ panel_theme|default:'light' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}{{ title }}{% endblock %} &middot; Celebra control panel</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static_v 'panel/css/panel.css' %}">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230F6B66'/><path d='M9 20V12l7 5 7-5v8' stroke='%23F5B942' stroke-width='2.4' fill='none' stroke-linejoin='round'/></svg>">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+</head>
+<body class="panel" data-panel>
+  {% include "panel/partials/_icons.html" %}
+
+  <a class="skip-link" href="#panel-main">Skip to content</a>
+
+  <div class="shell">
+
+    {# ------------------------------------------------------------ sidebar #}
+    <aside class="side" id="panel-nav" data-nav>
+      <div class="side__head">
+        <a class="brand" href="{% url 'panel:dashboard' %}">
+          <span class="brand__mark" aria-hidden="true">C</span>
+          <span class="brand__text">
+            <strong>Celebra</strong>
+            <span>Control panel</span>
+          </span>
+        </a>
+        <button class="side__close" type="button" data-nav-close aria-label="Close menu">
+          <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+        </button>
+      </div>
+
+      <nav class="side__nav" aria-label="Sections">
+        <ul class="nav">
+          <li>
+            <a class="nav__link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}"
+               href="{% url 'panel:dashboard' %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-grid"></use></svg>Dashboard
+            </a>
+          </li>
+          <li>
+            <a class="nav__link{% if request.resolver_match.url_name == 'schedule' %} is-active{% endif %}"
+               href="{% url 'panel:schedule' %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-calendar"></use></svg>Schedule
+            </a>
+          </li>
+        </ul>
+
+        {% for group, group_icon, items in groups %}
+          <p class="nav__group">
+            <svg class="icon" aria-hidden="true"><use href="#p-{{ group_icon }}"></use></svg>{{ group }}
+          </p>
+          <ul class="nav">
+            {% for item in items %}
+              <li>
+                <a class="nav__link{% if request.resolver_match.kwargs.slug == item.slug %} is-active{% endif %}"
+                   href="{% url 'panel:resource_list' item.slug %}">
+                  <svg class="icon" aria-hidden="true"><use href="#p-{{ item.icon }}"></use></svg>{{ item.plural }}
+                  {% if item.slug == 'bookings' and counts.bookings %}
+                    <span class="nav__count" title="{{ counts.bookings }} new">{{ counts.bookings }}</span>
+                  {% elif item.slug == 'enquiries' and counts.enquiries %}
+                    <span class="nav__count" title="{{ counts.enquiries }} unread">{{ counts.enquiries }}</span>
+                  {% endif %}
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endfor %}
+
+        <p class="nav__group">
+          <svg class="icon" aria-hidden="true"><use href="#p-settings"></use></svg>System
+        </p>
+        <ul class="nav">
+          <li>
+            <a class="nav__link{% if request.resolver_match.url_name == 'media' %} is-active{% endif %}" href="{% url 'panel:media' %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-image"></use></svg>Media
+            </a>
+          </li>
+          <li>
+            <a class="nav__link{% if request.resolver_match.url_name == 'activity' %} is-active{% endif %}" href="{% url 'panel:activity' %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-activity"></use></svg>Activity
+            </a>
+          </li>
+          {% if can_manage_staff %}
+            <li>
+              <a class="nav__link{% if 'staff' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'panel:staff' %}">
+                <svg class="icon" aria-hidden="true"><use href="#p-users"></use></svg>Staff &amp; access
+              </a>
+            </li>
+          {% endif %}
+          {% if can_configure %}
+            <li>
+              <a class="nav__link{% if request.resolver_match.url_name == 'settings' %} is-active{% endif %}" href="{% url 'panel:settings' %}">
+                <svg class="icon" aria-hidden="true"><use href="#p-settings"></use></svg>Site settings
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+
+      <div class="side__foot">
+        <a class="side__site" href="{% url 'core:home' %}" target="_blank" rel="noopener">
+          <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>
+          View the live site
+        </a>
+      </div>
+    </aside>
+    {% comment %}
+    Runs while the sidebar is still parsing, before the first paint: a deferred
+    script would restore the offset only after the list had already flashed at
+    the top. panel.js does the saving and the fallback for a fresh session.
+    {% endcomment %}
+    <script>
+      (function () {
+        var nav = document.querySelector('#panel-nav .side__nav');
+        if (!nav) { return; }
+        try {
+          var saved = parseInt(sessionStorage.getItem('celebra.panel.nav-scroll'), 10);
+          if (saved > 0) { nav.scrollTop = saved; nav.dataset.restored = '1'; }
+        } catch (error) { /* storage off */ }
+      }());
+    </script>
+
+    {# -------------------------------------------------------------- topbar #}
+    <div class="body">
+      <header class="topbar">
+        <button class="icon-btn topbar__menu" type="button" data-nav-open aria-label="Open menu" aria-controls="panel-nav">
+          <svg class="icon" aria-hidden="true"><use href="#p-menu"></use></svg>
+        </button>
+
+        <div class="topbar__title">
+          <h1>{% block heading %}{{ title }}{% endblock %}</h1>
+          {% block subheading %}{% endblock %}
+        </div>
+
+        <div class="topbar__tools">
+          <button class="search-trigger" type="button" data-palette-open>
+            <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+            <span>Search</span>
+            <kbd>Ctrl K</kbd>
+          </button>
+
+          <form class="topbar__theme" method="post" action="{% url 'panel:set_theme' %}" data-theme-form>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="theme" value="{% if panel_theme == 'dark' %}light{% else %}dark{% endif %}">
+            <button class="icon-btn" type="submit" aria-label="Switch to {% if panel_theme == 'dark' %}light{% else %}dark{% endif %} appearance">
+              <svg class="icon" aria-hidden="true"><use href="#p-{% if panel_theme == 'dark' %}sun{% else %}moon{% endif %}"></use></svg>
+            </button>
+          </form>
+
+          <div class="usermenu" data-menu>
+            <button class="usermenu__btn" type="button" data-menu-btn aria-expanded="false">
+              <span class="avatar" aria-hidden="true">{{ profile.initials }}</span>
+              <span class="usermenu__who">
+                <strong>{{ profile.display_name }}</strong>
+                <span>{{ profile.role|capfirst }}</span>
+              </span>
+              <svg class="icon" aria-hidden="true"><use href="#p-chevron-down"></use></svg>
+            </button>
+            <div class="usermenu__pop" data-menu-pop hidden>
+              <a href="{% url 'panel:account' %}">
+                <svg class="icon" aria-hidden="true"><use href="#p-user"></use></svg>Your account
+              </a>
+              <a href="{% url 'core:home' %}" target="_blank" rel="noopener">
+                <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>Live site
+              </a>
+              <form method="post" action="{% url 'panel:logout' %}">
+                {% csrf_token %}
+                <button type="submit">
+                  <svg class="icon" aria-hidden="true"><use href="#p-log-out"></use></svg>Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="main" id="panel-main">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <div class="scrim" data-nav-scrim hidden></div>
+
+  {# --------------------------------------------------------------- toasts #}
+  {% if messages %}
+    <div class="toasts" role="status" aria-live="polite">
+      {% for message in messages %}
+        <div class="toast toast--{{ message.tags|default:'info' }}" data-toast>
+          <svg class="icon" aria-hidden="true">
+            <use href="#p-{% if 'error' in message.tags %}alert{% elif 'warning' in message.tags %}alert{% else %}check{% endif %}"></use>
+          </svg>
+          <p>{{ message }}</p>
+          <button class="toast__x" type="button" data-toast-close aria-label="Dismiss">
+            <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+          </button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {# ------------------------------------------------------- command palette #}
+  <div class="palette" data-palette hidden>
+    <div class="palette__scrim" data-palette-close></div>
+    <div class="palette__box" role="dialog" aria-modal="true" aria-label="Search the panel">
+      <div class="palette__field">
+        <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+        <input type="search" placeholder="Search packages, bookings, sections…"
+               autocomplete="off" spellcheck="false" data-palette-input aria-label="Search">
+        <kbd>Esc</kbd>
+      </div>
+      <div class="palette__results" data-palette-results>
+        <p class="palette__hint">Type to search. <kbd>↑</kbd><kbd>↓</kbd> to move, <kbd>Enter</kbd> to open.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="{% static_v 'panel/js/panel.js' %}" defer></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

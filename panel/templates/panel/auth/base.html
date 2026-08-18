@@ -1,0 +1,67 @@
+{% load static panel_tags %}<!DOCTYPE html>
+<html lang="en" class="no-js" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Sign in{% endblock %} &middot; Celebra control panel</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static_v 'panel/css/panel.css' %}">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230F6B66'/><path d='M9 20V12l7 5 7-5v8' stroke='%23F5B942' stroke-width='2.4' fill='none' stroke-linejoin='round'/></svg>">
+  <script>document.documentElement.classList.replace('no-js', 'js');</script>
+</head>
+<body class="panel gate">
+  {% include "panel/partials/_icons.html" %}
+
+  <main class="gate__grid">
+
+    {# ------------------------------------------------------------ the form #}
+    <div class="gate__panel">
+      <a class="brand brand--gate" href="{% url 'core:home' %}">
+        <span class="brand__mark" aria-hidden="true">C</span>
+        <span class="brand__text"><strong>Celebra</strong><span>Control panel</span></span>
+      </a>
+
+      <div class="gate__box">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="notice notice--{% if 'error' in message.tags %}red{% else %}green{% endif %}">
+              <svg class="icon" aria-hidden="true">
+                <use href="#p-{% if 'error' in message.tags %}alert{% else %}check{% endif %}"></use>
+              </svg>
+              <div><p>{{ message }}</p></div>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block form %}{% endblock %}
+      </div>
+
+      <p class="gate__foot">
+        <a href="{% url 'core:home' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-arrow-left"></use></svg>Back to the website
+        </a>
+      </p>
+    </div>
+
+    {# ------------------------------------------------------------- the art #}
+    <aside class="gate__art" aria-hidden="true">
+      <div class="gate__art-inner">
+        <p class="gate__eyebrow">Celebra</p>
+        <h2 class="gate__quote">{% block art_quote %}Everything the website shows, edited in one place.{% endblock %}</h2>
+        <ul class="gate__list">
+          {% block art_list %}
+            <li><svg class="icon"><use href="#p-check"></use></svg>Packages, prices and photos</li>
+            <li><svg class="icon"><use href="#p-check"></use></svg>The homepage hero slider</li>
+            <li><svg class="icon"><use href="#p-check"></use></svg>Bookings, decorators and enquiries</li>
+          {% endblock %}
+        </ul>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

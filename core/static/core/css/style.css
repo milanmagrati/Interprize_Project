@@ -64,6 +64,20 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Sits on photography, so it borrows the media behind it rather than a colour. */
+.btn--glass {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.btn--glass:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: #fff;
+  color: var(--color-charcoal);
+}
+
 .btn--ghost {
   background: var(--color-primary-050);
   color: var(--color-primary-700);
@@ -129,6 +143,45 @@
 /* ==========================================================================
    2. Announcement strip, header, navigation
    ========================================================================== */
+
+/* Maintenance notice. Switched on from the control panel; it sits above the
+   announcement strip so it is the first thing on the page. */
+.holding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem var(--gutter);
+  background: var(--color-gold);
+  color: var(--color-charcoal);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: center;
+}
+.holding a { color: inherit; text-decoration: underline; }
+
+/* Confirmation and error lines after a form post. */
+.flashes {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+}
+.flash {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-050);
+  color: var(--color-primary-700);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.flash .icon { font-size: 1.15rem; flex: none; margin-top: 0.05rem; }
+.flash--error {
+  background: var(--color-accent-050);
+  color: var(--color-accent-700);
+}
 
 .announce {
   background: var(--color-primary-700);
@@ -531,56 +584,368 @@ body.is-locked { overflow: hidden; }
 .card__lead { margin-bottom: 1.25rem; color: var(--color-text-muted); font-size: 0.95rem; }
 
 /* ==========================================================================
-   4. Hero
+   4. Hero slider
+
+   All slides are stacked in one grid cell, so the deck is exactly as tall as
+   its tallest slide and nothing is absolutely positioned against a guessed
+   height. Transitions are a crossfade plus a slow scale-down on the media;
+   the copy staggers in behind it. Only the active slide is `visible`, which
+   keeps the rest out of the tab order and the accessibility tree for free.
    ========================================================================== */
 
 .hero {
+  /* Small-viewport units where supported, so the deck does not jump when a
+     mobile browser retracts its URL bar. Kept in a variable rather than
+     repeated per breakpoint: responsive.css only changes the multiplier. */
+  --hero-vh: 1vh;
+  --hero-h: clamp(30rem, calc(78 * var(--hero-vh)), 34rem);
+  --hero-controls-space: 5.75rem;
+  --hero-fade: 780ms;
+  --hero-tint: 12 24 26;            /* rgb channels for the scrim, per tint */
   position: relative;
-  padding-block: clamp(2rem, 1rem + 5vw, 4.5rem) clamp(2.5rem, 1rem + 5vw, 5rem);
-  background:
-    radial-gradient(90% 60% at 8% 0%, var(--color-primary-050) 0%, transparent 62%),
-    radial-gradient(70% 50% at 100% 10%, var(--color-accent-050) 0%, transparent 60%);
+  background: #0B1516;
+}
+@supports (height: 1svh) {
+  .hero { --hero-vh: 1svh; }
+}
+
+.hero__stage {
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
 }
-.hero__inner { display: grid; gap: clamp(2rem, 1rem + 5vw, 3.5rem); }
 
-.hero__eyebrow {
+.hero__slides {
+  display: grid;
+  min-height: var(--hero-h);
+}
+
+/* -- one slide ------------------------------------------------------------ */
+.hero-slide {
+  position: relative;
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  min-height: var(--hero-h);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--hero-fade) var(--ease),
+              visibility 0s linear var(--hero-fade);
+}
+.hero-slide.is-active {
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--hero-fade) var(--ease), visibility 0s;
+}
+
+.hero-slide--night { --hero-tint: 10 20 22; }
+.hero-slide--teal  { --hero-tint: 6 46 44; }
+.hero-slide--plum  { --hero-tint: 40 14 34; }
+
+/* -- media layer ---------------------------------------------------------- */
+.hero-slide__media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgb(var(--hero-tint));
+}
+.hero-slide__img,
+.hero-slide__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* The poster picture sits underneath; the video fades over it once it is
+   actually rolling, so a refused autoplay leaves a still frame, not a hole. */
+.hero-slide__video {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 620ms var(--ease);
+}
+.hero-slide.is-playing .hero-slide__video { opacity: 1; }
+
+/* Slow push-in. Ends at scale(1) so the crop lines up with the slide edges. */
+.hero-slide.is-active .hero-slide__media {
+  animation: hero-drift 11s var(--ease) forwards;
+}
+@keyframes hero-drift {
+  from { transform: scale(1.085); }
+  to   { transform: scale(1); }
+}
+
+.hero-slide__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  /* Flat fallback first: if an engine cannot parse `rgb(var(--x) / a)` it
+     drops the whole declaration, and white copy on a bright photo is the one
+     failure mode worth guarding against. */
+  background: rgba(10, 20, 22, 0.58);
+  background:
+    linear-gradient(to top,
+      rgb(var(--hero-tint) / 0.92) 0%,
+      rgb(var(--hero-tint) / 0.55) 38%,
+      rgb(var(--hero-tint) / 0.18) 68%,
+      rgb(var(--hero-tint) / 0.42) 100%),
+    linear-gradient(105deg,
+      rgb(var(--hero-tint) / 0.78) 0%,
+      rgb(var(--hero-tint) / 0.35) 55%,
+      transparent 88%);
+}
+
+/* -- copy ----------------------------------------------------------------- */
+.hero-slide__inner {
+  position: relative;
+  z-index: 3;
+  padding-block: clamp(3.5rem, 10vh, 5.5rem) var(--hero-controls-space);
+}
+.hero-slide__copy { max-width: 38rem; }
+
+/* Stagger. Each child fades up a beat after the one above it. */
+.hero-slide__copy > * {
+  opacity: 0;
+  transform: translateY(1.4rem);
+  transition: opacity 640ms var(--ease), transform 640ms var(--ease);
+}
+.hero-slide.is-active .hero-slide__copy > * { opacity: 1; transform: none; }
+.hero-slide.is-active .hero-slide__copy > :nth-child(1) { transition-delay: 140ms; }
+.hero-slide.is-active .hero-slide__copy > :nth-child(2) { transition-delay: 230ms; }
+.hero-slide.is-active .hero-slide__copy > :nth-child(3) { transition-delay: 320ms; }
+.hero-slide.is-active .hero-slide__copy > :nth-child(4) { transition-delay: 410ms; }
+.hero-slide.is-active .hero-slide__copy > :nth-child(5) { transition-delay: 490ms; }
+
+.hero-slide__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+  padding: 0.42rem 0.95rem 0.42rem 0.8rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.hero-slide__eyebrow-dot {
+  width: 7px; height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-gold);
+  box-shadow: 0 0 0 0 rgba(245, 185, 66, 0.7);
+  animation: pulse 2.6s var(--ease) infinite;
+}
+
+.hero-slide__title {
+  margin-bottom: 1rem;
+  font-size: var(--fs-h1);
+  line-height: var(--lh-tight);
+  color: #fff;
+  text-shadow: 0 2px 30px rgb(var(--hero-tint) / 0.55);
+}
+.hero-slide__title em {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--color-gold);
+}
+
+.hero-slide__lead {
+  max-width: 46ch;
+  margin-bottom: 1.9rem;
+  font-size: var(--fs-lead);
+  color: rgba(255, 255, 255, 0.84);
+  text-shadow: 0 1px 18px rgb(var(--hero-tint) / 0.6);
+}
+
+.hero-slide__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.hero-slide__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.4rem;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+}
+.hero-slide__meta .icon { color: var(--color-gold); font-size: 1.05rem; }
+
+/* -- controls ------------------------------------------------------------- */
+.hero__controls {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(1.1rem, 3vh, 2rem);
+  transform: translateX(-50%);
+  z-index: 5;
+  /* Nothing here does anything without main.js, so it stays out of the way of
+     a no-JS reader, who gets slide 1 as a plain static hero. */
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.js .hero__controls { display: flex; }
+
+.hero__arrows { display: flex; gap: 0.4rem; }
+
+.hero__arrow,
+.hero__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease), transform var(--t) var(--ease);
+}
+.hero__arrow:hover,
+.hero__toggle:hover {
+  background: #fff;
+  border-color: #fff;
+  color: var(--color-charcoal);
+  transform: scale(1.07);
+}
+
+.hero__dots {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.hero__dot {
+  position: relative;
+  display: block;
+  width: 22px;
+  padding: 0.6rem 0;
+  cursor: pointer;
+  transition: width var(--t) var(--ease);
+}
+/* A 3px bar is a poor thumb target; this grows the hit area without moving
+   anything, so the dots stay a thin row. */
+.hero__dot::after {
+  content: "";
+  position: absolute;
+  inset: -0.45rem -0.2rem;
+}
+.hero__dot.is-active { width: 52px; }
+.hero__dot-track {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.32);
+}
+.hero__dot:hover .hero__dot-track { background: rgba(255, 255, 255, 0.55); }
+.hero__dot-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+/* --hero-progress is written per slide by main.js from data-hero-duration. */
+.hero__dot.is-active .hero__dot-fill {
+  animation: hero-progress var(--hero-progress, 6s) linear forwards;
+}
+/* Halted covers every reason the timer is not running — paused by the reader,
+   scrolled out of view, background tab — and freezes the bar where it is. */
+.hero.is-halted .hero__dot.is-active .hero__dot-fill { animation-play-state: paused; }
+/* Never started (reduced motion, or paused before the first tick): the active
+   dot reads as a full bar rather than an empty one that is going nowhere. */
+.hero.is-static .hero__dot.is-active .hero__dot-fill {
+  animation: none;
+  transform: scaleX(1);
+}
+@keyframes hero-progress {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+.hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.hero__counter {
+  display: none;
+  align-items: baseline;
+  gap: 0.3rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.hero__counter-sep { color: rgba(255, 255, 255, 0.45); }
+
+.hero__toggle-icon { display: none; }
+.hero:not(.is-paused) .hero__toggle-icon--pause { display: block; }
+.hero.is-paused .hero__toggle-icon--play { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-slide__copy > * {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0s !important;
+  }
+  .hero-slide.is-active .hero-slide__media { animation: none; }
+  .hero__dot-fill { animation: none !important; }
+  .hero__dot.is-active .hero__dot-fill { transform: scaleX(1); }
+  .hero-slide__eyebrow-dot { animation: none; }
+}
+
+/* ==========================================================================
+   4b. Hero search band
+   ========================================================================== */
+
+.hero-search {
+  position: relative;
+  z-index: 3;
+  padding-block: clamp(1.5rem, 1rem + 3vw, 2.5rem) clamp(2rem, 1rem + 4vw, 3.25rem);
+  background:
+    radial-gradient(80% 60% at 10% 0%, var(--color-primary-050) 0%, transparent 65%),
+    radial-gradient(70% 55% at 100% 0%, var(--color-accent-050) 0%, transparent 62%);
+}
+.hero-search__card {
+  padding: clamp(0.9rem, 0.6rem + 1.2vw, 1.4rem);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+.hero-search__eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  margin-bottom: 1rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
+  margin: 0 0 0.75rem 0.35rem;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--color-text-muted);
-  box-shadow: var(--shadow-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
 }
-.hero__eyebrow .icon { color: var(--color-primary); font-size: 1rem; }
-
-.hero__title { margin-bottom: 1rem; }
-/* Gold underline painted as a background band, not a negative-z pseudo —
-   a negative z-index child would sit behind the .hero background. */
-.hero__title em {
-  font-style: italic;
-  font-weight: 500;
-  color: var(--color-primary);
-  background-image: linear-gradient(
-    to top,
-    transparent 0.04em,
-    rgba(245, 185, 66, 0.6) 0.04em,
-    rgba(245, 185, 66, 0.6) 0.2em,
-    transparent 0.2em
-  );
-}
-.hero__lead {
-  max-width: 52ch;
-  margin-bottom: 1.75rem;
-  font-size: var(--fs-lead);
-  color: var(--color-text-muted);
-}
+.hero-search__eyebrow .icon { color: var(--color-primary); font-size: 1rem; }
 
 /* -- search bar ----------------------------------------------------------- */
 .searchbar {
@@ -649,64 +1014,10 @@ body.is-locked { overflow: hidden; }
 }
 .trust__label { font-size: var(--fs-xs); color: var(--color-text-muted); }
 
-/* -- hero mosaic ---------------------------------------------------------- */
-.hero__art {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  grid-template-rows: repeat(2, 1fr);
-  gap: 0.6rem;
-}
-.hero__shot {
-  margin: 0;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-}
-.hero__shot img { width: 100%; height: 100%; object-fit: cover; }
-.hero__shot--main {
-  grid-row: span 2;
-  aspect-ratio: 4 / 5;
-  border-top-left-radius: calc(var(--radius-xl) * 1.6);
-}
-.hero__shot--top,
-.hero__shot--bottom { aspect-ratio: 1 / 1; }
-.hero__shot--bottom { border-bottom-right-radius: calc(var(--radius-xl) * 1.4); }
-
-.hero__proof {
-  position: absolute;
-  left: 0.6rem;
-  bottom: 0.6rem;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  max-width: min(90%, 250px);
-  padding: 0.55rem 0.8rem;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(6px);
-  box-shadow: var(--shadow-md);
-}
-.hero__proof-dot {
-  width: 9px; height: 9px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--color-primary);
-  box-shadow: 0 0 0 0 rgba(15, 107, 102, 0.5);
-  animation: pulse 2.4s var(--ease) infinite;
-}
 @keyframes pulse {
-  70%  { box-shadow: 0 0 0 10px rgba(15, 107, 102, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(15, 107, 102, 0); }
+  70%  { box-shadow: 0 0 0 9px rgba(245, 185, 66, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 185, 66, 0); }
 }
-.hero__proof-text {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--fs-xs);
-  line-height: 1.35;
-  color: var(--color-text-muted);
-}
-.hero__proof-text strong { font-size: 0.85rem; color: var(--color-text); }
 
 /* ==========================================================================
    5. Chips and horizontal scrollers

@@ -1,0 +1,74 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% block subheading %}
+  <p class="topbar__sub"><a href="{% url 'panel:staff' %}">Staff &amp; access</a> <span aria-hidden="true">/</span> {{ member.display_name }}</p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+  <div class="form__body">
+    <div class="form__main">
+      <form class="card" method="post" novalidate data-dirty-guard>
+        {% csrf_token %}
+        <h2 class="card__title">Access</h2>
+
+        {% if is_self %}
+          <div class="notice notice--amber">
+            <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+            <div><p>This is your own account. You cannot demote or disable yourself —
+              somebody has to keep the keys.</p></div>
+          </div>
+        {% endif %}
+
+        <div class="grid">
+          {% for bound in form %}{% field bound %}{% endfor %}
+        </div>
+
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Save access
+        </button>
+      </form>
+    </div>
+
+    <aside class="form__side">
+      <div class="card">
+        <h2 class="card__title">{{ member.display_name }}</h2>
+        <div class="whoami">
+          <span class="avatar avatar--lg" aria-hidden="true">{{ member.initials }}</span>
+          <div>
+            <strong>{{ member.user.username }}</strong>
+            <span class="pill pill--{{ member.role|role_tone }}">{{ member.role|capfirst }}</span>
+          </div>
+        </div>
+        <dl class="meta">
+          <dt>Email</dt><dd>{{ member.user.email|default:"—" }}</dd>
+          <dt>Phone</dt><dd>{{ member.phone|default:"—" }}</dd>
+          <dt>Joined</dt><dd>{{ member.created_at|date:"j M Y" }}</dd>
+          <dt>Last seen</dt><dd>{% if member.last_seen %}{{ member.last_seen|timesince }} ago{% else %}Never{% endif %}</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h2 class="card__title">Their changes</h2>
+        {% if activity %}
+          <ul class="feed">
+            {% for entry in activity %}
+              <li>
+                <span class="pill pill--{{ entry.action|action_tone }}">{{ entry.get_action_display }}</span>
+                <span class="feed__text">
+                  <strong>{{ entry.model_label }}</strong>
+                  {% if entry.object_label %}<span>{{ entry.object_label|excerpt:40 }}</span>{% endif %}
+                </span>
+                <time>{{ entry.created_at|timesince }} ago</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="card__note">Nothing logged for this account.</p>
+        {% endif %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

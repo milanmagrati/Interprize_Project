@@ -1,0 +1,28 @@
+{% load panel_tags %}
+{% if page_obj.paginator.num_pages > 1 %}
+  <nav class="pager" aria-label="Pages">
+    <p class="pager__count">
+      Showing <strong>{{ page_obj.start_index }}&ndash;{{ page_obj.end_index }}</strong>
+      of {{ page_obj.paginator.count }}
+    </p>
+    <div class="pager__links">
+      {% if page_obj.has_previous %}
+        <a class="pager__btn" href="{% querystring page=page_obj.previous_page_number %}" rel="prev">
+          <svg class="icon" aria-hidden="true"><use href="#p-chevron-left"></use></svg>Previous
+        </a>
+      {% else %}
+        <span class="pager__btn is-off"><svg class="icon" aria-hidden="true"><use href="#p-chevron-left"></use></svg>Previous</span>
+      {% endif %}
+
+      <span class="pager__page">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+      {% if page_obj.has_next %}
+        <a class="pager__btn" href="{% querystring page=page_obj.next_page_number %}" rel="next">
+          Next<svg class="icon" aria-hidden="true"><use href="#p-chevron-right"></use></svg>
+        </a>
+      {% else %}
+        <span class="pager__btn is-off">Next<svg class="icon" aria-hidden="true"><use href="#p-chevron-right"></use></svg></span>
+      {% endif %}
+    </div>
+  </nav>
+{% endif %}

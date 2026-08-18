@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% comment %}
+Django's permission_denied handler picks this up automatically. It is reached
+from the control panel when somebody types a URL their role cannot open, so the
+way out is a link back into the panel rather than into the shop.
+{% endcomment %}
+
+{% block title %}Not your door &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+<section class="section notfound">
+  <div class="wrap wrap--narrow notfound__inner">
+
+    <svg class="notfound__art" viewBox="0 0 320 220" role="img" aria-label="A padlocked balloon">
+      <path d="M20 150C20 70 68 26 132 26c58 0 96 34 108 82" fill="none" stroke="var(--color-primary)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 9"/>
+      <circle cx="82" cy="74" r="21" fill="var(--color-primary-300)"/>
+      <circle cx="126" cy="52" r="15" fill="var(--color-primary-100)"/>
+      <circle cx="168" cy="66" r="19" fill="var(--color-primary-600)"/>
+      <g>
+        <rect x="126" y="104" width="68" height="52" rx="10" fill="var(--color-gold)"/>
+        <path d="M144 104v-14a16 16 0 0 1 32 0v14" fill="none" stroke="var(--color-charcoal)" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="160" cy="128" r="7" fill="var(--color-charcoal)"/>
+      </g>
+      <text x="160" y="200" text-anchor="middle" class="notfound__digits">403</text>
+    </svg>
+
+    <h1 class="notfound__title">Your account can&rsquo;t open that</h1>
+    <p class="notfound__text">
+      {% if exception %}{{ exception }}{% else %}
+        That page needs a role yours does not have.
+      {% endif %}
+      An owner can change it under Staff &amp; access.
+    </p>
+
+    <div class="notfound__actions">
+      <a class="btn btn--primary btn--lg" href="/manage/">Back to the panel</a>
+      <a class="btn btn--outline btn--lg" href="{% url 'core:home' %}">Go to the site</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

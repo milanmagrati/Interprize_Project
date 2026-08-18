@@ -1,8 +1,14 @@
 """
-Sample data for the Celebra frontend.
+Seed content for Celebra.
 
-Every structure here mirrors the shape a real Django model instance would
-have, so the templates never need to change when the database arrives:
+Nothing at request time reads this file any more — the site is driven by the
+models in `core/models.py` and the read helpers in `core/queries.py`. What is
+left here is the original hand-written catalogue, kept as the payload for:
+
+    python manage.py seed_demo
+
+Every structure mirrors the shape of the model it fills, which is also why the
+templates never had to change when the database arrived:
 
     Category  -> name, slug, icon, blurb, image, package_count
     Package   -> id, title, slug, image, gallery, price, original_price,
@@ -15,6 +21,8 @@ have, so the templates never need to change when the database arrives:
 Helper functions at the bottom stand in for the manager methods you'll
 replace them with (`Package.objects.filter(...)`, `get_object_or_404`, ...).
 """
+
+from django.urls import reverse
 
 # ---------------------------------------------------------------------------
 # Brand
@@ -49,6 +57,157 @@ TRUST_BADGES = [
     {"value": "100+", "label": "Cities covered"},
     {"value": "5,000+", "label": "Setups every month"},
     {"value": "4.8", "label": "Average rating"},
+]
+
+# ---------------------------------------------------------------------------
+# Homepage hero slider
+#
+# HeroSlide -> id, media_type, eyebrow, heading, heading_accent, description,
+#              meta, alt, image_seed, video_mp4, video_webm, duration,
+#              cta_label/url_name/url_arg, cta2_*, tint, align, focal
+#
+# `media_type` is "image" or "video". Video slides still carry an image_seed:
+# it becomes the poster frame, so the slide paints instantly and the video file
+# is only fetched once that slide is about to become active.
+#
+# The picsum.photos and commondatastorage URLs are placeholders. Point
+# `image_seed` at your CDN and `video_mp4` / `video_webm` at your own encodes
+# (1920x1080 H.264 + VP9, no audio track, ~2-4 MB each) and nothing else here
+# has to change.
+# ---------------------------------------------------------------------------
+
+HERO_SLIDES = [
+    {
+        "id": "birthday",
+        "media_type": "image",
+        "eyebrow": "Birthdays",
+        "heading": "Someone else can",
+        "heading_accent": "hang the balloons.",
+        "description": (
+            "Pick a setup, pick a slot, and a Celebra decorator arrives with everything "
+            "in the van — builds it, photographs it, and takes the packaging away."
+        ),
+        "meta": "148 birthday setups · from ₹1,499",
+        "alt": "A pastel balloon arch built around a cake table in a living room",
+        "image_seed": "celebra-hero-birthday",
+        "video_mp4": None,
+        "video_webm": None,
+        "duration": 6500,
+        "cta_label": "Browse birthday setups",
+        "cta_url_name": "core:category_detail",
+        "cta_url_arg": "birthday",
+        "cta2_label": "See how it works",
+        "cta2_url_name": "core:how_it_works",
+        "cta2_url_arg": None,
+        "tint": "night",
+        "align": "left",
+        "focal": "50% 42%",
+    },
+    {
+        "id": "wedding",
+        "media_type": "video",
+        "eyebrow": "Weddings",
+        "heading": "A mandap that earns",
+        "heading_accent": "every photograph.",
+        "description": (
+            "Haldi, mehendi, sangeet and reception stages, built by a crew that has done "
+            "it four hundred times. One planner from the first call to the clean-up."
+        ),
+        "meta": "58 wedding setups · from ₹7,999",
+        "alt": "Decorators assembling a floral wedding stage in a banquet hall",
+        "image_seed": "celebra-hero-wedding",
+        "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+        "video_webm": None,
+        "duration": 9000,
+        "cta_label": "Explore wedding decor",
+        "cta_url_name": "core:category_detail",
+        "cta_url_arg": "wedding",
+        "cta2_label": "Talk to a planner",
+        "cta2_url_name": "core:contact",
+        "cta2_url_arg": None,
+        "tint": "plum",
+        "align": "left",
+        "focal": "50% 50%",
+    },
+    {
+        "id": "romantic",
+        "media_type": "image",
+        "eyebrow": "Romantic",
+        "heading": "Candlelight, terrace,",
+        "heading_accent": "and nothing to carry.",
+        "description": (
+            "Proposals, anniversaries and quiet dinners for two. We set up while you are "
+            "still at work and come back the next morning to take it all down."
+        ),
+        "meta": "87 romantic setups · from ₹2,199",
+        "alt": "A candlelit table for two set up on a terrace at dusk",
+        "image_seed": "celebra-hero-romantic",
+        "video_mp4": None,
+        "video_webm": None,
+        "duration": 6500,
+        "cta_label": "Plan a romantic evening",
+        "cta_url_name": "core:category_detail",
+        "cta_url_arg": "romantic",
+        "cta2_label": "See all occasions",
+        "cta2_url_name": "core:categories",
+        "cta2_url_arg": None,
+        "tint": "teal",
+        "align": "left",
+        "focal": "50% 50%",
+    },
+    {
+        "id": "kids-theme",
+        "media_type": "video",
+        "eyebrow": "Kids themes",
+        "heading": "Dinosaurs by four,",
+        "heading_accent": "cake by five.",
+        "description": (
+            "Jungle, space, unicorn or under-the-sea — themed head to toe, props included, "
+            "and photographed before we leave so you have the room at its best."
+        ),
+        "meta": "112 themed setups · from ₹2,999",
+        "alt": "A jungle-themed birthday corner with balloon animals and a photo backdrop",
+        "image_seed": "celebra-hero-kids",
+        "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+        "video_webm": None,
+        "duration": 9000,
+        "cta_label": "Browse kids themes",
+        "cta_url_name": "core:category_detail",
+        "cta_url_arg": "kids-theme",
+        "cta2_label": "Read reviews",
+        "cta2_url_name": "core:home",
+        "cta2_url_arg": None,
+        "cta2_anchor": "#reviews",
+        "tint": "night",
+        "align": "left",
+        "focal": "50% 45%",
+    },
+    {
+        "id": "baby-shower",
+        "media_type": "image",
+        "eyebrow": "Baby showers",
+        "heading": "Pastel arches, seating,",
+        "heading_accent": "and a photo corner.",
+        "description": (
+            "Everything the afternoon needs, priced as one number — materials, labour, "
+            "travel inside city limits and clean-up all included."
+        ),
+        "meta": "64 baby shower setups · from ₹2,499",
+        "alt": "A pastel balloon arch and photo corner set for a baby shower",
+        "image_seed": "celebra-hero-baby",
+        "video_mp4": None,
+        "video_webm": None,
+        "duration": 6500,
+        "cta_label": "Browse baby showers",
+        "cta_url_name": "core:category_detail",
+        "cta_url_arg": "baby-shower",
+        "cta2_label": "Get a custom quote",
+        "cta2_url_name": "core:contact",
+        "cta2_url_arg": None,
+        "tint": "teal",
+        "align": "left",
+        "focal": "50% 50%",
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -1520,6 +1679,58 @@ CART_ITEMS = [
 # ---------------------------------------------------------------------------
 # Helpers — replace these with querysets when models land
 # ---------------------------------------------------------------------------
+
+
+def _picsum(seed, width, height):
+    return f"https://picsum.photos/seed/{seed}/{width}/{height}"
+
+
+def _srcset(seed, sizes):
+    """`sizes` is a list of (width, height) pairs, all the same aspect ratio."""
+    return ", ".join(f"{_picsum(seed, w, h)} {w}w" for w, h in sizes)
+
+
+def _hero_url(url_name, arg=None, anchor=""):
+    if not url_name:
+        return None
+    path = reverse(url_name, args=[arg]) if arg else reverse(url_name)
+    return f"{path}{anchor}"
+
+
+# Landscape crops for tablet/desktop, a taller crop for phones. Two aspect
+# ratios means <picture> art direction rather than one srcset, so a phone never
+# downloads a 16:9 frame it would have to crop away.
+HERO_WIDE = [(1280, 720), (1920, 1080), (2560, 1440)]
+HERO_TALL = [(720, 900), (1080, 1350)]
+
+
+def hero_slides():
+    """
+    Homepage hero slides, with URLs reversed and media URLs expanded.
+
+    Stand-in for HeroSlide.objects.filter(is_active=True).order_by("position").
+    URLs are reversed here rather than in the template because a slide can point
+    at a detail route that needs an argument.
+    """
+    slides = []
+    for position, slide in enumerate(HERO_SLIDES):
+        row = dict(slide)
+        seed = row["image_seed"]
+        row["position"] = position
+        row["is_first"] = position == 0
+        row["image"] = _picsum(seed, 1920, 1080)
+        row["image_srcset"] = _srcset(seed, HERO_WIDE)
+        row["image_tall"] = _picsum(seed, 1080, 1350)
+        row["image_tall_srcset"] = _srcset(seed, HERO_TALL)
+        row["is_video"] = row["media_type"] == "video"
+        row["cta_url"] = _hero_url(
+            row.get("cta_url_name"), row.get("cta_url_arg"), row.get("cta_anchor", "")
+        )
+        row["cta2_url"] = _hero_url(
+            row.get("cta2_url_name"), row.get("cta2_url_arg"), row.get("cta2_anchor", "")
+        )
+        slides.append(row)
+    return slides
 
 
 def get_category(slug):

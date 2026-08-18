@@ -3,25 +3,36 @@
 
 {% block title %}{{ brand.name }} &mdash; Balloon &amp; event decoration, booked online{% endblock %}
 
+{% block extra_css %}
+  {% comment %}
+    LCP hint: start the first hero frame in parallel with the stylesheets.
+    Two links because the hero is art-directed — phones get the tall crop.
+  {% endcomment %}
+  {% with first=hero_slides.0 %}
+    {% if first.image_srcset %}
+      <link rel="preload" as="image" media="(min-width: 700px)"
+            imagesrcset="{{ first.image_srcset }}" imagesizes="100vw" fetchpriority="high">
+      <link rel="preload" as="image" media="(max-width: 699.98px)"
+            imagesrcset="{{ first.image_tall_srcset }}" imagesizes="100vw" fetchpriority="high">
+    {% elif first.image %}
+      {# An uploaded hero has a single file, so one plain preload covers it. #}
+      <link rel="preload" as="image" href="{{ first.image }}" fetchpriority="high">
+    {% endif %}
+  {% endwith %}
+{% endblock %}
+
 {% block content %}
 
-{# ---------------------------------------------------------------- hero #}
-<section class="hero">
-  <div class="wrap hero__inner">
-    <div class="hero__copy">
-      <p class="hero__eyebrow">
+{# ---------------------------------------------------------- hero slider #}
+{% include "core/partials/_hero_slider.html" %}
+
+{# ------------------------------------------------------ hero search bar #}
+<section class="hero-search" aria-label="Find a setup">
+  <div class="wrap">
+    <div class="hero-search__card">
+      <p class="hero-search__eyebrow">
         <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
         Verified decorators in {{ cities|length }} cities
-      </p>
-
-      <h1 class="hero__title">
-        Someone else can<br>
-        <em>hang the balloons.</em>
-      </h1>
-
-      <p class="hero__lead">
-        Pick a setup, pick a slot, and a Celebra decorator arrives with everything in the van &mdash;
-        builds it, photographs it, and takes the packaging away with them.
       </p>
 
       {# GET search: no CSRF token by design, it would leak the token into the URL. #}
@@ -64,42 +75,16 @@
           <span>Find setups</span>
         </button>
       </form>
-
-      <ul class="trust">
-        {% for badge in trust_badges %}
-          <li class="trust__item">
-            <span class="trust__value">{{ badge.value }}</span>
-            <span class="trust__label">{{ badge.label }}</span>
-          </li>
-        {% endfor %}
-      </ul>
     </div>
 
-    <div class="hero__art">
-      <figure class="hero__shot hero__shot--main">
-        <img src="https://picsum.photos/seed/celebra-hero-main/900/1100"
-             alt="A pastel balloon arch built around a cake table in a living room"
-             width="900" height="1100" fetchpriority="high" decoding="async">
-      </figure>
-      <figure class="hero__shot hero__shot--top">
-        <img src="https://picsum.photos/seed/celebra-hero-top/600/500"
-             alt="A decorator tying a balloon garland to a doorway frame"
-             width="600" height="500" loading="lazy" decoding="async">
-      </figure>
-      <figure class="hero__shot hero__shot--bottom">
-        <img src="https://picsum.photos/seed/celebra-hero-bottom/600/500"
-             alt="A candlelit table for two set up on a terrace at dusk"
-             width="600" height="500" loading="lazy" decoding="async">
-      </figure>
-
-      <div class="hero__proof">
-        <span class="hero__proof-dot" aria-hidden="true"></span>
-        <span class="hero__proof-text">
-          <strong>Rhea is 2 hours early</strong>
-          Setup #4821 &middot; Indiranagar
-        </span>
-      </div>
-    </div>
+    <ul class="trust">
+      {% for badge in trust_badges %}
+        <li class="trust__item">
+          <span class="trust__value">{{ badge.value }}</span>
+          <span class="trust__label">{{ badge.label }}</span>
+        </li>
+      {% endfor %}
+    </ul>
   </div>
 </section>
 
