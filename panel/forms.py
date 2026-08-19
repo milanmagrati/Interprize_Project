@@ -214,6 +214,16 @@ class PanelPasswordChangeForm(PanelFormMixin, PasswordChangeForm):
         self.fields["new_password1"].help_text = ""
         self.fields["new_password2"].help_text = "Type it once more."
 
+    def clean_old_password(self):
+        """Trim accidental leading/trailing whitespace from a pasted password."""
+        old_password = self.cleaned_data.get("old_password", "").strip()
+        if not self.user.check_password(old_password):
+            raise forms.ValidationError(
+                self.error_messages["password_incorrect"],
+                code="password_incorrect",
+            )
+        return old_password
+
     @property
     def rules(self):
         """The active password rules, phrased short enough to sit on one line."""

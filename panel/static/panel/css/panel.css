@@ -567,6 +567,20 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
   background-repeat: no-repeat;
 }
 
+.field__password { position: relative; }
+.field__password .field__input { padding-right: 2.5rem; }
+.field__password-toggle {
+  position: absolute; top: 50%; right: 0.35rem; transform: translateY(-50%);
+  display: flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem;
+  padding: 0; border: 0; background: transparent;
+  color: var(--text-3); cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+.field__password-toggle:hover { color: var(--text-2); }
+.field__password-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.field__password-toggle .icon { width: 18px; height: 18px; }
+
 .field__file {
   width: 100%;
   padding: 0.45rem;

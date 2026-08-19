@@ -35,7 +35,16 @@ of whatever is already stored, everything else is a labelled control.
       {% endwith %}
     {% endif %}
 
-    {{ field }}
+    {% if field.field.widget.input_type == "password" %}
+      <div class="field__password">
+        {{ field }}
+        <button type="button" class="field__password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+          <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
+        </button>
+      </div>
+    {% else %}
+      {{ field }}
+    {% endif %}
     {% if field.help_text %}<p class="field__help">{{ field.help_text }}</p>{% endif %}
   {% endif %}
 

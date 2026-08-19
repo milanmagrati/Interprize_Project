@@ -13,6 +13,15 @@ is Django.
 
 ## Run it locally
 
+Settings are read from a `.env` file at the project root (via `python-decouple`) —
+copy `.env.example` to `.env` and fill in real values, especially `DB_PASSWORD`.
+The project runs on MySQL, so create an empty database first (name must match
+`DB_NAME` in `.env`):
+
+```sql
+CREATE DATABASE celebra_db CHARACTER SET utf8mb4;
+```
+
 ```bash
 python -m venv .venv
 # Windows
@@ -373,6 +382,7 @@ animation throughout.
   layout; `responsive.css` only scales up.
 - Semantic landmarks, skip link, visible focus rings, 44px minimum tap targets,
   `loading="lazy"` on everything below the fold.
-- `SECRET_KEY` and `DEBUG` in `celebra/settings.py` are development values. Move
-  them to environment variables before deploying, and serve `MEDIA_ROOT` from
-  the web server rather than Django.
+- `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` and the database credentials all come
+  from `.env` (see `.env.example`) — nothing is hardcoded in
+  `celebra/settings.py`. Serve `MEDIA_ROOT` from the web server rather than
+  Django once `DEBUG=False`.

@@ -19,6 +19,7 @@
      13. File input previews
      14. Copy to clipboard
      15. Theme switch
+     16. Password visibility toggle
    ========================================================================== */
 
 (function () {
@@ -553,6 +554,23 @@
       // Paint the new theme before the round trip, so the switch feels instant.
       var next = $('input[name="theme"]', form);
       if (next) { document.documentElement.setAttribute('data-theme', next.value); }
+    });
+  }());
+
+  /* ----------------------------------------- 16. password visibility toggle */
+
+  (function passwordToggle() {
+    $$('[data-password-toggle]').forEach(function (button) {
+      var input = $('.field__input', button.parentNode);
+      if (!input) { return; }
+
+      button.addEventListener('click', function () {
+        var showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        button.setAttribute('aria-pressed', String(!showing));
+        button.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        $('use', button).setAttribute('href', showing ? '#p-eye' : '#p-eye-off');
+      });
     });
   }());
 }());

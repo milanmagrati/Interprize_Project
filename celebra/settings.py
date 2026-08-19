@@ -7,14 +7,15 @@ configured but unused. See README.md for where to plug real models in.
 
 from pathlib import Path
 
+from decouple import Csv, config
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY WARNING: replace this before deploying anywhere real.
-SECRET_KEY = "django-insecure-celebra-frontend-only-key-change-me"
+SECRET_KEY = config("SECRET_KEY")
 
-DEBUG = True
+DEBUG = config("DEBUG", default=False, cast=bool)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="", cast=Csv())
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -64,8 +65,13 @@ ASGI_APPLICATION = "celebra.asgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST", default="127.0.0.1"),
+        "PORT": config("DB_PORT", default="3306"),
+        "OPTIONS": {"charset": "utf8mb4"},
     }
 }
 
