@@ -43,6 +43,7 @@ generates.
 | URL | View | Template |
 | --- | --- | --- |
 | `/` | `core.views.home` | `core/home.html` |
+| `/products/` | `core.views.products` | `core/products.html` |
 | `/categories/` | `core.views.categories` | `core/categories.html` |
 | `/category/<slug>/` | `core.views.category_detail` | `core/category_detail.html` |
 | `/package/<slug>/` | `core.views.package_detail` | `core/package_detail.html` |
@@ -56,6 +57,33 @@ generates.
 `/preview/404/` exists because Django shows its own debug page for real 404s
 while `DEBUG = True`. Set `DEBUG = False` (and `ALLOWED_HOSTS`) to see the styled
 404 on a genuine miss.
+
+### The products page
+
+`/products/` is the whole catalogue in one place, reached from **Products** in
+the header (a `NavLink` row, so it can be renamed or removed from the panel).
+The homepage keeps a slice of the same catalogue and a button through to here.
+
+It filters on search text, occasion, budget, rating, discount, featured and
+label, sorts seven ways and pages — all of it in one queryset, so the count, the
+ordering and the page can never disagree. `discount_pc` is annotated in
+`core.queries.product_queryset()` rather than derived in Python, which is what
+lets "biggest saving" sort in the database.
+
+The same view answers `?partial=1` with only the results block. That is what
+`main.js` fetches when a filter moves: results swap in, the URL is rewritten
+with `pushState`, and the cards stagger back. Every control is also a plain GET
+form or a real link, so the page works identically with JavaScript off.
+
+What the panel controls, under **Site settings**:
+
+| Section | Sets |
+| --- | --- |
+| Products on the homepage | eyebrow, heading, sub-heading, which products, how many, button label |
+| The products page | eyebrow, heading, sub-heading, products per page |
+
+The products themselves are **Catalogue → Products**; drag them there to set the
+order the "Featured first" and "hand-ordered" modes use.
 
 ## Project layout
 
@@ -116,7 +144,7 @@ panel/                          the staff control panel
 | Group | Sections |
 | --- | --- |
 | Operations | Bookings, Enquiries, Decorators, Coupons |
-| Catalogue | Packages, Occasions, Gallery photos, Add-ons, Pricing table |
+| Catalogue | Products, Occasions, Gallery photos, Add-ons, Pricing table |
 | Homepage | Hero slider, Reviews, Promises, How it works, FAQs, Trust badges |
 | Site | Cities, Time slots, Menu links |
 | System | Media, Activity, Staff & access, Site settings |
@@ -320,6 +348,10 @@ out if its markup is absent:
 - scroll reveal via `IntersectionObserver`
 - package gallery with thumbnails and a keyboard-navigable lightbox
 - sticky mobile booking bar, listing filter drawer, budget slider, cart steppers
+- the header's Products drop-down — hover intent, keyboard focus, Escape to close
+- the products listing — live search, instant facets, a two-thumb budget slider,
+  grid/list layout, and paging that swaps results in over `fetch` with history
+  entries to match
 
 **`static/panel/js/panel.js`** — the control panel, same style:
 

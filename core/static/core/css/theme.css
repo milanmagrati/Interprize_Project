@@ -94,6 +94,9 @@
 
   /* ---- chrome ----------------------------------------------------------- */
   --header-h: 68px;
+  /* Shared height for every pill-shaped control in the header, so the row
+     reads as one band instead of four differently sized buttons. */
+  --control-h: 44px;
   --z-header: 60;
   --z-drawer: 80;
   --z-lightbox: 100;

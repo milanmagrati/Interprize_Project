@@ -28,14 +28,14 @@
 
     <div class="notfound__actions">
       <a class="btn btn--primary btn--lg" href="{% url 'core:home' %}">Back to home</a>
-      <a class="btn btn--outline btn--lg" href="{% url 'core:categories' %}">Browse setups</a>
+      <a class="btn btn--outline btn--lg" href="{% url 'core:products' %}">Browse products</a>
     </div>
 
     <div class="notfound__links">
       <p class="notfound__label">Popular occasions</p>
       <div class="chip-row center">
         {% for category in popular_categories %}
-          <a class="chip chip--sm" href="{% url 'core:category_detail' category.slug %}">{{ category.name }}</a>
+          <a class="chip chip--sm" href="{% url 'core:products' %}?occasion={{ category.slug }}">{{ category.name }}</a>
         {% endfor %}
       </div>
     </div>

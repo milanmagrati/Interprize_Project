@@ -128,14 +128,18 @@ RESOURCES = [
         slug="packages",
         model=m.Package,
         form_class=f.PackageForm,
-        label="Package",
-        plural="Packages",
+        label="Product",
+        plural="Products",
         icon="box",
         group="Catalogue",
-        blurb="The products customers book. Price, photos, what's included.",
+        blurb=(
+            "Everything on /products/ and in the homepage grid. Drag to set the "
+            "order the site shows them in; Site settings decides how many of "
+            "them reach the homepage."
+        ),
         columns=[
             Column("image", "", "image"),
-            Column("title", "Package", sortable="title", hint="category_name"),
+            Column("title", "Product", sortable="title", hint="category_name"),
             Column("price", "Price", "money", sortable="price", hint="discount_label"),
             Column("rating", "Rating", "rating", sortable="rating", hint="review_count_label"),
             Column("is_featured", "Featured", "toggle", sortable="is_featured"),
@@ -159,12 +163,12 @@ RESOURCES = [
         plural="Occasions",
         icon="layers",
         group="Catalogue",
-        blurb="The occasion each package belongs to. Order here is the order on the site.",
+        blurb="The occasion each product belongs to, and a filter on the products page. Order here is the order on the site.",
         columns=[
             Column("image", "", "image"),
             Column("name", "Occasion", sortable="name", hint="blurb"),
             Column("price_from", "From", "money", sortable="price_from"),
-            Column("live_count", "Packages", "chip", sortable="package_total"),
+            Column("live_count", "Products", "chip", sortable="package_total"),
             Column("is_active", "Live", "toggle", sortable="is_active"),
         ],
         search_fields=["name", "blurb", "slug"],
@@ -184,10 +188,10 @@ RESOURCES = [
         plural="Gallery photos",
         icon="image",
         group="Catalogue",
-        blurb="Extra photos on a package's detail page. Without any, placeholders stand in.",
+        blurb="Extra photos on a product's detail page. Without any, placeholders stand in.",
         columns=[
             Column("image", "", "image"),
-            Column("package", "Package", sortable="package__title", hint="alt"),
+            Column("package", "Product", sortable="package__title", hint="alt"),
             Column("position", "Order", sortable="position", align="end"),
         ],
         search_fields=["alt", "package__title"],
@@ -266,7 +270,7 @@ RESOURCES = [
         plural="Reviews",
         icon="quote",
         group="Homepage",
-        blurb="Customer quotes. Attach one to a package and it also shows on that page.",
+        blurb="Customer quotes. Attach one to a product and it also shows on that page.",
         columns=[
             Column("name", "Customer", sortable="name", hint="city"),
             Column("rating", "Rating", "rating", sortable="rating"),
@@ -364,7 +368,7 @@ RESOURCES = [
         columns=[
             Column("reference", "Ref", sortable="reference", hint="created_label"),
             Column("customer_name", "Customer", sortable="customer_name", hint="phone"),
-            Column("package", "Package", sortable="package__title", hint="city"),
+            Column("package", "Product", sortable="package__title", hint="city"),
             Column("event_date", "Event", "date", sortable="event_date", hint="time_slot"),
             Column("amount", "Value", "money", sortable="amount", hint="get_payment_status_display"),
             Column("status", "Status", "badge", sortable="status", badges=STATUS_TONES),

@@ -8,6 +8,7 @@ and these views simply read whatever is currently published.
 
 from django.contrib import messages
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import redirect, render
 
@@ -57,7 +58,10 @@ def home(request):
         ),
         "hero_slides": q.hero_slides(),
         "trust_badges": q.trust_badges(),
-        "featured_packages": q.featured_packages(limit=8),
+        # A slice of the catalogue, sized and ordered from the panel. The rest
+        # lives on the products page behind the button under the grid.
+        "home_products": q.home_products(),
+        "product_total": q.product_count(),
         "how_it_works": q.how_it_works(),
         "features": q.features(),
         "testimonials": q.testimonials(),
@@ -66,6 +70,190 @@ def home(request):
         "occasions": q.categories(),
     }
     return render(request, "core/home.html", context)
+
+
+RATING_OPTIONS = [
+    {"value": "4.8", "label": "4.8 and above"},
+    {"value": "4.5", "label": "4.5 and above"},
+    {"value": "4.0", "label": "4.0 and above"},
+]
+
+
+def _listing_url(request, *drop_params, drop_value=None):
+    """
+    The current URL with some filters taken out — what a filter chip's × links to.
+
+    `drop_value` removes a single value from a repeated parameter (one occasion
+    out of three chosen); without it the named parameters go entirely.
+    """
+    params = request.GET.copy()
+    params.pop("page", None)
+    params.pop("partial", None)
+    for name in drop_params:
+        if drop_value is None:
+            params.pop(name, None)
+            continue
+        kept = [v for v in params.getlist(name) if v != drop_value]
+        if kept:
+            params.setlist(name, kept)
+        else:
+            params.pop(name, None)
+    encoded = params.urlencode()
+    return f"{request.path}?{encoded}" if encoded else request.path
+
+
+def products(request):
+    """
+    The full catalogue: search, occasion, budget, rating and offer filters,
+    seven sort orders and pagination.
+
+    Everything narrows one queryset, so the count, the page and the ordering can
+    never disagree. With `?partial=1` only the results block is rendered — that
+    is what the page fetches when a filter changes, so the browser keeps its
+    scroll position and the cards can animate in.
+    """
+    config = q.site_settings()
+    price_floor, price_ceiling = q.product_price_bounds()
+    occasions, badges = q.product_facets()
+    valid_occasions = {row["slug"] for row in occasions}
+
+    def _int(name, default):
+        try:
+            return int(request.GET.get(name, ""))
+        except (TypeError, ValueError):
+            return default
+
+    # -- read the request, discarding anything that is not a real option ----
+    term = request.GET.get("q", "").strip()[:80]
+    chosen_occasions = [s for s in request.GET.getlist("occasion") if s in valid_occasions]
+    chosen_badges = [b for b in request.GET.getlist("badge") if b in badges]
+    min_price = max(_int("min_price", price_floor), price_floor)
+    max_price = min(_int("max_price", price_ceiling), price_ceiling)
+    if min_price > max_price:
+        min_price, max_price = price_floor, price_ceiling
+    min_rating = request.GET.get("rating", "")
+    if min_rating not in [o["value"] for o in RATING_OPTIONS]:
+        min_rating = ""
+    deals_only = request.GET.get("deal") == "1"
+    featured_only = request.GET.get("featured") == "1"
+    view_mode = "list" if request.GET.get("view") == "list" else "grid"
+
+    # -- narrow ------------------------------------------------------------
+    queryset = q.product_queryset()
+    total_count = queryset.count()
+
+    if term:
+        queryset = queryset.filter(
+            Q(title__icontains=term)
+            | Q(description__icontains=term)
+            | Q(badge__icontains=term)
+            | Q(includes_text__icontains=term)
+            | Q(category__name__icontains=term)
+        )
+    if chosen_occasions:
+        queryset = queryset.filter(category__slug__in=chosen_occasions)
+    if chosen_badges:
+        queryset = queryset.filter(badge__in=chosen_badges)
+    if price_ceiling:
+        queryset = queryset.filter(price__gte=min_price, price__lte=max_price)
+    if min_rating:
+        queryset = queryset.filter(rating__gte=min_rating)
+    if deals_only:
+        queryset = queryset.filter(discount_pc__gt=0)
+    if featured_only:
+        queryset = queryset.filter(is_featured=True)
+
+    queryset, sort = q.sort_products(queryset, request.GET.get("sort", ""))
+
+    per_page = getattr(config, "products_per_page", 9) or 9
+    paginator = Paginator(queryset, per_page)
+    try:
+        page_obj = paginator.page(request.GET.get("page", 1))
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    # -- what the toolbar shows as removable chips -------------------------
+    chips = []
+    if term:
+        chips.append({"label": f'"{term}"', "url": _listing_url(request, "q")})
+    names = {row["slug"]: row["name"] for row in occasions}
+    for slug in chosen_occasions:
+        chips.append({
+            "label": names[slug],
+            "url": _listing_url(request, "occasion", drop_value=slug),
+        })
+    for badge in chosen_badges:
+        chips.append({
+            "label": badge,
+            "url": _listing_url(request, "badge", drop_value=badge),
+        })
+    if price_ceiling and (min_price > price_floor or max_price < price_ceiling):
+        chips.append({
+            "label": f"₹{min_price:,} – ₹{max_price:,}",
+            "url": _listing_url(request, "min_price", "max_price"),
+        })
+    if min_rating:
+        chips.append({"label": f"{min_rating}★ and up", "url": _listing_url(request, "rating")})
+    if deals_only:
+        chips.append({"label": "On offer", "url": _listing_url(request, "deal")})
+    if featured_only:
+        chips.append({"label": "Featured", "url": _listing_url(request, "featured")})
+
+    params = request.GET.copy()
+    params.pop("page", None)
+    params.pop("partial", None)
+
+    def _view_url(mode):
+        """The same results, laid out the other way."""
+        switched = params.copy()
+        if mode == "grid":
+            switched.pop("view", None)
+        else:
+            switched["view"] = mode
+        encoded = switched.urlencode()
+        return f"{request.path}?{encoded}" if encoded else request.path
+
+    context = {
+        "page_id": "products",
+        "grid_url": _view_url("grid"),
+        "list_url": _view_url("list"),
+        "meta_description": (
+            getattr(config, "products_page_lead", "")
+            or "Every balloon and event decoration setup Celebra builds, at a fixed price."
+        )[:155],
+        "products": page_obj.object_list,
+        "page_obj": page_obj,
+        "paginator": paginator,
+        "querystring": params.urlencode(),
+        "result_count": paginator.count,
+        "total_count": total_count,
+        "occasion_facets": occasions,
+        "badge_facets": badges,
+        "chosen_occasions": chosen_occasions,
+        "chosen_badges": chosen_badges,
+        "price_floor": price_floor,
+        "price_ceiling": price_ceiling,
+        "min_price": min_price,
+        "max_price": max_price,
+        "min_rating": min_rating,
+        "deals_only": deals_only,
+        "featured_only": featured_only,
+        "term": term,
+        "sort": sort,
+        "view_mode": view_mode,
+        "chips": chips,
+        "sort_options": q.sort_options(),
+        "rating_options": RATING_OPTIONS,
+        "clear_url": request.path,
+        "breadcrumbs": [{"label": "Products", "url": None}],
+    }
+
+    if request.GET.get("partial") == "1":
+        # Only the results block: the page swaps this in without a reload.
+        return render(request, "core/partials/_product_results.html", context)
+    return render(request, "core/products.html", context)
 
 
 def categories(request):

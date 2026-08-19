@@ -46,6 +46,7 @@ BRAND = {
 
 NAV_LINKS = [
     {"label": "Home", "url_name": "core:home", "anchor": ""},
+    {"label": "Products", "url_name": "core:products", "anchor": ""},
     {"label": "Categories", "url_name": "core:categories", "anchor": ""},
     {"label": "How It Works", "url_name": "core:how_it_works", "anchor": ""},
     {"label": "Reviews", "url_name": "core:home", "anchor": "#reviews"},

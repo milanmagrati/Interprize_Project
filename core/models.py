@@ -140,6 +140,79 @@ class SiteSettings(models.Model):
     delivery_fee = models.PositiveIntegerField(default=249)
     tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=18)
 
+    # -- the products section, on the homepage and on its own page ---------
+    PRODUCT_SOURCE_CHOICES = [
+        ("featured", "Featured first"),
+        ("newest", "Newest first"),
+        ("rating", "Highest rated"),
+        ("discount", "Biggest discount"),
+        ("popular", "Most reviewed"),
+        ("manual", "The order you dragged them into"),
+    ]
+
+    home_products_eyebrow = models.CharField(
+        max_length=60,
+        default="Featured setups",
+        verbose_name="Homepage eyebrow",
+        help_text="The small line above the heading of the homepage products block.",
+    )
+    home_products_title = models.CharField(
+        max_length=120,
+        default="Booked most this month",
+        verbose_name="Homepage heading",
+    )
+    home_products_lead = models.CharField(
+        max_length=240,
+        blank=True,
+        default=(
+            "Every price below is final: materials, labour, travel inside city "
+            "limits and clean-up."
+        ),
+        verbose_name="Homepage sub-heading",
+    )
+    home_products_limit = models.PositiveIntegerField(
+        default=8,
+        validators=[MinValueValidator(1), MaxValueValidator(24)],
+        verbose_name="How many to show at home",
+        help_text="The homepage shows this many products; the rest live on the products page.",
+    )
+    home_products_source = models.CharField(
+        max_length=20,
+        choices=PRODUCT_SOURCE_CHOICES,
+        default="featured",
+        verbose_name="Which ones to show",
+    )
+    home_products_cta_label = models.CharField(
+        max_length=60,
+        default="See all products",
+        verbose_name="Button under the grid",
+        help_text="Links to the products page. Leave blank to hide the button.",
+        blank=True,
+    )
+
+    products_page_eyebrow = models.CharField(
+        max_length=60, default="The full catalogue", verbose_name="Products page eyebrow"
+    )
+    products_page_title = models.CharField(
+        max_length=120,
+        default="Every setup we build",
+        verbose_name="Products page heading",
+    )
+    products_page_lead = models.CharField(
+        max_length=240,
+        blank=True,
+        default=(
+            "Filter by occasion, budget and rating. Every price is final and "
+            "includes delivery, setup and clean-up."
+        ),
+        verbose_name="Products page sub-heading",
+    )
+    products_per_page = models.PositiveIntegerField(
+        default=9,
+        validators=[MinValueValidator(3), MaxValueValidator(48)],
+        verbose_name="Products per page",
+    )
+
     maintenance_mode = models.BooleanField(
         default=False,
         help_text="Shows a holding notice on the public site. The panel stays reachable.",

@@ -1,0 +1,97 @@
+{% load humanize %}{% comment %}
+The part of the products page that changes when a filter moves: the toolbar,
+the active-filter chips, the grid and the pager.
+
+Rendered on its own by `core.views.products` when the request carries
+`?partial=1`, which is how main.js swaps results in without a reload. Anything
+that has to survive a filter change belongs outside this file.
+{% endcomment %}
+<div class="prod-results__bar">
+  <div class="prod-results__count">
+    <h2 class="listing__count" id="products-title">
+      {{ result_count }} product{{ result_count|pluralize }}
+      {% if result_count != total_count %}<span class="listing__of">of {{ total_count }}</span>{% endif %}
+    </h2>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <p class="prod-results__page">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</p>
+    {% endif %}
+  </div>
+
+  <div class="prod-results__tools">
+    {# GET form: no CSRF token by design, it would leak the token into the URL. #}
+    <form class="prod-sort" method="get" action="{% url 'core:products' %}" data-results-form>
+      {% if term %}<input type="hidden" name="q" value="{{ term }}">{% endif %}
+      {% for slug in chosen_occasions %}<input type="hidden" name="occasion" value="{{ slug }}">{% endfor %}
+      {% for badge in chosen_badges %}<input type="hidden" name="badge" value="{{ badge }}">{% endfor %}
+      {% if min_price != price_floor %}<input type="hidden" name="min_price" value="{{ min_price }}">{% endif %}
+      {% if max_price != price_ceiling %}<input type="hidden" name="max_price" value="{{ max_price }}">{% endif %}
+      {% if min_rating %}<input type="hidden" name="rating" value="{{ min_rating }}">{% endif %}
+      {% if deals_only %}<input type="hidden" name="deal" value="1">{% endif %}
+      {% if featured_only %}<input type="hidden" name="featured" value="1">{% endif %}
+      {% if view_mode == "list" %}<input type="hidden" name="view" value="list">{% endif %}
+
+      <label class="sr-only" for="products-sort">Sort products</label>
+      <div class="select">
+        <select id="products-sort" name="sort" data-autosubmit>
+          {% for option in sort_options %}
+            <option value="{{ option.value }}"{% if sort == option.value %} selected{% endif %}>{{ option.label }}</option>
+          {% endfor %}
+        </select>
+        <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+      </div>
+      <noscript><button class="btn btn--sm btn--outline" type="submit">Sort</button></noscript>
+    </form>
+
+    <div class="viewtoggle" role="group" aria-label="Layout">
+      <a class="viewtoggle__btn{% if view_mode == 'grid' %} is-active{% endif %}"
+         href="{{ grid_url }}" data-view="grid"
+         aria-pressed="{% if view_mode == 'grid' %}true{% else %}false{% endif %}" title="Grid">
+        <svg class="icon" aria-hidden="true"><use href="#i-grid"></use></svg>
+        <span class="sr-only">Grid view</span>
+      </a>
+      <a class="viewtoggle__btn{% if view_mode == 'list' %} is-active{% endif %}"
+         href="{{ list_url }}" data-view="list"
+         aria-pressed="{% if view_mode == 'list' %}true{% else %}false{% endif %}" title="List">
+        <svg class="icon" aria-hidden="true"><use href="#i-rows"></use></svg>
+        <span class="sr-only">List view</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+{% if chips %}
+  <ul class="prod-chips" aria-label="Active filters">
+    {% for chip in chips %}
+      <li>
+        <a class="prod-chip" href="{{ chip.url }}" data-results-link>
+          <span>{{ chip.label }}</span>
+          <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+          <span class="sr-only">Remove this filter</span>
+        </a>
+      </li>
+    {% endfor %}
+    <li><a class="prod-chips__clear" href="{{ clear_url }}" data-results-link>Clear all</a></li>
+  </ul>
+{% endif %}
+
+{% if products %}
+  <div class="grid grid--cards grid--products{% if view_mode == 'list' %} grid--rows{% endif %}" data-stagger>
+    {% for package in products %}
+      <div class="prod-cell" style="--i: {{ forloop.counter0 }}">
+        {% include "core/partials/_package_card.html" with package=package %}
+      </div>
+    {% endfor %}
+  </div>
+
+  {% include "core/partials/_pagination.html" with page_obj=page_obj querystring=querystring %}
+{% else %}
+  <div class="empty">
+    <svg class="icon empty__icon" aria-hidden="true"><use href="#i-search"></use></svg>
+    <h3 class="empty__title">Nothing matches those filters</h3>
+    <p class="empty__text">
+      Widen the budget, drop the rating filter, or clear everything to see all
+      {{ total_count }} setup{{ total_count|pluralize }} again.
+    </p>
+    <a class="btn btn--primary" href="{{ clear_url }}" data-results-link>Clear all filters</a>
+  </div>
+{% endif %}

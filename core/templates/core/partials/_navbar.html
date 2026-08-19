@@ -1,4 +1,4 @@
-{% load static %}
+{% load static humanize %}
 <div class="announce">
   <div class="wrap announce__inner">
     {# Editable in the panel under Site settings; this is the fallback line. #}
@@ -35,7 +35,63 @@
     <nav class="nav-desktop" aria-label="Primary">
       <ul class="nav-desktop__list">
         {% for link in nav_links %}
-          <li><a class="nav-link" href="{% url link.url_name %}{{ link.anchor }}">{{ link.label }}</a></li>
+          {% if link.url_name == "core:products" %}
+            {% comment %}
+              The one link with a panel under it: occasions on the left, a few
+              live products on the right. Everything in it is a real link, so
+              it still works with JavaScript off.
+            {% endcomment %}
+            <li class="nav-desktop__item nav-desktop__item--mega" data-mega>
+              <a class="nav-link nav-link--mega" href="{% url link.url_name %}{{ link.anchor }}"
+                 aria-expanded="false" aria-controls="mega-products" data-mega-trigger>
+                {{ link.label }}
+                <svg class="icon nav-link__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+              </a>
+
+              <div class="mega" id="mega-products" data-mega-panel hidden>
+                <div class="mega__inner">
+                  <div class="mega__col">
+                    <p class="mega__label">Shop by occasion</p>
+                    <ul class="mega__links">
+                      {% for category in categories %}
+                        <li>
+                          <a href="{% url 'core:products' %}?occasion={{ category.slug }}">
+                            <span class="mega__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg></span>
+                            <span class="mega__linktext">
+                              <strong>{{ category.name }}</strong>
+                              <small>{{ category.display_count }} setups</small>
+                            </span>
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+
+                  <div class="mega__col mega__col--picks">
+                    <p class="mega__label">Popular right now</p>
+                    <ul class="mega__picks">
+                      {% for product in nav_products %}
+                        <li>
+                          <a href="{% url 'core:package_detail' product.slug %}">
+                            <img src="{{ product.image }}" alt="" width="96" height="72" loading="lazy" decoding="async">
+                            <span class="mega__picktext">
+                              <strong>{{ product.title }}</strong>
+                              <small>&#8377;{{ product.price|intcomma }} &middot; {{ product.category_name }}</small>
+                            </span>
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                    <a class="link-arrow link-arrow--sm mega__all" href="{% url 'core:products' %}">
+                      Browse all products <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </li>
+          {% else %}
+            <li class="nav-desktop__item"><a class="nav-link" href="{% url link.url_name %}{{ link.anchor }}">{{ link.label }}</a></li>
+          {% endif %}
         {% endfor %}
       </ul>
     </nav>
@@ -120,9 +176,12 @@
     <p class="drawer__label">Shop by occasion</p>
     <div class="drawer__chips">
       {% for category in categories %}
-        <a class="chip chip--sm" href="{% url 'core:category_detail' category.slug %}">{{ category.name }}</a>
+        <a class="chip chip--sm" href="{% url 'core:products' %}?occasion={{ category.slug }}">{{ category.name }}</a>
       {% endfor %}
     </div>
+    <a class="link-arrow link-arrow--sm drawer__more" href="{% url 'core:products' %}">
+      All products <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+    </a>
   </div>
 
   <div class="drawer__section">

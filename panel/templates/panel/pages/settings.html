@@ -2,7 +2,7 @@
 {% load panel_tags %}
 
 {% block subheading %}
-  <p class="topbar__sub">Brand details, contact information and checkout numbers. Saved changes show on the public site immediately.</p>
+  <p class="topbar__sub">Brand details, contact information, checkout numbers and the products blocks. Saved changes show on the public site immediately.</p>
 {% endblock %}
 
 {% block content %}
@@ -43,7 +43,15 @@
             <li>Phone and email — header, footer and contact page</li>
             <li>Announcement — the strip above the header</li>
             <li>Checkout numbers — the cart totals</li>
+            <li>Products on the homepage — the grid under the hero, and how much of the catalogue it shows</li>
+            <li>The products page — the heading and page size at <code>/products/</code></li>
           </ul>
+          <p class="card__note">
+            The products themselves live under
+            <a href="{% url 'panel:resource_list' 'packages' %}">Catalogue &rarr; Packages</a>,
+            and the menu link that reaches them under
+            <a href="{% url 'panel:resource_list' 'nav-links' %}">Site &rarr; Menu links</a>.
+          </p>
         </div>
       </aside>
     </div>

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ brand.products_page_title|default:"All products" }} &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+{# ------------------------------------------------------------ page head #}
+<section class="prod-head">
+  <div class="wrap prod-head__inner">
+    <div class="prod-head__copy">
+      <p class="eyebrow">
+        <svg class="eyebrow__garland" viewBox="0 0 34 14" aria-hidden="true" focusable="false">
+          <path d="M2 12C2 5.9 5 2 9 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M32 12c0-6.1-3-10-7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="11.5" cy="4" r="2.2"/><circle cx="17" cy="6.6" r="2.6"/><circle cx="22.5" cy="4" r="2.2"/>
+        </svg>
+        {{ brand.products_page_eyebrow|default:"The full catalogue" }}
+      </p>
+      <h1 class="prod-head__title">{{ brand.products_page_title|default:"Every setup we build" }}</h1>
+      {% if brand.products_page_lead %}
+        <p class="prod-head__lead">{{ brand.products_page_lead }}</p>
+      {% endif %}
+
+      <ul class="prod-head__stats">
+        <li><strong>{{ total_count }}</strong> products</li>
+        <li><strong>{{ occasion_facets|length }}</strong> occasions</li>
+        <li><strong>{{ cities|length }}</strong> cities</li>
+      </ul>
+    </div>
+
+    <div class="prod-head__search">
+      {# GET search: no CSRF token by design, it would leak the token into the URL. #}
+      <form method="get" action="{% url 'core:products' %}" role="search" data-results-form>
+        {% for slug in chosen_occasions %}<input type="hidden" name="occasion" value="{{ slug }}">{% endfor %}
+        {% if sort != "featured" %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+        {% if view_mode == "list" %}<input type="hidden" name="view" value="list">{% endif %}
+        <label class="field field--search prod-head__field">
+          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+          <span class="sr-only">Search products</span>
+          <input type="search" name="q" value="{{ term }}" placeholder="Search setups, themes, colours&hellip;"
+                 autocomplete="off" data-live-search>
+        </label>
+        <button class="btn btn--primary" type="submit">Search</button>
+      </form>
+
+      <p class="prod-head__hint">
+        <svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg>
+        Every price is final &mdash; materials, travel, setup and clean-up included.
+      </p>
+    </div>
+  </div>
+</section>
+
+{# -------------------------------------------------------------- listing #}
+<section class="section listing" aria-labelledby="products-title">
+  <div class="wrap listing__inner">
+
+    <button class="btn btn--outline filters-open" type="button" data-filters-toggle aria-expanded="false" aria-controls="filters">
+      <svg class="icon" aria-hidden="true"><use href="#i-sliders"></use></svg>
+      Filter and sort
+      {% if chips %}<span class="filters-open__count">{{ chips|length }}</span>{% endif %}
+    </button>
+
+    <div class="filters-scrim" data-filters-scrim hidden></div>
+
+    <aside class="filters" id="filters" aria-label="Filter products">
+      <div class="filters__head">
+        <h2 class="filters__title">Filters</h2>
+        <button class="icon-button filters__close" type="button" aria-label="Close filters" data-filters-close>
+          <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+        </button>
+      </div>
+
+      {# GET filter form: no CSRF token by design, it would leak the token into the URL. #}
+      <form class="filters__form" method="get" action="{% url 'core:products' %}" data-filter-form>
+        {% comment %}
+          Always present, even when empty: this form is the one the page
+          submits, so it has to carry the layout and sort choices too.
+        {% endcomment %}
+        <input type="hidden" name="view" value="{% if view_mode == 'list' %}list{% endif %}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Search</legend>
+          <label class="field field--search">
+            <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
+            <span class="sr-only">Search products</span>
+            <input type="search" name="q" value="{{ term }}" placeholder="Anything at all" autocomplete="off">
+          </label>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Occasion</legend>
+          <div class="filters__checks">
+            {% for occasion in occasion_facets %}
+              <label class="check">
+                <input type="checkbox" name="occasion" value="{{ occasion.slug }}"{% if occasion.slug in chosen_occasions %} checked{% endif %}>
+                <span class="check__box" aria-hidden="true">
+                  <svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg>
+                </span>
+                <span class="check__label">{{ occasion.name }}</span>
+                <span class="check__count">{{ occasion.live_total }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Budget</legend>
+          <div class="range2" data-range2>
+            <div class="range2__rail"><div class="range2__fill" data-range2-fill></div></div>
+            <label class="sr-only" for="min-price">Lowest price</label>
+            <input type="range" id="min-price" name="min_price" data-range2-min data-default="{{ price_floor }}"
+                   min="{{ price_floor }}" max="{{ price_ceiling }}" step="100" value="{{ min_price }}">
+            <label class="sr-only" for="max-price">Highest price</label>
+            <input type="range" id="max-price" name="max_price" data-range2-max data-default="{{ price_ceiling }}"
+                   min="{{ price_floor }}" max="{{ price_ceiling }}" step="100" value="{{ max_price }}">
+          </div>
+          <p class="range__out">
+            <strong data-range2-out>&#8377;{{ min_price|intcomma }} &ndash; &#8377;{{ max_price|intcomma }}</strong>
+          </p>
+          <p class="range__ends">
+            <span>&#8377;{{ price_floor|intcomma }}</span>
+            <span>&#8377;{{ price_ceiling|intcomma }}</span>
+          </p>
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Rating</legend>
+          <label class="radio">
+            <input type="radio" name="rating" value=""{% if not min_rating %} checked{% endif %}>
+            <span>Any rating</span>
+          </label>
+          {% for option in rating_options %}
+            <label class="radio">
+              <input type="radio" name="rating" value="{{ option.value }}"{% if min_rating == option.value %} checked{% endif %}>
+              <span>{{ option.label }}</span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset class="filters__group">
+          <legend class="filters__legend">Only show</legend>
+          <label class="check check--wide">
+            <input type="checkbox" name="deal" value="1"{% if deals_only %} checked{% endif %}>
+            <span class="check__box" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+            <span class="check__label">Discounted setups</span>
+          </label>
+          <label class="check check--wide">
+            <input type="checkbox" name="featured" value="1"{% if featured_only %} checked{% endif %}>
+            <span class="check__box" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
+            <span class="check__label">Featured only</span>
+          </label>
+        </fieldset>
+
+        {% if badge_facets %}
+          <fieldset class="filters__group">
+            <legend class="filters__legend">Labels</legend>
+            <div class="filters__tags">
+              {% for badge in badge_facets %}
+                <label class="tagcheck">
+                  <input type="checkbox" name="badge" value="{{ badge }}"{% if badge in chosen_badges %} checked{% endif %}>
+                  <span>{{ badge }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endif %}
+
+        <div class="filters__actions">
+          <button class="btn btn--primary btn--block" type="submit">Show results</button>
+          <a class="btn btn--ghost btn--block" href="{{ clear_url }}" data-results-link>Clear all</a>
+        </div>
+      </form>
+    </aside>
+
+    {# The spinner sits outside the swapped block so it survives a refresh. #}
+    <div class="listing__main prod-results" data-results aria-busy="false">
+      <div class="prod-results__spinner" aria-hidden="true"></div>
+      {# Outside the swapped block, so it survives to announce the new count. #}
+      <p class="sr-only" role="status" aria-live="polite" data-results-status></p>
+      <div class="prod-results__body" id="product-results" data-results-body>
+        {% include "core/partials/_product_results.html" %}
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ----------------------------------------------------------- occasions #}
+<section class="section section--ivory" aria-labelledby="prod-occasions-title" data-reveal>
+  <div class="wrap">
+    {% include "core/partials/_section_head.html" with eyebrow="Jump straight in" title_id="prod-occasions-title" title="Browse by occasion" centered=1 %}
+    <div class="chip-row center">
+      {% for occasion in occasion_facets %}
+        <a class="chip chip--sm" href="{% url 'core:products' %}?occasion={{ occasion.slug }}">
+          {{ occasion.name }} <span class="chip__count">{{ occasion.live_total }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -46,6 +46,7 @@ User = get_user_model()
 # every page that renders the navbar, since {% url %} raises on a bad name.
 ROUTE_CHOICES = [
     ("core:home", "Home"),
+    ("core:products", "All products"),
     ("core:categories", "All categories"),
     ("core:category_detail", "A category page — needs a slug"),
     ("core:package_detail", "A package page — needs a slug"),
@@ -299,8 +300,16 @@ class SiteSettingsForm(PanelModelForm):
             "founded_year", "default_city", "announcement", "maintenance_mode",
             "instagram", "facebook", "youtube", "twitter",
             "free_delivery_threshold", "delivery_fee", "tax_percent",
+            "home_products_eyebrow", "home_products_title", "home_products_lead",
+            "home_products_limit", "home_products_source", "home_products_cta_label",
+            "products_page_eyebrow", "products_page_title", "products_page_lead",
+            "products_per_page",
         ]
-        widgets = {"address": forms.Textarea(attrs={"rows": 2})}
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 2}),
+            "home_products_lead": forms.Textarea(attrs={"rows": 2}),
+            "products_page_lead": forms.Textarea(attrs={"rows": 2}),
+        }
 
     # Grouped so the settings page can render sections instead of one long column.
     SECTIONS = [
@@ -308,6 +317,14 @@ class SiteSettingsForm(PanelModelForm):
         ("Contact", ["phone", "whatsapp", "email", "address", "hours", "default_city"]),
         ("Social", ["instagram", "facebook", "youtube", "twitter"]),
         ("Checkout", ["free_delivery_threshold", "delivery_fee", "tax_percent"]),
+        ("Products on the homepage", [
+            "home_products_eyebrow", "home_products_title", "home_products_lead",
+            "home_products_source", "home_products_limit", "home_products_cta_label",
+        ]),
+        ("The products page", [
+            "products_page_eyebrow", "products_page_title", "products_page_lead",
+            "products_per_page",
+        ]),
     ]
 
     def sections(self):

@@ -19,6 +19,8 @@
      13. Add-to-cart toast
      14. Auth modal (sign in / sign up) — OTP flow, simulated client-side
      15. Hero slider (images + autoplaying video)
+     16. Products drop-down in the header
+     17. Products listing: filters, live search, layout, paging
    ========================================================================== */
 
 (function () {
@@ -358,12 +360,20 @@
   })();
 
   /* ---------------------------------------------------------------- 8. */
+  // [data-reveal] fades a block in; [data-stagger] runs its children in one
+  // after another. Both wait for the same "you can see this now" moment.
+  var REVEAL_SELECTOR = "[data-reveal], [data-stagger]";
+
+  function revealNow(root) {
+    $$(REVEAL_SELECTOR, root).forEach(function (el) { el.classList.add("is-visible"); });
+  }
+
   (function scrollReveal() {
-    var targets = $$("[data-reveal]");
+    var targets = $$(REVEAL_SELECTOR);
     if (!targets.length) return;
 
     if (!("IntersectionObserver" in window) || reducedMotion.matches) {
-      targets.forEach(function (el) { el.classList.add("is-visible"); });
+      revealNow(document);
       return;
     }
 
@@ -545,11 +555,14 @@
       });
     }
 
-    // Sort dropdown submits its form on change.
-    $$("[data-autosubmit]").forEach(function (select) {
-      select.addEventListener("change", function () {
-        if (select.form) select.form.submit();
-      });
+    // Sort dropdown submits its form on change. requestSubmit() rather than
+    // submit(), because only the former fires a submit event — which is what
+    // the products listing listens for to swap results in without a reload.
+    document.addEventListener("change", function (event) {
+      var select = event.target.closest ? event.target.closest("[data-autosubmit]") : null;
+      if (!select || !select.form) return;
+      if (typeof select.form.requestSubmit === "function") select.form.requestSubmit();
+      else select.form.submit();
     });
   })();
 
@@ -652,11 +665,12 @@
 
   window.Celebra = { toast: toast };
 
-  $$("[data-add-to-cart]").forEach(function (button) {
-    button.addEventListener("click", function () {
-      // Placeholder until the cart backend exists: confirm, then send them on.
-      toast("Added to cart. Pick a slot at checkout.");
-    });
+  // Delegated: product cards can arrive after load, when a filter changes.
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest("[data-add-to-cart]") : null;
+    if (!button) return;
+    // Placeholder until the cart backend exists: confirm, then send them on.
+    toast("Added to cart. Pick a slot at checkout.");
   });
 
   /* --------------------------------------------------------------- 14. */
@@ -1295,5 +1309,345 @@
     setInteractive(slides[index], true);
     startVideoWhenLoaded(slides[index]);
     schedule();
+  })();
+  /* --------------------------------------------------------------- 16. */
+  (function megaMenu() {
+    var items = $$("[data-mega]");
+    if (!items.length) return;
+
+    // The trigger stays a real link to /products/ — clicking it navigates.
+    // The panel opens on hover and on keyboard focus, so neither pointer nor
+    // keyboard visitors lose the shortcuts inside it.
+    var HOVER_IN = 90;
+    var HOVER_OUT = 200;
+
+    items.forEach(function (item) {
+      var trigger = $("[data-mega-trigger]", item);
+      var panel = $("[data-mega-panel]", item);
+      if (!trigger || !panel) return;
+
+      var openTimer = null;
+      var closeTimer = null;
+
+      function open() {
+        window.clearTimeout(closeTimer);
+        if (panel.classList.contains("is-open")) return;
+        panel.hidden = false;
+        requestAnimationFrame(function () {
+          panel.classList.add("is-open");
+          item.classList.add("is-open");
+        });
+        trigger.setAttribute("aria-expanded", "true");
+      }
+
+      function close() {
+        window.clearTimeout(openTimer);
+        if (!panel.classList.contains("is-open")) return;
+        panel.classList.remove("is-open");
+        item.classList.remove("is-open");
+        trigger.setAttribute("aria-expanded", "false");
+        window.setTimeout(function () {
+          if (!panel.classList.contains("is-open")) panel.hidden = true;
+        }, 300);
+      }
+
+      item.addEventListener("mouseenter", function () {
+        window.clearTimeout(closeTimer);
+        openTimer = window.setTimeout(open, HOVER_IN);
+      });
+      item.addEventListener("mouseleave", function () {
+        window.clearTimeout(openTimer);
+        closeTimer = window.setTimeout(close, HOVER_OUT);
+      });
+
+      item.addEventListener("focusin", open);
+      item.addEventListener("focusout", function (event) {
+        // Only close once focus has actually left the whole menu item.
+        if (!item.contains(event.relatedTarget)) close();
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && panel.classList.contains("is-open")) {
+          close();
+          trigger.focus();
+        }
+      });
+
+      document.addEventListener("click", function (event) {
+        if (!item.contains(event.target)) close();
+      });
+    });
+  })();
+
+  /* --------------------------------------------------------------- 17. */
+  (function productListing() {
+    var region = $("[data-results]");
+    if (!region) return;
+
+    var body = $("[data-results-body]", region);
+    var filterForm = $("[data-filter-form]");
+    var status = $("[data-results-status]");
+    if (!body) return;
+
+    /* -- the budget slider: two thumbs over one rail -------------------- */
+    var rangeBox = filterForm && $("[data-range2]", filterForm);
+    var lowInput = rangeBox && $("[data-range2-min]", rangeBox);
+    var highInput = rangeBox && $("[data-range2-max]", rangeBox);
+    var rangeFill = rangeBox && $("[data-range2-fill]", rangeBox);
+    var rangeOut = filterForm && $("[data-range2-out]", filterForm);
+
+    function paintRange() {
+      if (!rangeBox || !lowInput || !highInput) return;
+      var floor = Number(lowInput.min);
+      var ceiling = Number(lowInput.max);
+      var span = ceiling - floor || 1;
+      var low = Number(lowInput.value);
+      var high = Number(highInput.value);
+
+      if (rangeFill) {
+        rangeFill.style.left = ((low - floor) / span) * 100 + "%";
+        rangeFill.style.right = 100 - ((high - floor) / span) * 100 + "%";
+      }
+      if (rangeOut) rangeOut.textContent = money(low) + " – " + money(high);
+
+      // Whichever thumb sits in the right-hand half goes on top, otherwise the
+      // two stack at the far end and one of them becomes impossible to grab.
+      lowInput.style.zIndex = low > floor + span / 2 ? "4" : "2";
+      highInput.style.zIndex = low > floor + span / 2 ? "3" : "5";
+    }
+
+    if (lowInput && highInput) {
+      lowInput.addEventListener("input", function () {
+        if (Number(lowInput.value) > Number(highInput.value)) lowInput.value = highInput.value;
+        paintRange();
+      });
+      highInput.addEventListener("input", function () {
+        if (Number(highInput.value) < Number(lowInput.value)) highInput.value = lowInput.value;
+        paintRange();
+      });
+      paintRange();
+    }
+
+    /* -- turning a form into a URL -------------------------------------- */
+    // Empty fields, unticked boxes, an untouched budget and the default sort
+    // are all left out, so the address bar only ever shows real choices.
+    function formQuery(form) {
+      var params = new URLSearchParams();
+      $$("input, select", form).forEach(function (el) {
+        if (!el.name || el.disabled) return;
+        if ((el.type === "checkbox" || el.type === "radio") && !el.checked) return;
+        var value = String(el.value).trim();
+        if (!value) return;
+        if (el.hasAttribute("data-default") && value === el.getAttribute("data-default")) return;
+        if (el.name === "sort" && value === "featured") return;
+        params.append(el.name, value);
+      });
+      return params.toString();
+    }
+
+    function formUrl(form) {
+      var query = formQuery(form);
+      var action = form.getAttribute("action") || window.location.pathname;
+      return query ? action + "?" + query : action;
+    }
+
+    /* -- putting a URL back into the sidebar ----------------------------- */
+    function syncFilters(search) {
+      if (!filterForm) return;
+      var params = new URLSearchParams(search || "");
+      $$("input, select", filterForm).forEach(function (el) {
+        if (!el.name) return;
+        if (el.type === "checkbox" || el.type === "radio") {
+          el.checked = params.getAll(el.name).indexOf(el.value) > -1;
+          if (el.type === "radio" && el.value === "" && !params.get(el.name)) el.checked = true;
+          return;
+        }
+        if (el.name === "sort") {
+          el.value = params.get("sort") || "featured";
+          return;
+        }
+        el.value = params.get(el.name) || el.getAttribute("data-default") || "";
+      });
+      $$("[data-live-search]").forEach(function (el) { el.value = params.get("q") || ""; });
+      paintRange();
+    }
+
+    // The count on the mobile "Filter and sort" button, kept in step with the
+    // chips that came back with the results.
+    function updateFilterCount() {
+      var toggle = $("[data-filters-toggle]");
+      if (!toggle) return;
+      var count = $$(".prod-chip", body).length;
+      var badge = $(".filters-open__count", toggle);
+      if (!count) {
+        if (badge) badge.remove();
+        return;
+      }
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "filters-open__count";
+        toggle.appendChild(badge);
+      }
+      badge.textContent = String(count);
+    }
+
+    function announce() {
+      if (!status) return;
+      var heading = $("#products-title", body);
+      status.textContent = heading ? heading.textContent.replace(/\s+/g, " ").trim() : "";
+    }
+
+    function closeFilterDrawer() {
+      var closer = $("[data-filters-close]");
+      if (closer) closer.click();   // no-op when the drawer is already shut
+    }
+
+    function scrollToResults() {
+      var header = $("[data-header]");
+      var offset = (header ? header.offsetHeight : 0) + 16;
+      var top = region.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({
+        top: Math.max(top, 0),
+        behavior: reducedMotion.matches ? "auto" : "smooth"
+      });
+    }
+
+    /* -- the swap -------------------------------------------------------- */
+    var pending = null;
+    var ticket = 0;      // guards against an older reply landing after a newer
+
+    function load(url, options) {
+      options = options || {};
+
+      if (!window.fetch || !window.URLSearchParams) {
+        window.location.href = url;
+        return;
+      }
+      if (pending && pending.abort) pending.abort();
+
+      var controller = window.AbortController ? new AbortController() : null;
+      pending = controller;
+      ticket += 1;
+      var mine = ticket;
+
+      var separator = url.indexOf("?") > -1 ? "&" : "?";
+      region.setAttribute("aria-busy", "true");
+
+      fetch(url + separator + "partial=1", {
+        headers: { "X-Requested-With": "fetch" },
+        credentials: "same-origin",
+        signal: controller ? controller.signal : undefined
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          return response.text();
+        })
+        .then(function (html) {
+          if (mine !== ticket) return;      // a later request already answered
+          pending = null;
+          body.innerHTML = html;
+          region.setAttribute("aria-busy", "false");
+          revealNow(body);
+          syncFilters(url.split("?")[1] || "");
+          updateFilterCount();
+          announce();
+          if (options.push !== false) {
+            // Typing replaces the entry rather than adding one, so Back steps
+            // out of the search rather than back through every keystroke.
+            if (options.replace) window.history.replaceState({ products: true }, "", url);
+            else window.history.pushState({ products: true }, "", url);
+          }
+          if (options.scroll) scrollToResults();
+        })
+        .catch(function (error) {
+          if (error && error.name === "AbortError") return;
+          if (mine !== ticket) return;
+          // Anything unexpected: let the browser do it the ordinary way.
+          window.location.href = url;
+        });
+    }
+
+    /* -- what triggers a swap -------------------------------------------- */
+
+    // The sidebar is the one form that knows every choice, so the sort
+    // dropdown and the search box hand their value to it and it does the
+    // asking. Without this, sorting would quietly drop the active filters.
+    function mirrorInto(target, form) {
+      $$("input, select", form).forEach(function (el) {
+        if (!el.name || el.type === "checkbox" || el.type === "radio") return;
+        var twin = target.querySelector('[name="' + el.name + '"]');
+        if (!twin || twin.type === "checkbox" || twin.type === "radio") return;
+        twin.value = el.value;
+      });
+    }
+
+    document.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (!form.matches || !form.matches("[data-filter-form], [data-results-form]")) return;
+      event.preventDefault();
+
+      var source = form;
+      if (filterForm && form !== filterForm) {
+        mirrorInto(filterForm, form);
+        source = filterForm;
+      }
+      if (form.hasAttribute("data-filter-form")) closeFilterDrawer();
+      load(formUrl(source), { scroll: false });
+    });
+
+    // Ticking a box, moving a thumb, changing the rating — apply straight away.
+    if (filterForm) {
+      var applyFilters = debounce(function () {
+        load(formUrl(filterForm), { scroll: false });
+      }, 260);
+
+      filterForm.addEventListener("change", function (event) {
+        if (event.target.type === "search" || event.target.type === "text") return;
+        applyFilters();
+      });
+
+      var typeAhead = debounce(function () {
+        load(formUrl(filterForm), { scroll: false, replace: true });
+      }, 420);
+
+      filterForm.addEventListener("input", function (event) {
+        if (event.target.type !== "search" && event.target.type !== "text") return;
+        typeAhead();
+      });
+
+      // The big search box at the top of the page drives the same query, so
+      // typing there never quietly drops the filters set in the sidebar.
+      $$("[data-live-search]").forEach(function (input) {
+        input.addEventListener("input", function () {
+          var mirror = filterForm.querySelector('[name="q"]');
+          if (mirror) mirror.value = input.value;
+          typeAhead();
+        });
+      });
+    }
+
+    // Chips, "clear all", the layout toggle and the pager.
+    function interceptLink(event) {
+      if (event.defaultPrevented) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      var link = event.target.closest
+        ? event.target.closest("[data-results-link], .prod-chip, .viewtoggle__btn, .pager a")
+        : null;
+      if (!link || !link.href) return;
+      // Only same-origin listing URLs — never hijack a link off the page.
+      var url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin || url.pathname !== window.location.pathname) return;
+      event.preventDefault();
+      load(url.pathname + url.search, { scroll: link.matches(".pager a") });
+    }
+
+    region.addEventListener("click", interceptLink);
+    if (filterForm) filterForm.addEventListener("click", interceptLink);
+
+    window.addEventListener("popstate", function () {
+      load(window.location.pathname + window.location.search, { push: false });
+    });
+
+    updateFilterCount();
   })();
 })();

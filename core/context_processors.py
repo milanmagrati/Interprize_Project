@@ -1,5 +1,7 @@
 """Context available to every template: brand chrome, nav, city list."""
 
+from django.utils.functional import SimpleLazyObject
+
 from . import queries
 
 
@@ -15,4 +17,7 @@ def site_chrome(request):
         "categories": queries.categories(),
         "cart_count": queries.cart_count(),
         "active_city": request.GET.get("city") or default_city,
+        # Read by the header's Products drop-down. Lazy, so a menu without a
+        # Products link never runs the query.
+        "nav_products": SimpleLazyObject(queries.nav_products),
     }

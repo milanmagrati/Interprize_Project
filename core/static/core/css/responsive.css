@@ -1,7 +1,7 @@
 /* ==========================================================================
    Celebra — responsive.css
    Mobile-first: style.css holds the small-screen state, everything here
-   scales it up. Breakpoints: 480, 640, 768, 1024, 1280, 1440.
+   scales it up. Breakpoints: 480, 640, 768, 1024, 1200, 1280, 1440.
    ========================================================================== */
 
 /* ==========================================================================
@@ -77,7 +77,7 @@
 
   .header__signin {
     width: auto;
-    padding: 0 0.9rem;
+    padding: 0 clamp(0.7rem, 0.3rem + 0.5vw, 0.95rem);
     border: 1.5px solid var(--color-line);
     background: var(--color-surface);
   }
@@ -164,9 +164,8 @@
 @media (min-width: 1024px) {
   :root { --gutter: 2.5rem; }
 
-  /* header: full nav, no hamburger */
-  .nav-desktop { display: block; }
-  .hamburger { display: none; }
+  /* header: the logo can say its full name here — the drawer still holds the
+     menu until 1200px, where the links finally fit on one line. */
   .logo__tagline { display: block; }
   .logo__mark { width: 44px; height: 34px; }
 
@@ -227,6 +226,21 @@
 }
 
 /* ==========================================================================
+   >= 1200px — the header goes full width
+   Six links, the city picker, the cart, sign-in and the CTA fit on one line
+   from here up, so the drawer stands down. The tagline pays for the room —
+   the line is still on the footer.
+   ========================================================================== */
+@media (min-width: 1200px) {
+  /* 42px from here up: these are mouse targets, not thumb ones. */
+  :root { --control-h: 42px; }
+
+  .nav-desktop { display: flex; }
+  .hamburger { display: none; }
+  .logo__tagline { display: none; }
+}
+
+/* ==========================================================================
    >= 1280px — desktops
    ========================================================================== */
 @media (min-width: 1280px) {
@@ -241,8 +255,43 @@
    ========================================================================== */
 @media (min-width: 1440px) {
   :root { --wrap-max: 1340px; --gutter: 3rem; }
+
   .hero { --hero-h: clamp(38rem, calc(84 * var(--hero-vh)), 50rem); }
   .scroller__track--cards > .pkg { width: 320px; }
+}
+
+/* ==========================================================================
+   Products page and header drop-down
+   Kept together at the end rather than spread through the blocks above, so
+   the whole feature reads in one place.
+   ========================================================================== */
+
+@media (min-width: 640px) {
+  /* List layout: the card lies on its side, picture beside the copy. */
+  .grid--rows { grid-template-columns: minmax(0, 1fr); }
+  .grid--rows .pkg { flex-direction: row; }
+  .grid--rows .pkg__media {
+    width: 38%;
+    max-width: 320px;
+    flex: none;
+    aspect-ratio: auto;
+  }
+  .grid--rows .pkg__body { padding: 1.15rem 1.35rem; }
+  .grid--rows .pkg__actions {
+    grid-template-columns: repeat(2, minmax(0, 180px));
+    justify-content: start;
+  }
+}
+
+@media (min-width: 768px) {
+  .prod-head__inner { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 2.5rem; }
+  .viewtoggle { display: flex; }
+}
+
+@media (min-width: 1024px) {
+  /* The "Filter and sort" button is gone up here, so its badge goes too. */
+  .filters-open__count { display: none; }
+  .prod-head { padding-bottom: clamp(2rem, 1.4rem + 2vw, 3rem); }
 }
 
 /* ==========================================================================

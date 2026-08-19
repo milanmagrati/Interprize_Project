@@ -105,22 +105,34 @@
   </div>
 </section>
 
-{# ------------------------------------------------------- featured grid #}
-<section class="section" id="packages" aria-labelledby="featured-title" data-reveal>
+{# ------------------------------------------------------- products grid #}
+{% comment %}
+A slice of the catalogue, not all of it. The heading, how many cards appear and
+which ones they are all come from Site settings → Products in the panel; the
+button under the grid carries on to the full products page.
+{% endcomment %}
+<section class="section" id="products" aria-labelledby="products-title" data-reveal>
   <div class="wrap">
-    {% include "core/partials/_section_head.html" with eyebrow="Featured setups" title_id="featured-title" title="Booked most this month" lead="Every price below is final: materials, labour, travel inside city limits and clean-up." centered=1 %}
+    {% include "core/partials/_section_head.html" with eyebrow=brand.home_products_eyebrow title_id="products-title" title=brand.home_products_title lead=brand.home_products_lead centered=1 %}
 
-    <div class="grid grid--cards">
-      {% for package in featured_packages %}
-        {% include "core/partials/_package_card.html" with package=package %}
+    <div class="grid grid--cards grid--products" data-stagger>
+      {% for package in home_products %}
+        <div class="prod-cell" style="--i: {{ forloop.counter0 }}">
+          {% include "core/partials/_package_card.html" with package=package %}
+        </div>
       {% endfor %}
     </div>
 
-    <div class="section__foot">
-      <a class="btn btn--outline btn--lg" href="{% url 'core:categories' %}">
-        See all 500+ setups <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
-      </a>
-    </div>
+    {% if brand.home_products_cta_label %}
+      <div class="section__foot section__foot--products">
+        <p class="section__tally">
+          Showing {{ home_products|length }} of {{ product_total }} product{{ product_total|pluralize }}.
+        </p>
+        <a class="btn btn--outline btn--lg" href="{% url 'core:products' %}">
+          {{ brand.home_products_cta_label }} <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+        </a>
+      </div>
+    {% endif %}
   </div>
 </section>
 

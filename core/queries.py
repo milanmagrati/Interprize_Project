@@ -12,6 +12,7 @@ toggles are the single control over what the public sees.
 
 from datetime import timedelta
 
+from django.db.models import Case, Count, F, FloatField, Q, Value, When
 from django.db.utils import DatabaseError
 from django.utils import timezone
 
@@ -154,6 +155,135 @@ def featured_packages(limit=8):
     if len(rows) < limit:
         rows += list(live.exclude(is_featured=True)[: limit - len(rows)])
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Products
+#
+# The products page and the homepage grid read the catalogue through these.
+# `discount_pc` is annotated rather than derived in Python so the page can sort
+# and paginate on it in the database — `Package.discount_percent` stays as the
+# display property, and the two agree because they use the same arithmetic.
+# ---------------------------------------------------------------------------
+
+# value -> (label, ORM ordering)
+PRODUCT_SORTS = {
+    "featured": ("Featured first", ("-is_featured", "position", "id")),
+    "popular": ("Most booked", ("-review_count", "-rating")),
+    "rating": ("Highest rated", ("-rating", "-review_count")),
+    "price_low": ("Price: low to high", ("price", "id")),
+    "price_high": ("Price: high to low", ("-price", "id")),
+    "discount": ("Biggest saving", ("-discount_pc", "-saving_amount")),
+    "newest": ("Newest first", ("-created_at", "-id")),
+}
+DEFAULT_PRODUCT_SORT = "featured"
+
+# The homepage's "which ones to show" setting, mapped onto the same orderings.
+HOME_SOURCE_SORTS = {
+    "featured": "featured",
+    "newest": "newest",
+    "rating": "rating",
+    "discount": "discount",
+    "popular": "popular",
+    "manual": None,          # leave Meta.ordering alone
+}
+
+
+def sort_options():
+    """[{value, label}] for the sort dropdowns, in declaration order."""
+    return [{"value": key, "label": label} for key, (label, _) in PRODUCT_SORTS.items()]
+
+
+def product_queryset():
+    """Every published package, with the derived numbers the page sorts on."""
+    return (
+        Package.objects.live()
+        .select_related("category")
+        .annotate(
+            saving_amount=F("original_price") - F("price"),
+            discount_pc=Case(
+                When(original_price=0, then=Value(0.0)),
+                default=(F("original_price") - F("price")) * 100.0 / F("original_price"),
+                output_field=FloatField(),
+            ),
+        )
+    )
+
+
+def sort_products(queryset, sort):
+    """Apply one of PRODUCT_SORTS; an unknown value falls back to the default."""
+    if sort not in PRODUCT_SORTS:
+        sort = DEFAULT_PRODUCT_SORT
+    return queryset.order_by(*PRODUCT_SORTS[sort][1]), sort
+
+
+def home_products(limit=None, source=None):
+    """
+    The slice of the catalogue the homepage shows.
+
+    Both arguments default to whatever is set in the panel, so the template can
+    call this with no arguments and still honour the settings row.
+    """
+    config = site_settings()
+    if limit is None:
+        limit = getattr(config, "home_products_limit", 8) or 8
+    if source is None:
+        source = getattr(config, "home_products_source", "featured")
+
+    queryset = product_queryset()
+    sort = HOME_SOURCE_SORTS.get(source, "featured")
+    if sort:
+        queryset, _ = sort_products(queryset, sort)
+    return _safe(queryset[:limit])
+
+
+def product_count():
+    """How many products exist in total — the homepage says "x of y"."""
+    try:
+        return Package.objects.live().count()
+    except DatabaseError:
+        return 0
+
+
+def product_price_bounds():
+    """(cheapest, dearest) across the whole catalogue, for the budget slider."""
+    try:
+        prices = list(Package.objects.live().values_list("price", flat=True))
+    except DatabaseError:
+        prices = []
+    if not prices:
+        return 0, 0
+    return min(prices), max(prices)
+
+
+def product_facets():
+    """
+    Occasion checkboxes with their live counts, and the badges in use.
+
+    Counts come from one grouped query rather than a count per row.
+    """
+    try:
+        occasions = list(
+            Category.objects.filter(is_active=True)
+            .annotate(live_total=Count("packages", filter=Q(packages__is_active=True)))
+            .filter(live_total__gt=0)
+            .values("slug", "name", "live_total")
+        )
+        badges = sorted(
+            set(
+                Package.objects.live()
+                .exclude(badge="")
+                .values_list("badge", flat=True)
+            )
+        )
+    except DatabaseError:
+        return [], []
+    return occasions, badges
+
+
+def nav_products(limit=3):
+    """A few cards for the Products drop-down in the header."""
+    return _safe(product_queryset().order_by("-is_featured", "position", "id")[:limit])
 
 
 def related_packages(package, limit=6):
