@@ -226,24 +226,15 @@
 }
 
 /* ==========================================================================
-   >= 1200px — the header goes full width
+   >= 1280px — desktops
    Six links, the city picker, the cart, sign-in and the CTA fit on one line
    from here up, so the drawer stands down. The tagline pays for the room —
    the line is still on the footer.
    ========================================================================== */
-@media (min-width: 1200px) {
+@media (min-width: 1280px) {
   /* 42px from here up: these are mouse targets, not thumb ones. */
   :root { --control-h: 42px; }
 
-  .nav-desktop { display: flex; }
-  .hamburger { display: none; }
-  .logo__tagline { display: none; }
-}
-
-/* ==========================================================================
-   >= 1280px — desktops
-   ========================================================================== */
-@media (min-width: 1280px) {
   .grid { gap: 1.75rem; }
   .grid--cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 285px), 1fr)); }
   .section-lead { font-size: 1.1rem; }
@@ -255,6 +246,10 @@
    ========================================================================== */
 @media (min-width: 1440px) {
   :root { --wrap-max: 1340px; --gutter: 3rem; }
+
+  .nav-desktop { display: flex; }
+  .hamburger { display: none; }
+  .logo__tagline { display: none; }
 
   .hero { --hero-h: clamp(38rem, calc(84 * var(--hero-vh)), 50rem); }
   .scroller__track--cards > .pkg { width: 320px; }

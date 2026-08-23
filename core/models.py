@@ -119,11 +119,70 @@ class SiteSettings(models.Model):
     Singleton. Feeds `brand` in every template through the context processor.
     """
 
-    name = models.CharField(max_length=80, default="Celebra")
-    tagline = models.CharField(max_length=160, default="Celebrations, Beautifully Delivered")
+    name = models.CharField(max_length=80, default="Barahi Florist & Events")
+    tagline = models.CharField(max_length=160, default="Florist and Event Decorators")
+
+    LOGO_FIT_CHOICES = [
+        ("contain", "Fit inside the box, no cropping"),
+        ("cover", "Fill the box, cropping the edges"),
+    ]
+
+    logo_file = models.FileField(
+        upload_to="branding/",
+        blank=True,
+        validators=[FileExtensionValidator(IMAGE_EXTENSIONS)],
+        verbose_name="Logo",
+        help_text="PNG, WebP or SVG with a transparent background works best.",
+    )
+    logo_url = models.URLField(blank=True, max_length=500, verbose_name="…or a logo URL")
+    logo_fit = models.CharField(
+        max_length=10,
+        choices=LOGO_FIT_CHOICES,
+        default="contain",
+        verbose_name="How the logo fits its box",
+    )
+    logo_focal = models.CharField(
+        max_length=20,
+        default="50% 50%",
+        verbose_name="Logo crop position",
+        help_text=(
+            "Which part of the image stays visible when it's cropped, e.g. "
+            "'50% 50%' for centred or '20% 50%' to favour the left. Only used "
+            "when filling & cropping."
+        ),
+    )
+    logo_width = models.PositiveIntegerField(
+        default=48,
+        validators=[MinValueValidator(24), MaxValueValidator(320)],
+        verbose_name="Logo box width (px)",
+        help_text=(
+            "How wide the logo sits in the header. The height is fixed, so this "
+            "is what shapes the box: leave it near 48 for a square mark, or "
+            "raise it to 150–220 for a wide logo that includes the name. When "
+            "filling & cropping, a wider box crops away the empty space above "
+            "and below the artwork."
+        ),
+    )
+    logo_height = models.PositiveIntegerField(
+        default=48,
+        validators=[MinValueValidator(24), MaxValueValidator(320)],
+        verbose_name="Logo box height (px)",
+        help_text=(
+            "How tall the logo sits in the header. Paired with the width to "
+            "control exact logo dimensions."
+        ),
+    )
+    logo_show_name = models.BooleanField(
+        default=True,
+        verbose_name="Show site name next to logo",
+        help_text=(
+            "Turn off if the logo image already contains the brand name, so "
+            "the text does not repeat."
+        ),
+    )
     phone = models.CharField(max_length=40, default="+91 98765 43210")
     whatsapp = models.CharField(max_length=40, blank=True, default="+91 98765 43210")
-    email = models.EmailField(default="hello@celebra.in")
+    email = models.EmailField(default="hello@barahiflorist.com")
     address = models.CharField(max_length=255, blank=True)
     hours = models.CharField(max_length=120, blank=True)
     founded_year = models.PositiveIntegerField(default=2019)
@@ -237,6 +296,18 @@ class SiteSettings(models.Model):
     @property
     def phone_href(self):
         return "".join(ch for ch in self.phone if ch.isdigit() or ch == "+")
+
+    @property
+    def logo(self):
+        if self.logo_file:
+            return self.logo_file.url
+        if self.logo_url:
+            return self.logo_url
+        return ""
+
+    @property
+    def has_logo(self):
+        return bool(self.logo_file or self.logo_url)
 
     def save(self, *args, **kwargs):
         # Enforce the singleton: any save writes to the first row.
@@ -433,7 +504,7 @@ class Package(Positioned, PictureMixin, Timestamped):
 
     @property
     def alt(self):
-        return f"{self.title} decoration setup by Celebra"
+        return f"{self.title} decoration setup by Barahi Florist & Events"
 
     @property
     def includes(self):

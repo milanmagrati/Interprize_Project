@@ -53,7 +53,7 @@ def home(request):
     context = {
         "page_id": "home",
         "meta_description": (
-            "Celebra books balloon and event decoration setups in 100+ cities at "
+            "Barahi Florist & Events books floral and event decoration setups at "
             "fixed prices, with verified decorators and an on-time guarantee."
         ),
         "hero_slides": q.hero_slides(),
@@ -221,7 +221,7 @@ def products(request):
         "list_url": _view_url("list"),
         "meta_description": (
             getattr(config, "products_page_lead", "")
-            or "Every balloon and event decoration setup Celebra builds, at a fixed price."
+            or "Every floral and event decoration setup Barahi Florist & Events builds, at a fixed price."
         )[:155],
         "products": page_obj.object_list,
         "page_obj": page_obj,
@@ -259,7 +259,7 @@ def products(request):
 def categories(request):
     context = {
         "page_id": "categories",
-        "meta_description": "Every occasion Celebra decorates, from first birthdays to reception stages.",
+        "meta_description": "Every occasion Barahi Florist & Events decorates, from first birthdays to reception stages.",
         "category_rows": q.category_rows(),
         "breadcrumbs": [{"label": "All categories", "url": None}],
     }
@@ -319,7 +319,7 @@ def category_detail(request, slug):
 
     context = {
         "page_id": "category",
-        "meta_description": f"{category.name} decoration packages from Celebra. {category.blurb}",
+        "meta_description": f"{category.name} decoration packages from Barahi Florist & Events. {category.blurb}",
         "category": category,
         "packages": page_obj.object_list,
         "page_obj": page_obj,
@@ -380,7 +380,7 @@ def package_detail(request, slug):
 def how_it_works(request):
     context = {
         "page_id": "how-it-works",
-        "meta_description": "How a Celebra booking works, from choosing a package to the decorator leaving.",
+        "meta_description": "How a Barahi Florist & Events booking works, from choosing a package to the decorator leaving.",
         "how_it_works": q.how_it_works(),
         "features": q.features(),
         "faqs": q.faqs(),
@@ -397,7 +397,7 @@ def contact(request):
 
     context = {
         "page_id": "contact",
-        "meta_description": "Talk to the Celebra team about a booking, a custom setup or a corporate event.",
+        "meta_description": "Talk to the Barahi Florist & Events team about a booking, a custom setup or a corporate event.",
         "occasions": q.categories(),
         "faqs": q.faqs(limit=4),
         "breadcrumbs": [{"label": "Contact", "url": None}],
@@ -408,7 +408,7 @@ def contact(request):
 def cart(request):
     context = {
         "page_id": "cart",
-        "meta_description": "Your Celebra cart.",
+        "meta_description": "Your Barahi Florist & Events cart.",
         "cart": q.cart_summary(),
         "suggested": q.featured_packages(limit=4),
         "breadcrumbs": [{"label": "Cart", "url": None}],
