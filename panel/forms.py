@@ -306,7 +306,9 @@ class SiteSettingsForm(PanelModelForm):
     class Meta:
         model = SiteSettings
         fields = [
-            "name", "tagline", "phone", "whatsapp", "email", "address", "hours",
+            "name", "tagline", "logo_file", "logo_url", "logo_fit", "logo_focal",
+            "logo_width", "logo_height", "logo_show_name",
+            "phone", "whatsapp", "email", "address", "hours",
             "founded_year", "default_city", "announcement", "maintenance_mode",
             "instagram", "facebook", "youtube", "twitter",
             "free_delivery_threshold", "delivery_fee", "tax_percent",
@@ -324,6 +326,7 @@ class SiteSettingsForm(PanelModelForm):
     # Grouped so the settings page can render sections instead of one long column.
     SECTIONS = [
         ("Identity", ["name", "tagline", "founded_year", "announcement", "maintenance_mode"]),
+        ("Logo", ["logo_file", "logo_url", "logo_fit", "logo_width", "logo_height", "logo_focal", "logo_show_name"]),
         ("Contact", ["phone", "whatsapp", "email", "address", "hours", "default_city"]),
         ("Social", ["instagram", "facebook", "youtube", "twitter"]),
         ("Checkout", ["free_delivery_threshold", "delivery_fee", "tax_percent"]),

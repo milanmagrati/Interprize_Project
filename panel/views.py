@@ -781,7 +781,7 @@ def schedule(request):
 @require_role("admin")
 def site_settings(request):
     instance = SiteSettings.objects.current()
-    form = f.SiteSettingsForm(request.POST or None, instance=instance)
+    form = f.SiteSettingsForm(request.POST or None, request.FILES or None, instance=instance)
     if request.method == "POST" and form.is_valid():
         form.save()
         log(request, "update", model_label="Site settings", detail="saved")
