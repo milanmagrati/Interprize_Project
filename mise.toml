@@ -1,6 +1,0 @@
-[settings]
-# Railway's build (Railpack) uses mise to install the Python version from
-# runtime.txt. mise's GitHub-attestation check has no record for some
-# python-build-standalone releases (incl. 3.12.7), which fails the build
-# even though the binary itself is fine — see the Railway build log.
-python.github_attestations = false
