@@ -36,17 +36,15 @@ from .models import (
 # Shown when the database has not been migrated yet, so a fresh clone renders
 # a page instead of a 500 while you are still typing `manage.py migrate`.
 FALLBACK_BRAND = {
-    "name": "Barahi Florist & Events",
-    "tagline": "Florist and Event Decorators",
+    "name": "Celebra",
+    "tagline": "Celebrations, Beautifully Delivered",
     "phone": "+91 98765 43210",
     "phone_href": "+919876543210",
-    "email": "hello@barahiflorist.com",
+    "email": "hello@celebra.in",
     "address": "",
     "hours": "",
     "founded_year": 2019,
     "announcement": "",
-    "logo_show_name": True,
-    "has_logo": False,
 }
 
 

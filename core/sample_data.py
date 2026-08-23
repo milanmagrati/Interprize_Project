@@ -29,7 +29,7 @@ from django.urls import reverse
 # ---------------------------------------------------------------------------
 
 BRAND = {
-    "name": "Barahi Florist & Events",
+    "name": "Celebra",
     "tagline": "Celebrations, Beautifully Delivered",
     "phone": "+91 98765 43210",
     "phone_href": "+919876543210",

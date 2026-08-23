@@ -6,15 +6,28 @@ a new column kind is a branch in one template rather than a change to nineteen
 list pages.
 """
 
-from django import template
-from django.utils.safestring import mark_safe
+import os
 
-from core.templatetags.core_tags import static_v
+from django import template
+from django.contrib.staticfiles import finders
+from django.templatetags.static import static
+from django.utils.safestring import mark_safe
 
 register = template.Library()
 
-# Same cache-buster the public site uses; defined once in core_tags.
-register.simple_tag(static_v)
+
+@register.simple_tag
+def static_v(path):
+    """
+    `{% static %}`, but with the file's mtime appended as a cache-buster so an
+    edited CSS/JS file is never served stale from the browser cache — this
+    project has no ManifestStaticFilesStorage to do that automatically.
+    """
+    url = static(path)
+    found = finders.find(path)
+    if not found:
+        return url
+    return f"{url}?v={int(os.path.getmtime(found))}"
 
 
 @register.filter

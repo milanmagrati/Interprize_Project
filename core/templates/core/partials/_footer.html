@@ -4,23 +4,14 @@
     <div class="footer__top">
       <div class="footer__brand">
         <a class="logo logo--footer" href="{% url 'core:home' %}" aria-label="{{ brand.name }} home">
-          {% if brand.has_logo %}
-            <img class="logo__img logo__img--{{ brand.logo_fit }}" src="{{ brand.logo }}"
-                 alt="{{ brand.name }}" width="{{ brand.logo_width }}" height="{{ brand.logo_height }}"
-                 style="width:{{ brand.logo_width }}px;height:{{ brand.logo_height }}px;object-position:{{ brand.logo_focal }};">
-          {% else %}
-            <svg class="logo__mark" viewBox="0 0 44 34" aria-hidden="true" focusable="false">
-              <path class="logo__arc" d="M3 27C3 12.6 11.5 4 22 4s19 8.6 19 23" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-              <circle class="logo__dot logo__dot--1" cx="9" cy="20" r="3.4"/>
-              <circle class="logo__dot logo__dot--2" cx="22" cy="11" r="4.2"/>
-              <circle class="logo__dot logo__dot--3" cx="35" cy="20" r="3.4"/>
-            </svg>
-          {% endif %}
-          {% if brand.logo_show_name %}
+          <svg class="logo__mark" viewBox="0 0 44 34" aria-hidden="true" focusable="false">
+            <path class="logo__arc" d="M3 27C3 12.6 11.5 4 22 4s19 8.6 19 23" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <circle class="logo__dot logo__dot--1" cx="9" cy="20" r="3.4"/>
+            <circle class="logo__dot logo__dot--2" cx="22" cy="11" r="4.2"/>
+            <circle class="logo__dot logo__dot--3" cx="35" cy="20" r="3.4"/>
+          </svg>
           <span class="logo__text"><span class="logo__name">{{ brand.name }}</span></span>
-          {% endif %}
         </a>
-
         <p class="footer__blurb">
           We decorate about five thousand rooms, terraces and lobbies a month. Fixed prices,
           verified decorators, and photos of the real setup before we leave.

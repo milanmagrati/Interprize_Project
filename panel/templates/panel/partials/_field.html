@@ -20,7 +20,7 @@ of whatever is already stored, everything else is a labelled control.
       {{ field.label }}{% if field.field.required %} <span class="field__req" title="Required">*</span>{% endif %}
     </label>
 
-    {% if field.name == "image_file" or field.name == "video_file" or field.name == "logo_file" %}
+    {% if field.name == "image_file" or field.name == "video_file" %}
       {% with current=field.value %}
         {% if current %}
           <div class="field__current">

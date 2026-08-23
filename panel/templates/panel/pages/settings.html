@@ -7,7 +7,7 @@
 
 {% block content %}
 <div class="page page--form">
-  <form class="form" method="post" enctype="multipart/form-data" novalidate data-dirty-guard>
+  <form class="form" method="post" novalidate data-dirty-guard>
     {% csrf_token %}
 
     <div class="form__body">
@@ -23,7 +23,7 @@
       </div>
 
       <aside class="form__side">
-        <div class="card">
+        <div class="card card--sticky">
           <h2 class="card__title">Save</h2>
           <div class="stack">
             <button class="btn btn--primary btn--block" type="submit">
@@ -40,7 +40,6 @@
           <h2 class="card__title">Where these show</h2>
           <ul class="ticks">
             <li>Name and tagline — every page title and the footer</li>
-            <li>Logo — the header mark on every page, sized by width and height</li>
             <li>Phone and email — header, footer and contact page</li>
             <li>Announcement — the strip above the header</li>
             <li>Checkout numbers — the cart totals</li>
@@ -58,136 +57,4 @@
     </div>
   </form>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-
-<style>
-  /* Modal Overlay */
-  .cropper-modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    background: rgba(10, 18, 20, 0.7);
-    backdrop-filter: blur(3px);
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-  }
-  .cropper-modal-overlay.is-active {
-    display: flex;
-    animation: pal-in 180ms var(--ease) both;
-  }
-  .cropper-modal-content {
-    background: var(--surface);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    max-width: 600px;
-    width: 100%;
-    box-shadow: var(--shadow-xl);
-  }
-  .cropper-image-container {
-    max-height: 60vh;
-    margin-bottom: 1.5rem;
-    background: repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%) 50% / 20px 20px;
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .cropper-image-container img {
-    display: block;
-    max-width: 100%;
-  }
-</style>
-
-<div class="cropper-modal-overlay" id="cropperModal">
-  <div class="cropper-modal-content card">
-    <h2 class="card__title" style="margin-bottom: 1rem;">Crop your logo</h2>
-    <div class="cropper-image-container">
-      <img id="cropperImage" src="" alt="Crop preview">
-    </div>
-    <div class="row-actions" style="justify-content: flex-end;">
-      <button type="button" class="btn btn--quiet" id="cropperCancel">Cancel</button>
-      <button type="button" class="btn btn--primary" id="cropperApply">Apply Crop</button>
-    </div>
-  </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const fileInput = document.querySelector('input[name="logo_file"]');
-  if (!fileInput) return;
-
-  const modal = document.getElementById('cropperModal');
-  const image = document.getElementById('cropperImage');
-  const cancelBtn = document.getElementById('cropperCancel');
-  const applyBtn = document.getElementById('cropperApply');
-  let cropper = null;
-  let originalFile = null;
-
-  fileInput.addEventListener('change', function(e) {
-    if (e.target.files && e.target.files.length > 0) {
-      originalFile = e.target.files[0];
-      
-      // Only process images
-      if (!originalFile.type.startsWith('image/')) return;
-      
-      // Read file and show modal
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        image.src = event.target.result;
-        modal.classList.add('is-active');
-        
-        // Initialize cropper after modal is visible
-        if (cropper) { cropper.destroy(); }
-        cropper = new Cropper(image, {
-          aspectRatio: 1, // Force square crop for circular logo
-          viewMode: 1,
-          autoCropArea: 0.9,
-          background: false,
-        });
-      };
-      reader.readAsDataURL(originalFile);
-    }
-  });
-
-  cancelBtn.addEventListener('click', function() {
-    modal.classList.remove('is-active');
-    fileInput.value = ''; // Reset input
-    if (cropper) { cropper.destroy(); cropper = null; }
-  });
-
-  applyBtn.addEventListener('click', function() {
-    if (!cropper) return;
-    
-    // Get cropped canvas and convert to blob
-    cropper.getCroppedCanvas({
-      width: 512,
-      height: 512,
-    }).toBlob(function(blob) {
-      // Create a new File object with the blob
-      const croppedFile = new File([blob], originalFile.name, {
-        type: 'image/png', // Save as PNG to preserve transparency
-        lastModified: Date.now()
-      });
-      
-      // Use DataTransfer to replace the file input's files
-      const dataTransfer = new DataTransfer();
-      dataTransfer.items.add(croppedFile);
-      fileInput.files = dataTransfer.files;
-      
-      // Hide modal and cleanup
-      modal.classList.remove('is-active');
-      cropper.destroy();
-      cropper = null;
-      
-      // Update preview text if present
-      const preview = fileInput.closest('.field').querySelector('.field__current span');
-      if (preview) { preview.textContent = 'Cropped: ' + croppedFile.name; }
-    }, 'image/png');
-  });
-});
-</script>
 {% endblock %}

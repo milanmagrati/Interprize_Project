@@ -250,24 +250,6 @@
   min-width: 0;
 }
 .logo__mark { width: 38px; height: 30px; color: var(--color-primary); }
-/* Two shapes, picked in the panel under Site settings → Logo.
-
-   --contain keeps the picture's own proportions and only caps its height, so a
-   wide lockup ("mark + wordmark") stays readable instead of being squashed into
-   a square. --cover crops to a fixed square around the focal point, which is
-   how you pull just the mark out of a logo that ships on a square canvas.
-   Height is capped in both cases so an upload of any size is safe. */
-.logo__img {
-  flex: 0 0 auto;
-  border-radius: 50%;
-  object-fit: contain;
-}
-.logo__img--contain {
-  object-fit: contain;
-}
-.logo__img--cover {
-  object-fit: cover;
-}
 .logo__arc { opacity: 0.55; }
 .logo__dot--1 { fill: var(--color-primary); }
 .logo__dot--2 { fill: var(--color-accent); }
@@ -278,11 +260,10 @@
 .logo__text { display: flex; flex-direction: column; line-height: 1.05; }
 .logo__name {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1.4rem;
   font-weight: 700;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   color: var(--color-primary-700);
-  white-space: nowrap;
 }
 .logo__tagline {
   display: none;
@@ -313,7 +294,7 @@
   /* One value drives the padding and the underline, so they stay in step. */
   /* Widens with the viewport so the links take up the slack rather than
      leaving a gap beside them; the low end is the 1200px tight fit. */
-  --nav-pad: clamp(0.3rem, -0.4rem + 1vw, 0.7rem);
+  --nav-pad: clamp(0.45rem, -0.39rem + 1.11vw, 0.95rem);
   position: relative;
   display: inline-flex;
   align-items: center;
