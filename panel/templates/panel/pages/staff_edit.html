@@ -50,6 +50,41 @@
       </div>
 
       <div class="card">
+        <h2 class="card__title">Staff record</h2>
+        {% if staff_record %}
+          <div class="whoami">
+            <span class="avatar" aria-hidden="true">{{ staff_record.initials }}</span>
+            <div>
+              <strong>{{ staff_record.name }}</strong>
+              {% if staff_record.category %}
+                <span class="pill pill--{{ staff_record.category.tone }}">{{ staff_record.category.name }}</span>
+              {% else %}
+                <span class="pill pill--grey">No type yet</span>
+              {% endif %}
+            </div>
+          </div>
+          <dl class="meta">
+            <dt>Engagement</dt><dd>{{ staff_record.get_employment_display }}</dd>
+            <dt>Based in</dt><dd>{{ staff_record.city|default:"—" }}</dd>
+            <dt>Open jobs</dt><dd>{{ staff_record.open_jobs }}</dd>
+            <dt>Completed</dt><dd>{{ staff_record.done_jobs }}</dd>
+          </dl>
+          <a class="btn btn--ghost btn--block" href="{% url 'panel:resource_edit' 'staffs' staff_record.pk %}">
+            <svg class="icon" aria-hidden="true"><use href="#p-users"></use></svg>Open the staff record
+          </a>
+        {% else %}
+          <p class="card__note">
+            This login is not tied to anybody on the Staffs page. Pick a staff
+            record in the form to join them, so bookings assigned to that person
+            and this account are visibly the same human.
+          </p>
+          <a class="btn btn--ghost btn--block" href="{% url 'panel:resource_create' 'staffs' %}">
+            <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Create a staff record
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="card">
         <h2 class="card__title">Their changes</h2>
         {% if activity %}
           <ul class="feed">

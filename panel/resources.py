@@ -24,7 +24,8 @@ class Column:
 
     name: str                     # attribute, property or callable on the row
     label: str
-    kind: str = "text"            # text image money bool toggle badge date datetime rating chip
+    kind: str = "text"            # text image money toggle badge tag access
+                                  # date datetime rating chip excerpt
     sortable: str = ""            # ORM field to order by; blank means not sortable
     hint: str = ""                # a second, quieter line under the value
     align: str = ""               # "" | "end"
@@ -119,6 +120,17 @@ STATUS_TONES = {
     "advance": "amber",
     "paid": "green",
     "refunded": "grey",
+}
+GROUP_TONES = {
+    "Field crew — on site at the event": "green",
+    "Office — coordination and support": "blue",
+    "Partner — vendor or agency": "amber",
+}
+EMPLOYMENT_TONES = {
+    "In-house": "green",
+    "Freelance": "violet",
+    "Vendor / agency": "amber",
+    "Intern": "grey",
 }
 
 
@@ -379,7 +391,7 @@ RESOURCES = [
             Filter("payment_status", "Payment", m.Booking.PAYMENT_CHOICES),
             Filter("city", "City", [], lookup="city__slug"),
         ],
-        select_related=["package", "city", "decorator"],
+        select_related=["package", "city", "staff", "staff__category"],
         prefetch_related=["add_ons"],
     ),
     Resource(
@@ -403,28 +415,75 @@ RESOURCES = [
         filters=[Filter("status", "Status", m.Enquiry.STATUS_CHOICES)],
     ),
     Resource(
-        slug="decorators",
-        model=m.Decorator,
-        form_class=f.DecoratorForm,
-        label="Decorator",
-        plural="Decorators",
+        slug="staffs",
+        model=m.StaffMember,
+        form_class=f.StaffMemberForm,
+        label="Staff member",
+        plural="Staffs",
         icon="users",
         group="Operations",
-        blurb="The crews doing the work. Assign one to a booking.",
+        blurb=(
+            "Everyone who works a booking — decorators, florists, drivers, "
+            "coordinators. Give somebody a type, then assign them to jobs."
+        ),
         permission="admin",
+        add_label="New staff member",
         columns=[
-            Column("name", "Crew", sortable="name", hint="phone"),
-            Column("city", "Based in", sortable="city__name"),
+            Column("name", "Person", sortable="name", hint="contact_line"),
+            Column("category", "Type", "tag", sortable="category__name", hint="city"),
+            Column("get_employment_display", "Engagement", "badge",
+                   sortable="employment", badges=EMPLOYMENT_TONES),
             Column("rating", "Rating", "rating", sortable="rating"),
             Column("open_jobs", "Open jobs", "chip", sortable="job_total"),
+            Column("account_role", "Panel access", "access"),
             Column("is_verified", "Verified", "toggle", sortable="is_verified"),
             Column("is_active", "Active", "toggle", sortable="is_active"),
         ],
-        search_fields=["name", "phone", "email", "city__name"],
-        filters=[Filter("is_verified", "Verified", YES_NO), PUBLISHED_FILTER],
-        select_related=["city"],
+        search_fields=[
+            "name", "phone", "email", "skills",
+            "city__name", "category__name", "account__username",
+        ],
+        filters=[
+            Filter("type", "Type", [], lookup="category__slug"),
+            Filter("group", "Group", m.StaffCategory.KIND_CHOICES, lookup="category__kind"),
+            Filter("employment", "Engagement", m.StaffMember.EMPLOYMENT_CHOICES),
+            Filter("city", "City", [], lookup="city__slug"),
+            Filter("is_verified", "Verified", YES_NO),
+            Filter("is_active", "Active", YES_NO),
+        ],
+        select_related=["city", "category", "account"],
         annotate=lambda qs: qs.annotate(job_total=Count("bookings")),
         ordering="name",
+    ),
+    Resource(
+        slug="staff-types",
+        model=m.StaffCategory,
+        form_class=f.StaffCategoryForm,
+        label="Staff type",
+        plural="Staff types",
+        icon="layers",
+        group="Operations",
+        blurb=(
+            "The kinds of work you hire for. Every staff member gets one, and "
+            "the Staffs list filters on it."
+        ),
+        permission="admin",
+        add_label="New staff type",
+        columns=[
+            Column("name", "Type", "tag", sortable="name", hint="description"),
+            Column("get_kind_display", "Group", "badge", sortable="kind", badges=GROUP_TONES),
+            Column("member_total", "People", "chip", sortable="member_count"),
+            Column("open_jobs", "Open jobs", "chip"),
+            Column("is_active", "Selectable", "toggle", sortable="is_active"),
+        ],
+        search_fields=["name", "slug", "description"],
+        filters=[
+            Filter("kind", "Group", m.StaffCategory.KIND_CHOICES),
+            Filter("is_active", "Selectable", YES_NO),
+        ],
+        annotate=lambda qs: qs.annotate(member_count=Count("members")),
+        ordering="position,id",
+        orderable=True,
     ),
     Resource(
         slug="coupons",
@@ -541,4 +600,5 @@ def dynamic_filter_choices():
     """
     categories = [(c.slug, c.name) for c in m.Category.objects.all()]
     cities = [(c.slug, c.name) for c in m.City.objects.filter(is_active=True)]
-    return {"category": categories, "city": cities}
+    staff_types = [(c.slug, c.name) for c in m.StaffCategory.objects.all()]
+    return {"category": categories, "city": cities, "type": staff_types}

@@ -849,6 +849,7 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
 .feed__text strong { font-size: 0.82rem; }
 .feed__text span { font-size: 0.75rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed time { font-size: 0.72rem; color: var(--text-3); white-space: nowrap; }
+.feed__act { font-size: 0.75rem; font-weight: 600; white-space: nowrap; color: var(--brand); }
 
 /* ==========================================================================
    9. Schedule calendar

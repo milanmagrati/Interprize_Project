@@ -886,16 +886,151 @@ class AddOn(Positioned):
 
 
 # ---------------------------------------------------------------------------
-# Operations — decorators, bookings, enquiries, coupons
+# Operations — staff, bookings, enquiries, coupons
 # ---------------------------------------------------------------------------
 
 
-class Decorator(models.Model):
+class StaffCategory(Positioned):
+    """
+    The kind of work a staff member does: decorator, florist, photographer,
+    driver, whatever this company ends up hiring for.
+
+    Types are rows rather than a hard-coded choice list, so adding one is a
+    record in the panel instead of a migration.
+    """
+
+    KIND_CHOICES = [
+        ("field", "Field crew — on site at the event"),
+        ("office", "Office — coordination and support"),
+        ("partner", "Partner — vendor or agency"),
+    ]
+    TONE_CHOICES = [
+        ("green", "Green"),
+        ("blue", "Blue"),
+        ("violet", "Violet"),
+        ("amber", "Amber"),
+        ("red", "Red"),
+        ("grey", "Grey"),
+    ]
+
+    name = models.CharField(max_length=60, unique=True)
+    slug = models.SlugField(max_length=70, unique=True, blank=True)
+    kind = models.CharField(
+        max_length=10,
+        choices=KIND_CHOICES,
+        default="field",
+        verbose_name="Group",
+        help_text="The broad bucket this type belongs to. Used to filter the staff list.",
+    )
+    tone = models.CharField(
+        max_length=10,
+        choices=TONE_CHOICES,
+        default="grey",
+        verbose_name="Badge colour",
+        help_text="The colour this type wears wherever it is shown.",
+    )
+    description = models.CharField(
+        max_length=200, blank=True, help_text="What this type is responsible for."
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Selectable",
+        help_text="Turn off to retire a type. Existing staff keep it; new ones cannot pick it.",
+    )
+
+    class Meta(Positioned.Meta):
+        verbose_name = "Staff type"
+        verbose_name_plural = "Staff types"
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        return super().save(*args, **kwargs)
+
+    @property
+    def member_total(self):
+        return self.members.count()
+
+    @property
+    def active_total(self):
+        return self.members.filter(is_active=True).count()
+
+    @property
+    def open_jobs(self):
+        return (
+            Booking.objects.filter(staff__category=self)
+            .exclude(status__in=["completed", "cancelled"])
+            .count()
+        )
+
+
+class StaffMemberQuerySet(models.QuerySet):
+    def assignable(self):
+        """Who may be put on a booking."""
+        return self.filter(is_active=True)
+
+    def of_type(self, slug):
+        return self.filter(category__slug=slug)
+
+    def without_login(self):
+        return self.filter(account__isnull=True)
+
+
+class StaffMember(models.Model):
+    """
+    Somebody who works a booking — the decorator crew, the florist, the driver.
+
+    This is the *operational* record: who they are, what they do and how busy
+    they are. A control-panel login is a separate thing (`StaffProfile`); the
+    two are joined by `account` when a staff member also needs to sign in, and
+    plenty of staff never do.
+    """
+
+    EMPLOYMENT_CHOICES = [
+        ("inhouse", "In-house"),
+        ("freelance", "Freelance"),
+        ("vendor", "Vendor / agency"),
+        ("intern", "Intern"),
+    ]
+
     name = models.CharField(max_length=80)
     phone = models.CharField(max_length=40, blank=True)
     email = models.EmailField(blank=True)
+    category = models.ForeignKey(
+        "StaffCategory",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="members",
+        verbose_name="Staff type",
+        help_text="What they do. The list is managed under Staff types.",
+    )
+    employment = models.CharField(
+        max_length=12,
+        choices=EMPLOYMENT_CHOICES,
+        default="inhouse",
+        verbose_name="Engagement",
+        help_text="How this person is engaged.",
+    )
+    skills = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text="Comma separated — balloons, mandap, drone. Shown when you assign a booking.",
+    )
     city = models.ForeignKey(
-        City, null=True, blank=True, on_delete=models.SET_NULL, related_name="decorators"
+        City, null=True, blank=True, on_delete=models.SET_NULL, related_name="staff_members"
+    )
+    account = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="staff_member",
+        verbose_name="Panel login",
+        help_text="The control-panel account this person signs in with, if they have one.",
     )
     rating = models.DecimalField(
         max_digits=2,
@@ -908,8 +1043,12 @@ class Decorator(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = StaffMemberQuerySet.as_manager()
+
     class Meta:
         ordering = ["name"]
+        verbose_name = "Staff member"
+        verbose_name_plural = "Staffs"
 
     def __str__(self):
         return self.name
@@ -917,6 +1056,49 @@ class Decorator(models.Model):
     @property
     def open_jobs(self):
         return self.bookings.exclude(status__in=["completed", "cancelled"]).count()
+
+    @property
+    def done_jobs(self):
+        return self.bookings.filter(status="completed").count()
+
+    @property
+    def type_name(self):
+        return self.category.name if self.category_id else ""
+
+    @property
+    def type_tone(self):
+        return self.category.tone if self.category_id else "grey"
+
+    @property
+    def skill_list(self):
+        return [bit.strip() for bit in self.skills.split(",") if bit.strip()]
+
+    @property
+    def contact_line(self):
+        return self.phone or self.email or "No contact on file"
+
+    @property
+    def account_role(self):
+        """The panel role of the linked login, or "" when this person has none."""
+        if not self.account_id:
+            return ""
+        profile = getattr(self.account, "staff_profile", None)
+        return profile.role if profile else ""
+
+    @property
+    def initials(self):
+        letters = "".join(part[0] for part in self.name.split()[:2])
+        return letters.upper() or "?"
+
+    @property
+    def assign_label(self):
+        """How this person reads in a booking's assignment dropdown."""
+        bits = [self.name]
+        if self.category_id:
+            bits.append(self.category.name)
+        if self.city_id:
+            bits.append(self.city.name)
+        return " · ".join(bits)
 
 
 class BookingQuerySet(models.QuerySet):
@@ -940,7 +1122,7 @@ class Booking(Timestamped):
     STATUS_CHOICES = [
         ("new", "New"),
         ("confirmed", "Confirmed"),
-        ("assigned", "Decorator assigned"),
+        ("assigned", "Staff assigned"),
         ("completed", "Completed"),
         ("cancelled", "Cancelled"),
     ]
@@ -978,8 +1160,14 @@ class Booking(Timestamped):
         max_length=20, choices=STATUS_CHOICES, default="new", db_index=True
     )
     payment_status = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default="unpaid")
-    decorator = models.ForeignKey(
-        Decorator, null=True, blank=True, on_delete=models.SET_NULL, related_name="bookings"
+    staff = models.ForeignKey(
+        StaffMember,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="bookings",
+        verbose_name="Assigned to",
+        help_text="Who is doing this job. Filter the list by staff type when you pick.",
     )
     notes = models.TextField(blank=True, help_text="Access rules, surprises to keep, anything.")
 
@@ -1150,7 +1338,8 @@ class StaffProfile(models.Model):
 
     class Meta:
         ordering = ["user__username"]
-        verbose_name = "Staff member"
+        verbose_name = "Panel account"
+        verbose_name_plural = "Panel accounts"
 
     def __str__(self):
         return f"{self.user.get_username()} ({self.get_role_display().split(' —')[0]})"
@@ -1175,6 +1364,11 @@ class StaffProfile(models.Model):
         return self.at_least("owner")
 
     @property
+    def staff_member(self):
+        """The operational staff record this login is linked to, if any."""
+        return getattr(self.user, "staff_member", None)
+
+    @property
     def display_name(self):
         return self.user.get_full_name() or self.user.get_username()
 
@@ -1195,6 +1389,15 @@ class InviteCode(models.Model):
     code = models.CharField(max_length=32, unique=True)
     role = models.CharField(max_length=10, choices=StaffProfile.ROLE_CHOICES, default="editor")
     note = models.CharField(max_length=120, blank=True, help_text="Who is this for?")
+    staff_member = models.ForeignKey(
+        "StaffMember",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="invites",
+        verbose_name="For which staff member",
+        help_text="Optional. Whoever signs up with this code is linked to that staff record.",
+    )
     expires_at = models.DateTimeField(null=True, blank=True)
     used_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -14,6 +14,7 @@ from django.contrib.auth.forms import (
     PasswordChangeForm,
     UserCreationForm,
 )
+from django.db.models import Q
 from django.utils import timezone
 
 from core.models import (
@@ -22,7 +23,6 @@ from core.models import (
     Category,
     City,
     Coupon,
-    Decorator,
     Enquiry,
     FAQ,
     Feature,
@@ -34,6 +34,8 @@ from core.models import (
     PackageImage,
     PricingRow,
     SiteSettings,
+    StaffCategory,
+    StaffMember,
     StaffProfile,
     Testimonial,
     TimeSlot,
@@ -190,6 +192,10 @@ class PanelSignupForm(PanelFormMixin, UserCreationForm):
             self.invite.used_by = user
             self.invite.used_at = timezone.now()
             self.invite.save(update_fields=["used_by", "used_at"])
+            # A code issued for a particular staff record joins the two here, so
+            # nobody has to remember to link them by hand afterwards.
+            if self.invite.staff_member_id:
+                StaffMember.objects.filter(pk=self.invite.staff_member_id).update(account=user)
         return user
 
 
@@ -263,13 +269,38 @@ class AccountForm(PanelModelForm):
         return profile
 
 
-class StaffMemberForm(PanelModelForm):
-    """An owner editing somebody else's access."""
+def unlinked_staff(current=None):
+    """
+    Staff records that may be attached to a login: everyone without one, plus
+    whoever is already attached here, so an edit form does not drop them.
+    """
+    if current is not None:
+        return (
+            StaffMember.objects.filter(Q(account__isnull=True) | Q(pk=current.pk))
+            .select_related("category")
+            .order_by("name")
+        )
+    return (
+        StaffMember.objects.filter(account__isnull=True)
+        .select_related("category")
+        .order_by("name")
+    )
+
+
+class StaffAccessForm(PanelModelForm):
+    """An owner editing somebody else's panel access."""
 
     is_active = forms.BooleanField(
         required=False,
         label="Account enabled",
         help_text="Turn off to revoke access without deleting the history.",
+    )
+    staff_member = forms.ModelChoiceField(
+        queryset=StaffMember.objects.none(),
+        required=False,
+        label="Staff record",
+        empty_label="Not linked to a staff record",
+        help_text="Ties this login to the person on the Staffs page.",
     )
 
     class Meta:
@@ -279,6 +310,10 @@ class StaffMemberForm(PanelModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["is_active"].initial = self.instance.user.is_active
+        linked = self.instance.staff_member
+        self.fields["staff_member"].queryset = unlinked_staff(linked)
+        self.fields["staff_member"].initial = linked
+        self.order_fields(["role", "staff_member", "job_title", "phone", "is_active"])
 
     def save(self, commit=True):
         profile = super().save(commit=commit)
@@ -287,14 +322,95 @@ class StaffMemberForm(PanelModelForm):
         user.is_staff = True
         user.is_superuser = profile.role == "owner"
         user.save(update_fields=["is_active", "is_staff", "is_superuser"])
+
+        # One login, one staff record: clear the old link before writing the new.
+        chosen = self.cleaned_data.get("staff_member")
+        StaffMember.objects.filter(account=user).exclude(
+            pk=getattr(chosen, "pk", None)
+        ).update(account=None)
+        if chosen is not None:
+            StaffMember.objects.filter(pk=chosen.pk).update(account=user)
         return profile
+
+
+class AccountCreateForm(PanelFormMixin, UserCreationForm):
+    """
+    An owner creating a login outright, rather than sending an invite code.
+
+    This is the path for somebody standing next to you: fill in who they are,
+    pick the role, optionally point at their staff record, and they can sign in
+    straight away.
+    """
+
+    full_name = forms.CharField(label="Full name", max_length=80)
+    email = forms.EmailField()
+    role = forms.ChoiceField(
+        choices=StaffProfile.ROLE_CHOICES,
+        initial="editor",
+        help_text="What they may change once inside.",
+    )
+    staff_member = forms.ModelChoiceField(
+        queryset=StaffMember.objects.none(),
+        required=False,
+        label="Staff record",
+        empty_label="Not linked to a staff record",
+        help_text="Link this login to somebody already on the Staffs page.",
+    )
+    job_title = forms.CharField(max_length=80, required=False)
+    phone = forms.CharField(max_length=40, required=False)
+
+    class Meta:
+        model = User
+        fields = ["full_name", "email", "username"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["staff_member"].queryset = unlinked_staff()
+        self.fields["username"].help_text = "What they type to sign in."
+        self.fields["password1"].help_text = "Share it with them; they can change it later."
+        self.fields["password2"].label = "Confirm password"
+        self.order_fields([
+            "full_name", "email", "username", "password1", "password2",
+            "role", "staff_member", "job_title", "phone",
+        ])
+
+    def clean_email(self):
+        email = self.cleaned_data["email"]
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account already uses that email address.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.first_name = self.cleaned_data["full_name"]
+        user.email = self.cleaned_data["email"]
+        role = self.cleaned_data["role"]
+        user.is_staff = True
+        user.is_superuser = role == "owner"
+        user.save()
+
+        StaffProfile.objects.create(
+            user=user,
+            role=role,
+            job_title=self.cleaned_data.get("job_title", ""),
+            phone=self.cleaned_data.get("phone", ""),
+        )
+        chosen = self.cleaned_data.get("staff_member")
+        if chosen is not None:
+            StaffMember.objects.filter(pk=chosen.pk).update(account=user)
+        return user
 
 
 class InviteCodeForm(PanelModelForm):
     class Meta:
         model = InviteCode
-        fields = ["role", "note", "expires_at"]
+        fields = ["role", "staff_member", "note", "expires_at"]
         widgets = {"expires_at": DateTimeInput()}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["staff_member"].queryset = unlinked_staff()
+        self.fields["staff_member"].empty_label = "Anyone"
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +580,7 @@ class BookingForm(PanelModelForm):
             "customer_name", "phone", "email",
             "package", "quantity", "add_ons", "amount",
             "city", "address", "event_date", "time_slot",
-            "status", "payment_status", "decorator", "notes",
+            "status", "payment_status", "staff", "notes",
         ]
         widgets = {
             "event_date": DateInput(),
@@ -477,13 +593,18 @@ class BookingForm(PanelModelForm):
         ("Customer", ["customer_name", "phone", "email"]),
         ("What they booked", ["package", "quantity", "add_ons", "amount"]),
         ("Where and when", ["city", "address", "event_date", "time_slot"]),
-        ("Operations", ["status", "payment_status", "decorator", "notes"]),
+        ("Operations", ["status", "payment_status", "staff", "notes"]),
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["package"].queryset = Package.objects.live().select_related("category")
-        self.fields["decorator"].queryset = Decorator.objects.filter(is_active=True)
+        self.fields["staff"].queryset = (
+            StaffMember.objects.assignable().select_related("category", "city")
+        )
+        # "Anand Events · Decorator · Delhi" reads far better in a long dropdown
+        # than a bare name, and it is the only place the type shows up here.
+        self.fields["staff"].label_from_instance = lambda member: member.assign_label
         self.fields["city"].queryset = City.objects.filter(is_active=True)
         self.fields["add_ons"].widget.attrs.pop("class", None)
         self.fields["amount"].help_text = "Leave at 0 to charge the package price."
@@ -494,8 +615,8 @@ class BookingForm(PanelModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("status") == "assigned" and not cleaned.get("decorator"):
-            self.add_error("decorator", "Pick who is doing it, or leave the status as confirmed.")
+        if cleaned.get("status") == "assigned" and not cleaned.get("staff"):
+            self.add_error("staff", "Pick who is doing it, or leave the status as confirmed.")
         return cleaned
 
 
@@ -506,11 +627,64 @@ class EnquiryForm(PanelModelForm):
         widgets = {"event_date": DateInput(), "message": forms.Textarea(attrs={"rows": 5})}
 
 
-class DecoratorForm(PanelModelForm):
+class StaffCategoryForm(PanelModelForm):
     class Meta:
-        model = Decorator
-        fields = ["name", "phone", "email", "city", "rating", "is_verified", "is_active", "notes"]
+        model = StaffCategory
+        fields = ["name", "slug", "kind", "tone", "description", "is_active", "position"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["slug"].required = False
+        self.fields["slug"].help_text = "Left blank, it is made from the name."
+
+
+class StaffMemberForm(PanelModelForm):
+    """The operational record: who they are and what they do, not how they sign in."""
+
+    class Meta:
+        model = StaffMember
+        fields = [
+            "name", "phone", "email",
+            "category", "employment", "skills", "city",
+            "rating", "is_verified", "is_active",
+            "account", "notes",
+        ]
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+
+    SECTIONS = [
+        ("Who they are", ["name", "phone", "email"]),
+        ("What they do", ["category", "employment", "skills", "city"]),
+        ("Standing", ["rating", "is_verified", "is_active"]),
+        ("Panel access", ["account", "notes"]),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # A retired type stays readable on the records that already carry it,
+        # but is not offered to anybody else.
+        types = StaffCategory.objects.filter(is_active=True)
+        if self.instance.category_id:
+            types = StaffCategory.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.category_id)
+            )
+        self.fields["category"].queryset = types.order_by("position", "id")
+        self.fields["category"].empty_label = "No type yet"
+        self.fields["city"].queryset = City.objects.filter(is_active=True)
+
+        # Only logins that are not already somebody else's record.
+        taken = (
+            StaffMember.objects.exclude(pk=self.instance.pk or 0)
+            .exclude(account__isnull=True)
+            .values_list("account_id", flat=True)
+        )
+        self.fields["account"].queryset = User.objects.exclude(
+            pk__in=list(taken)
+        ).order_by("username")
+        self.fields["account"].empty_label = "No panel login"
+
+    def sections(self):
+        for title, names in self.SECTIONS:
+            yield title, [self[name] for name in names]
 
 
 class CouponForm(PanelModelForm):

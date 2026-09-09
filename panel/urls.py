@@ -28,6 +28,8 @@ urlpatterns = [
     path("schedule/", views.schedule, name="schedule"),
     path("settings/", views.site_settings, name="settings"),
     path("staff/", views.staff_list, name="staff"),
+    # Kept because the section used to live here and links are still around.
+    path("decorators/", views.decorators_redirect, name="decorators_redirect"),
     path("staff/<int:pk>/", views.staff_edit, name="staff_edit"),
     path("staff/invite/<int:pk>/revoke/", views.invite_delete, name="invite_delete"),
     path("activity/", views.activity, name="activity"),

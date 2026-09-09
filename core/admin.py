@@ -58,6 +58,20 @@ class StaffProfileAdmin(admin.ModelAdmin):
     list_filter = ("role",)
 
 
+@admin.register(models.StaffCategory)
+class StaffCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "kind", "position", "is_active")
+    list_filter = ("kind", "is_active")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(models.StaffMember)
+class StaffMemberAdmin(admin.ModelAdmin):
+    list_display = ("name", "category", "employment", "city", "account", "is_active")
+    list_filter = ("category", "employment", "is_verified", "is_active")
+    search_fields = ("name", "phone", "email", "skills")
+
+
 @admin.register(models.InviteCode)
 class InviteCodeAdmin(admin.ModelAdmin):
     list_display = ("code", "role", "used_by", "created_at")
@@ -72,7 +86,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
 for model in (
     models.SiteSettings, models.NavLink, models.TrustBadge, models.City,
     models.Testimonial, models.FAQ, models.Feature, models.HowItWorksStep,
-    models.PricingRow, models.TimeSlot, models.AddOn, models.Decorator,
+    models.PricingRow, models.TimeSlot, models.AddOn,
     models.Coupon, models.PackageImage,
 ):
     admin.site.register(model)

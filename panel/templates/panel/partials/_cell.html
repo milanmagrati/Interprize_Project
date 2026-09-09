@@ -23,7 +23,27 @@ column kind is a branch here rather than a change to each list template.
   {% endif %}
 
 {% elif column.kind == "badge" %}
-  <span class="pill pill--{{ tone }}">{{ value|title }}</span>
+  {# capfirst, not title: "Vendor / agency" should not come back as "Vendor / Agency". #}
+  <span class="pill pill--{{ tone }}">{{ value|capfirst }}</span>
+
+{% elif column.kind == "tag" %}
+  {% comment %}
+  A category wearing its own colour. The tone comes from the related row when
+  the cell holds one, and from the row itself on the category's own list.
+  {% endcomment %}
+  {% if value %}
+    <span class="pill pill--{% firstof value.tone row.tone 'grey' %}">{{ value }}</span>
+  {% else %}
+    <span class="cell__hint">No type yet</span>
+  {% endif %}
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% elif column.kind == "access" %}
+  {% if value %}
+    <span class="pill pill--{{ value|role_tone }}">{{ value|capfirst }}</span>
+  {% else %}
+    <span class="cell__hint">No login</span>
+  {% endif %}
 
 {% elif column.kind == "money" %}
   <span class="num">{{ value|money }}</span>

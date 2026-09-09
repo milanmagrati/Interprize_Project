@@ -23,7 +23,6 @@ from core.models import (
     Category,
     City,
     Coupon,
-    Decorator,
     Enquiry,
     FAQ,
     Feature,
@@ -33,6 +32,8 @@ from core.models import (
     Package,
     PricingRow,
     SiteSettings,
+    StaffCategory,
+    StaffMember,
     Testimonial,
     TimeSlot,
     TrustBadge,
@@ -42,7 +43,8 @@ CONTENT_MODELS = [
     Booking,
     Enquiry,
     Coupon,
-    Decorator,
+    StaffMember,
+    StaffCategory,
     Testimonial,
     PricingRow,
     Package,
@@ -288,18 +290,23 @@ class Command(BaseCommand):
 
     def seed_decorators(self, cities):
         metros = [c for c in cities if c.is_metro] or cities
+        # The types themselves are created by the staff migration, so the
+        # demo crews only have to pick one.
+        decorator_type = StaffCategory.objects.filter(slug="decorator").first()
         for index, name in enumerate(DECORATOR_NAMES):
-            Decorator.objects.get_or_create(
+            StaffMember.objects.get_or_create(
                 name=name,
                 defaults={
                     "phone": f"+9198{random.randint(10000000, 99999999)}",
                     "city": metros[index % len(metros)],
+                    "category": decorator_type,
+                    "employment": random.choice(["inhouse", "freelance", "vendor"]),
                     "rating": round(random.uniform(4.3, 5.0), 1),
                     "is_verified": index % 4 != 3,
                 },
             )
-        decorators = list(Decorator.objects.all())
-        self.stdout.write(f"  {len(decorators)} decorators")
+        decorators = list(StaffMember.objects.all())
+        self.stdout.write(f"  {len(decorators)} staff members")
         return decorators
 
     def seed_bookings(self, packages, cities, decorators, count):
@@ -346,7 +353,7 @@ class Command(BaseCommand):
                 amount=package.price * quantity,
                 status=status,
                 payment_status=payment,
-                decorator=random.choice(decorators) if status in ("assigned", "completed") else None,
+                staff=random.choice(decorators) if status in ("assigned", "completed") else None,
                 notes=random.choice(
                     ["", "", "Surprise — do not call, message on arrival.", "No adhesive on walls.",
                      "Lift access only until 8 PM.", "Park in visitor bay B."]

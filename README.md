@@ -152,7 +152,7 @@ panel/                          the staff control panel
 
 | Group | Sections |
 | --- | --- |
-| Operations | Bookings, Enquiries, Decorators, Coupons |
+| Operations | Bookings, Enquiries, Staffs, Staff types, Coupons |
 | Catalogue | Products, Occasions, Gallery photos, Add-ons, Pricing table |
 | Homepage | Hero slider, Reviews, Promises, How it works, FAQs, Trust badges |
 | Site | Cities, Time slots, Menu links |
@@ -214,7 +214,7 @@ Four, ranked. Set under *Staff & access*; each one includes everything below it.
 | --- | --- |
 | `viewer` | Read every section. Open records. Change nothing. |
 | `editor` | Content and bookings. |
-| `admin` | The above plus cities, coupons, decorators, time slots, site settings. |
+| `admin` | The above plus staff records and types, cities, coupons, time slots, site settings. |
 | `owner` | The above plus staff accounts and invite codes. |
 
 Roles are enforced in the view, not just hidden in the template — a `viewer`
@@ -300,8 +300,9 @@ database arrived.
 | `City` `TimeSlot` `AddOn` | Booking options |
 | `Booking` | The operational record. `is_overdue` is what the dashboard shouts about |
 | `Enquiry` | Contact-form messages |
-| `Decorator` `Coupon` | Crews and discount codes |
-| `StaffProfile` `InviteCode` `ActivityLog` | Panel accounts and audit trail |
+| `StaffMember` `StaffCategory` | The people who work a booking, and the type of work each does |
+| `Coupon` | Discount codes |
+| `StaffProfile` `InviteCode` `ActivityLog` | Panel accounts and audit trail. A `StaffMember` links to one through `account` when that person also signs in |
 
 Two abstract bases do most of the repetitive work: `Positioned` (a `position`
 field plus ordering, which the drag handles write) and `PictureMixin` (the

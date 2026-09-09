@@ -40,6 +40,8 @@ from core.models import (
     Package,
     PackageImage,
     SiteSettings,
+    StaffCategory,
+    StaffMember,
     StaffProfile,
 )
 
@@ -309,7 +311,7 @@ def dashboard(request):
         chart_total=sum(row["value"] for row in chart),
         statuses=statuses,
         top_packages=top_packages,
-        upcoming=Booking.objects.upcoming().select_related("package", "city", "decorator")[:8],
+        upcoming=Booking.objects.upcoming().select_related("package", "city", "staff")[:8],
         overdue=overdue[:5],
         recent_enquiries=Enquiry.objects.filter(status="new")[:5],
         alerts=_alerts(),
@@ -742,7 +744,7 @@ def schedule(request):
 
     bookings = (
         Booking.objects.filter(event_date__gte=start, event_date__lte=end)
-        .select_related("package", "city", "decorator")
+        .select_related("package", "city", "staff")
         .order_by("event_date", "time_slot")
     )
     by_day = OrderedDict()
@@ -778,6 +780,14 @@ def schedule(request):
 
 
 @panel_login_required
+def decorators_redirect(request):
+    """`/manage/decorators/` was this section's address until staff types arrived."""
+    query = request.GET.urlencode()
+    target = reverse("panel:resource_list", args=["staffs"])
+    return redirect(f"{target}?{query}" if query else target)
+
+
+@panel_login_required
 @require_role("admin")
 def site_settings(request):
     instance = SiteSettings.objects.current()
@@ -795,21 +805,52 @@ def site_settings(request):
 @panel_login_required
 @require_role("owner")
 def staff_list(request):
+    """
+    Two halves of the same question. The left is who can sign in — accounts,
+    the three ways to make one, and what each role may touch. The right ties
+    those logins back to the Staffs page, because most of the people in this
+    company are a staff record first and a login second, if ever.
+    """
     profiles = StaffProfile.objects.select_related("user").order_by("-user__is_active", "role")
-    invites = InviteCode.objects.select_related("used_by", "created_by")[:20]
+    invites = InviteCode.objects.select_related("used_by", "created_by", "staff_member")[:20]
+    invite_form = f.InviteCodeForm()
+    account_form = f.AccountCreateForm(initial={"staff_member": request.GET.get("staff") or None})
 
-    if request.method == "POST" and request.POST.get("form") == "invite":
-        invite_form = f.InviteCodeForm(request.POST)
-        if invite_form.is_valid():
-            invite = invite_form.save(commit=False)
-            invite.code = _new_invite_code()
-            invite.created_by = request.user
-            invite.save()
-            log(request, "create", obj=invite, model_label="Invite code")
-            messages.success(request, f"Invite {invite.code} created — share it with them.")
-            return redirect("panel:staff")
-    else:
-        invite_form = f.InviteCodeForm()
+    if request.method == "POST":
+        which = request.POST.get("form")
+        if which == "invite":
+            invite_form = f.InviteCodeForm(request.POST)
+            if invite_form.is_valid():
+                invite = invite_form.save(commit=False)
+                invite.code = _new_invite_code()
+                invite.created_by = request.user
+                invite.save()
+                log(request, "create", obj=invite, model_label="Invite code")
+                messages.success(request, f"Invite {invite.code} created — share it with them.")
+                return redirect("panel:staff")
+        elif which == "account":
+            account_form = f.AccountCreateForm(request.POST)
+            if account_form.is_valid():
+                user = account_form.save()
+                log(request, "create", obj=user, model_label="Panel account",
+                    detail=f"role {account_form.cleaned_data['role']}")
+                messages.success(
+                    request,
+                    f"{user.get_full_name() or user.username} can sign in now as "
+                    f"{account_form.cleaned_data['role']}. Give them the password you set.",
+                )
+                return redirect("panel:staff")
+            messages.error(request, "The new account needs another look.")
+
+    # Staff records and their logins, which is the join between the two pages.
+    staff = StaffMember.objects.select_related("category", "account").order_by("name")
+    types = (
+        StaffCategory.objects.annotate(
+            member_count=Count("members"),
+            active_count=Count("members", filter=Q(members__is_active=True)),
+        )
+        .order_by("position", "id")
+    )
 
     return render(request, "panel/pages/staff.html", panel_context(
         request,
@@ -817,7 +858,12 @@ def staff_list(request):
         profiles=profiles,
         invites=invites,
         invite_form=invite_form,
+        account_form=account_form,
         signup_url=request.build_absolute_uri(reverse("panel:signup")),
+        types=types,
+        staff_total=staff.count(),
+        without_login=[member for member in staff if member.account_id is None][:12],
+        without_login_total=sum(1 for member in staff if member.account_id is None),
     ))
 
 
@@ -836,7 +882,7 @@ def _new_invite_code():
 def staff_edit(request, pk):
     profile = get_object_or_404(StaffProfile.objects.select_related("user"), pk=pk)
     is_self = profile.user_id == request.user.id
-    form = f.StaffMemberForm(request.POST or None, instance=profile)
+    form = f.StaffAccessForm(request.POST or None, instance=profile)
 
     if request.method == "POST" and form.is_valid():
         if is_self and form.cleaned_data["role"] != "owner":
@@ -855,6 +901,7 @@ def staff_edit(request, pk):
         form=form,
         member=profile,
         is_self=is_self,
+        staff_record=profile.staff_member,
         activity=ActivityLog.objects.filter(user=profile.user)[:15],
     ))
 
@@ -962,6 +1009,14 @@ def quick_search(request):
                 "group": "Hero slides", "label": slide.heading_line,
                 "meta": slide.eyebrow,
                 "url": reverse("panel:resource_edit", args=["hero-slides", slide.pk]),
+            })
+        for member in StaffMember.objects.filter(
+            Q(name__icontains=term) | Q(phone__icontains=term) | Q(skills__icontains=term)
+        ).select_related("category")[:5]:
+            results.append({
+                "group": "Staffs", "label": member.name,
+                "meta": member.type_name or "No type yet",
+                "url": reverse("panel:resource_edit", args=["staffs", member.pk]),
             })
         for enquiry in Enquiry.objects.filter(
             Q(name__icontains=term) | Q(message__icontains=term)

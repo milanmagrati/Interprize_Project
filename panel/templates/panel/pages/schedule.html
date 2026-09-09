@@ -61,7 +61,7 @@
                     <li>
                       <a class="cal__job cal__job--{{ job.status|status_tone }}"
                          href="{% url 'panel:resource_edit' 'bookings' job.pk %}"
-                         title="{{ job.reference }} · {{ job.customer_name }} · {{ job.get_status_display }}{% if job.decorator %} · {{ job.decorator }}{% endif %}">
+                         title="{{ job.reference }} · {{ job.customer_name }} · {{ job.get_status_display }}{% if job.staff %} · {{ job.staff }}{% endif %}">
                         <span class="cal__job-time">{{ job.time_slot|default:"—"|truncatechars:9 }}</span>
                         <span class="cal__job-who">{{ job.customer_name }}</span>
                       </a>

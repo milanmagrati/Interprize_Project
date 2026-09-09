@@ -1,13 +1,52 @@
 {% extends "panel/base.html" %}
 {% load panel_tags %}
 
+{% comment %}
+Two things that used to be separate live on this page now: the logins, and the
+people. A login is optional — most staff never sign in — so the tables read in
+one direction, from a staff record towards the account it may or may not have.
+{% endcomment %}
+
 {% block subheading %}
-  <p class="topbar__sub">Who can sign in, what they can change, and the invite codes that let new people join.</p>
+  <p class="topbar__sub">Who can sign in, what they can change, and how those logins map onto the people doing the work.</p>
 {% endblock %}
 
 {% block content %}
 <div class="page">
 
+  {# ------------------------------------------------------------- counters #}
+  <div class="kpis">
+    <div class="kpi kpi--blue">
+      <span class="kpi__icon" aria-hidden="true"><svg class="icon"><use href="#p-user"></use></svg></span>
+      <span class="kpi__label">Panel accounts</span>
+      <strong class="kpi__value">{{ profiles|length }}</strong>
+      <span class="kpi__foot">People who can sign in</span>
+    </div>
+    <div class="kpi kpi--green">
+      <span class="kpi__icon" aria-hidden="true"><svg class="icon"><use href="#p-users"></use></svg></span>
+      <span class="kpi__label">Staff records</span>
+      <strong class="kpi__value">{{ staff_total }}</strong>
+      <span class="kpi__foot">
+        <a href="{% url 'panel:resource_list' 'staffs' %}">Manage the Staffs list</a>
+      </span>
+    </div>
+    <div class="kpi kpi--violet">
+      <span class="kpi__icon" aria-hidden="true"><svg class="icon"><use href="#p-layers"></use></svg></span>
+      <span class="kpi__label">Staff types</span>
+      <strong class="kpi__value">{{ types|length }}</strong>
+      <span class="kpi__foot">
+        <a href="{% url 'panel:resource_list' 'staff-types' %}">Decorator, florist, driver…</a>
+      </span>
+    </div>
+    <div class="kpi{% if without_login_total %} kpi--red{% endif %}">
+      <span class="kpi__icon" aria-hidden="true"><svg class="icon"><use href="#p-key"></use></svg></span>
+      <span class="kpi__label">No login yet</span>
+      <strong class="kpi__value">{{ without_login_total }}</strong>
+      <span class="kpi__foot">Staff who cannot sign in</span>
+    </div>
+  </div>
+
+  {# --------------------------------------------------- accounts and roles #}
   <div class="cols cols--2-1">
     <section class="card">
       <div class="card__head">
@@ -18,37 +57,54 @@
       <div class="tablewrap">
         <table class="table">
           <thead>
-            <tr><th>Person</th><th>Role</th><th>Last seen</th><th>State</th><th class="table__end"><span class="sr-only">Actions</span></th></tr>
+            <tr>
+              <th>Person</th><th>Role</th><th>Staff record</th><th>Last seen</th><th>State</th>
+              <th class="table__end"><span class="sr-only">Actions</span></th>
+            </tr>
           </thead>
           <tbody>
             {% for member in profiles %}
-              <tr>
-                <td>
-                  <span class="who">
-                    <span class="avatar" aria-hidden="true">{{ member.initials }}</span>
-                    <span class="cell__stack">
-                      <span class="cell__main">{{ member.display_name }}</span>
-                      <span class="cell__hint">{{ member.job_title|default:member.user.email }}</span>
+              {% with record=member.staff_member %}
+                <tr>
+                  <td>
+                    <span class="who">
+                      <span class="avatar" aria-hidden="true">{{ member.initials }}</span>
+                      <span class="cell__stack">
+                        <span class="cell__main">{{ member.display_name }}</span>
+                        <span class="cell__hint">{{ member.job_title|default:member.user.email }}</span>
+                      </span>
                     </span>
-                  </span>
-                </td>
-                <td><span class="pill pill--{{ member.role|role_tone }}">{{ member.role|capfirst }}</span></td>
-                <td>
-                  <span class="cell__main">
-                    {% if member.last_seen %}{{ member.last_seen|timesince }} ago{% else %}Never{% endif %}
-                  </span>
-                </td>
-                <td>
-                  <span class="pill pill--{% if member.user.is_active %}green{% else %}grey{% endif %}">
-                    {{ member.user.is_active|yesno:"Active,Disabled" }}
-                  </span>
-                </td>
-                <td class="table__end">
-                  <a class="icon-btn icon-btn--sm" href="{% url 'panel:staff_edit' member.pk %}" title="Edit access">
-                    <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
-                  </a>
-                </td>
-              </tr>
+                  </td>
+                  <td><span class="pill pill--{{ member.role|role_tone }}">{{ member.role|capfirst }}</span></td>
+                  <td>
+                    {% if record %}
+                      <a class="cell__main" href="{% url 'panel:resource_edit' 'staffs' record.pk %}">{{ record.name }}</a>
+                      {% if record.category %}
+                        <span class="pill pill--{{ record.category.tone }}">{{ record.category.name }}</span>
+                      {% else %}
+                        <span class="cell__hint">No type yet</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="cell__hint">Not linked</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="cell__main">
+                      {% if member.last_seen %}{{ member.last_seen|timesince }} ago{% else %}Never{% endif %}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="pill pill--{% if member.user.is_active %}green{% else %}grey{% endif %}">
+                      {{ member.user.is_active|yesno:"Active,Disabled" }}
+                    </span>
+                  </td>
+                  <td class="table__end">
+                    <a class="icon-btn icon-btn--sm" href="{% url 'panel:staff_edit' member.pk %}" title="Edit access">
+                      <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
+                    </a>
+                  </td>
+                </tr>
+              {% endwith %}
             {% endfor %}
           </tbody>
         </table>
@@ -59,13 +115,95 @@
       <h2 class="card__title">What each role can do</h2>
       <ul class="rolelist">
         <li><span class="pill pill--violet">Owner</span> Everything, plus staff accounts and invites.</li>
-        <li><span class="pill pill--blue">Admin</span> Everything except staff accounts.</li>
-        <li><span class="pill pill--green">Editor</span> Content and bookings. No settings, cities or coupons.</li>
+        <li><span class="pill pill--blue">Admin</span> Everything except staff accounts — including the Staffs list, staff types, cities and coupons.</li>
+        <li><span class="pill pill--green">Editor</span> Content and bookings, so they can assign staff to a job but not add one.</li>
         <li><span class="pill pill--grey">Viewer</span> Reads everything, changes nothing.</li>
       </ul>
+      <p class="card__note">
+        A role is about the panel. What somebody actually <em>does</em> at an event is
+        their staff type, over on the <a href="{% url 'panel:resource_list' 'staffs' %}">Staffs</a> page.
+      </p>
     </section>
   </div>
 
+  {# ------------------------------------------- create an account directly #}
+  <div class="cols cols--2-1">
+    <section class="card" id="new-account">
+      <div class="card__head">
+        <h2 class="card__title">Create an account</h2>
+        <p class="card__note">They can sign in the moment you save</p>
+      </div>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="form" value="account">
+
+        {% if account_form.non_field_errors %}
+          <div class="notice notice--red">
+            <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+            <div>{% for error in account_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+          </div>
+        {% endif %}
+
+        <div class="grid">
+          {% for bound in account_form %}{% field bound %}{% endfor %}
+        </div>
+
+        <button class="btn btn--primary" type="submit">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Create the account
+        </button>
+      </form>
+
+      <p class="card__note">
+        Set the password here and tell them what it is; they can change it from
+        their own account page. Prefer they choose their own? Send an invite code instead.
+      </p>
+    </section>
+
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Staff without a login</h2>
+        <p class="card__note">{{ without_login_total }} of {{ staff_total }}</p>
+      </div>
+
+      {% if without_login %}
+        <p class="card__note">
+          These people exist on the Staffs page but cannot sign in. Most never need to —
+          give one an account only if they should see the panel.
+        </p>
+        <ul class="feed">
+          {% for member in without_login %}
+            <li>
+              {% if member.category %}
+                <span class="pill pill--{{ member.category.tone }}">{{ member.category.name }}</span>
+              {% else %}
+                <span class="pill pill--grey">No type</span>
+              {% endif %}
+              <span class="feed__text">
+                <strong>{{ member.name }}</strong>
+                <span>{{ member.contact_line }}</span>
+              </span>
+              <a class="feed__act" href="?staff={{ member.pk }}#new-account"
+                 title="Create an account for {{ member.name }}">Give access</a>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if without_login_total > without_login|length %}
+          <a class="card__more" href="{% url 'panel:resource_list' 'staffs' %}">
+            See all {{ without_login_total }} on the Staffs page
+          </a>
+        {% endif %}
+      {% else %}
+        <p class="card__note">
+          {% if staff_total %}Every staff record is linked to a login.
+          {% else %}No staff records yet.
+            <a href="{% url 'panel:resource_create' 'staffs' %}">Add the first one</a>.{% endif %}
+        </p>
+      {% endif %}
+    </section>
+  </div>
+
+  {# ------------------------------------------------------------ invitations #}
   <div class="cols cols--2-1">
     <section class="card">
       <div class="card__head">
@@ -85,7 +223,8 @@
                   <td><code class="code" data-copy="{{ invite.code }}" title="Click to copy">{{ invite.code }}</code></td>
                   <td><span class="pill pill--{{ invite.role|role_tone }}">{{ invite.role|capfirst }}</span></td>
                   <td>
-                    <span class="cell__main">{{ invite.note|default:"—" }}</span>
+                    <span class="cell__main">{{ invite.staff_member.name|default:invite.note|default:"Anyone" }}</span>
+                    {% if invite.staff_member and invite.note %}<span class="cell__hint">{{ invite.note }}</span>{% endif %}
                     {% if invite.used_by %}<span class="cell__hint">used by {{ invite.used_by }}</span>{% endif %}
                   </td>
                   <td>
@@ -125,9 +264,57 @@
         </button>
       </form>
       <p class="card__note">
-        A code works once. Until someone uses it, the signup page turns everyone else away.
+        A code works once. Point it at a staff record and whoever signs up with
+        it is linked to that person automatically.
       </p>
     </section>
   </div>
+
+  {# ---------------------------------------------------------- staff by type #}
+  <section class="card">
+    <div class="card__head">
+      <h2 class="card__title">Staff by type</h2>
+      <a class="card__more" href="{% url 'panel:resource_list' 'staff-types' %}">Manage types</a>
+    </div>
+
+    {% if types %}
+      <div class="tablewrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Type</th><th>Group</th><th>People</th><th>Active</th>
+              <th class="table__end"><span class="sr-only">Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for type in types %}
+              <tr>
+                <td>
+                  <span class="pill pill--{{ type.tone }}">{{ type.name }}</span>
+                  {% if not type.is_active %}<span class="cell__hint">Retired</span>{% endif %}
+                  {% if type.description %}<span class="cell__hint">{{ type.description|excerpt:60 }}</span>{% endif %}
+                </td>
+                <td><span class="cell__main">{{ type.get_kind_display }}</span></td>
+                <td><span class="chip">{{ type.member_count }}</span></td>
+                <td><span class="chip">{{ type.active_count }}</span></td>
+                <td class="table__end">
+                  <a class="btn btn--ghost btn--sm"
+                     href="{% url 'panel:resource_list' 'staffs' %}?type={{ type.slug }}">
+                    See the {{ type.name|lower }}s
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="card__note">
+        No staff types yet.
+        <a href="{% url 'panel:resource_create' 'staff-types' %}">Create one</a> —
+        decorator, florist, driver — and staff can be sorted by it.
+      </p>
+    {% endif %}
+  </section>
 </div>
 {% endblock %}
