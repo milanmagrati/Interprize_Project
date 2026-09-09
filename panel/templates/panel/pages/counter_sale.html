@@ -1,0 +1,169 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+One sale, as the customer sees it and as the shop needs it: the receipt itself
+prints on its own (the print stylesheet drops the chrome), while the margin,
+the stock it moved and the refund button stay on screen.
+{% endcomment %}
+
+{% block heading %}{{ sale.reference }}{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">
+    <a href="{% url 'panel:resource_list' 'counter-sales' %}">Counter sales</a>
+    <span aria-hidden="true">/</span> {{ sale.sold_label }} · {{ sale.customer_label }}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+
+  {% if sale.is_refunded %}
+    <div class="notice notice--red">
+      <svg class="icon" aria-hidden="true"><use href="#p-undo"></use></svg>
+      <div>
+        <p><strong>This sale was refunded.</strong></p>
+        <p>Everything on it went back onto the shelf. The receipt is kept as a record.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="form__body">
+    <div class="form__main">
+
+      <section class="card receipt">
+        <header class="receipt__head">
+          <div>
+            <strong>{{ brand.name }}</strong>
+            {% if brand.address %}<span>{{ brand.address }}</span>{% endif %}
+            {% if brand.phone %}<span>{{ brand.phone }}</span>{% endif %}
+            {% if brand.email %}<span>{{ brand.email }}</span>{% endif %}
+          </div>
+          <div class="receipt__ref">
+            <strong>{{ sale.reference }}</strong>
+            <span>{{ sale.sold_at|date:"D j M Y, H:i" }}</span>
+          </div>
+        </header>
+
+        <dl class="receipt__who">
+          <dt>Customer</dt><dd>{{ sale.customer_label }}{% if sale.phone %} · {{ sale.phone }}{% endif %}</dd>
+          <dt>Sold by</dt><dd>{{ sale.served_label }}</dd>
+          <dt>Paid by</dt><dd>{{ sale.get_payment_method_display }}</dd>
+        </dl>
+
+        <div class="tablewrap">
+          <table class="table table--plain">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th class="is-end">Qty</th>
+                <th class="is-end">Price</th>
+                <th class="is-end">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in lines %}
+                <tr>
+                  <td>
+                    {% if line.item %}
+                      <a href="{% url 'panel:resource_edit' 'stock-items' line.item.pk %}">
+                        <span class="cell__main">{{ line.name }}</span>
+                      </a>
+                    {% else %}
+                      <span class="cell__main">{{ line.name }}</span>
+                    {% endif %}
+                    {% if line.sku %}<span class="cell__hint">{{ line.sku }}</span>{% endif %}
+                  </td>
+                  <td class="is-end"><span class="num">{{ line.quantity_label }}</span></td>
+                  <td class="is-end"><span class="num">{{ line.unit_price|money }}</span></td>
+                  <td class="is-end"><span class="num">{{ line.line_total|money }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <dl class="tally tally--receipt">
+          <dt>Subtotal</dt><dd class="num">{{ sale.subtotal|money }}</dd>
+          {% if sale.discount %}<dt>Discount</dt><dd class="num">−{{ sale.discount|money }}</dd>{% endif %}
+          {% if sale.tax_amount %}<dt>Tax at {{ sale.tax_percent|floatformat }}%</dt><dd class="num">{{ sale.tax_amount|money }}</dd>{% endif %}
+          <dt class="tally__grand">Total</dt><dd class="num tally__grand">{{ sale.total|money }}</dd>
+          {% if sale.amount_tendered %}
+            <dt>Taken</dt><dd class="num">{{ sale.amount_tendered|money }}</dd>
+            <dt>Change</dt><dd class="num">{{ sale.change_due|money }}</dd>
+          {% endif %}
+        </dl>
+
+        {% if sale.notes %}<p class="receipt__note">{{ sale.notes }}</p>{% endif %}
+        <p class="receipt__thanks">Thank you — do come back.</p>
+      </section>
+
+      {% if movements %}
+        <section class="card">
+          <h2 class="card__title">What it did to the shelves</h2>
+          <ul class="feed">
+            {% for move in movements %}
+              <li>
+                <span class="pill pill--{{ move.kind_tone }}">{{ move.get_kind_display }}</span>
+                <span class="feed__text">
+                  <strong>{{ move.item.name }}</strong>
+                  <span>{{ move.signed_label }} · {{ move.balance_label }}</span>
+                </span>
+                <time>{{ move.created_at|date:"j M, H:i" }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="form__side">
+      <div class="card card--sticky">
+        <h2 class="card__title">This sale</h2>
+        <dl class="meta">
+          <dt>State</dt>
+          <dd><span class="pill pill--{% if sale.is_refunded %}red{% else %}green{% endif %}">{{ sale.get_status_display }}</span></dd>
+          <dt>Total</dt><dd>{{ sale.total|money }}</dd>
+          <dt>Cost of goods</dt><dd>{{ sale.cost_total|money }}</dd>
+          <dt>Margin</dt><dd>{{ sale.profit|money }} · {{ sale.margin_percent }}%</dd>
+          <dt>Basket</dt><dd>{{ sale.items_label }}</dd>
+        </dl>
+        <div class="stack">
+          <button class="btn btn--ghost btn--block" type="button" onclick="window.print()">
+            <svg class="icon" aria-hidden="true"><use href="#p-printer"></use></svg>Print the receipt
+          </button>
+          {% if can_write %}
+            <a class="btn btn--ghost btn--block" href="{% url 'panel:resource_edit' 'counter-sales' sale.pk %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>Edit the details
+            </a>
+          {% endif %}
+          <a class="btn btn--quiet btn--block" href="{% url 'panel:counter' %}">
+            <svg class="icon" aria-hidden="true"><use href="#p-cart"></use></svg>Back to the counter
+          </a>
+        </div>
+      </div>
+
+      {% if can_write and not sale.is_refunded %}
+        <form class="card card--danger" method="post" action="{% url 'panel:counter_refund' sale.pk %}" data-once>
+          {% csrf_token %}
+          <h2 class="card__title">Refund</h2>
+          <p class="card__note">
+            Puts every line back into stock and marks the receipt refunded. The sale
+            stops counting towards takings. This cannot be undone — ring the items up
+            again if it was a mistake.
+          </p>
+          <div class="field">
+            <label class="field__label" for="refund-note">Why (optional)</label>
+            <input class="field__input" type="text" id="refund-note" name="note" maxlength="200"
+                   placeholder="Wrong size, damaged in the bag…">
+          </div>
+          <button class="btn btn--danger btn--block" type="submit"
+                  data-confirm="Refund {{ sale.reference }} and put the stock back?">
+            <svg class="icon" aria-hidden="true"><use href="#p-undo"></use></svg>Refund this sale
+          </button>
+        </form>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -72,6 +72,7 @@ so every section of the panel behaves identically.
       {% csrf_token %}
       <input type="hidden" name="querystring" value="{{ querystring }}">
 
+      {% if bulk_actions %}
       <div class="bulkbar" data-bulk-bar hidden>
         <p><strong data-bulk-count>0</strong> selected</p>
         <select name="action" aria-label="Bulk action">
@@ -84,15 +85,18 @@ so every section of the panel behaves identically.
                 data-confirm="Apply this to the selected rows?">Apply</button>
         <button class="btn btn--ghost btn--sm" type="button" data-bulk-clear>Cancel</button>
       </div>
+      {% endif %}
 
       <div class="tablewrap">
-        <table class="table{% if resource.orderable and can_write %} table--drag{% endif %}"
+        <table class="table table--stack{% if resource.orderable and can_write %} table--drag{% endif %}"
                {% if resource.orderable and can_write %}data-sortable="{% url 'panel:resource_reorder' resource.slug %}"{% endif %}>
           <thead>
             <tr>
-              <th class="table__check">
-                <input type="checkbox" data-bulk-all aria-label="Select all rows on this page">
-              </th>
+              {% if bulk_actions %}
+                <th class="table__check">
+                  <input type="checkbox" data-bulk-all aria-label="Select all rows on this page">
+                </th>
+              {% endif %}
               {% if resource.orderable and can_write %}<th class="table__drag"><span class="sr-only">Reorder</span></th>{% endif %}
               {% for column in resource.columns %}
                 <th{% if column.align %} class="is-end"{% endif %}>
@@ -110,10 +114,12 @@ so every section of the panel behaves identically.
           <tbody{% if resource.orderable and can_write %} data-sortable-body{% endif %}>
             {% for row in rows %}
               <tr data-id="{{ row.pk }}">
-                <td class="table__check">
-                  <input type="checkbox" name="ids" value="{{ row.pk }}" data-bulk-one
-                         aria-label="Select {{ row }}">
-                </td>
+                {% if bulk_actions %}
+                  <td class="table__check">
+                    <input type="checkbox" name="ids" value="{{ row.pk }}" data-bulk-one
+                           aria-label="Select {{ row }}">
+                  </td>
+                {% endif %}
                 {% if resource.orderable and can_write %}
                   <td class="table__drag">
                     <span class="drag" data-drag-handle title="Drag to reorder" aria-hidden="true">
@@ -121,18 +127,22 @@ so every section of the panel behaves identically.
                     </span>
                   </td>
                 {% endif %}
+                {% comment %}
+                data-label is what the header becomes once the table stacks
+                into cards on a narrow screen — see table--stack in panel.css.
+                {% endcomment %}
                 {% for column in resource.columns %}
-                  <td{% if column.align %} class="is-end"{% endif %}>{% cell row column resource %}</td>
+                  <td data-label="{{ column.label }}"{% if column.align %} class="is-end"{% endif %}>{% cell row column resource %}</td>
                 {% endfor %}
                 <td class="table__end">
                   <div class="rowacts">
                     {% if resource.preview_url and row.get_absolute_url %}
                       <a class="icon-btn icon-btn--sm" href="{{ row.get_absolute_url }}" target="_blank"
-                         rel="noopener" title="View on the site">
+                         rel="noopener" title="{{ resource.preview_label }}">
                         <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
                       </a>
                     {% endif %}
-                    {% if can_write %}
+                    {% if can_write and resource.can_edit %}
                       <a class="icon-btn icon-btn--sm" href="{% url 'panel:resource_edit' resource.slug row.pk %}" title="Edit">
                         <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
                       </a>
@@ -170,6 +180,7 @@ so every section of the panel behaves identically.
       {% else %}
         <h2>No {{ resource.plural|lower }} yet</h2>
         <p>{{ resource.blurb }}</p>
+        {% if resource.no_create_hint %}<p class="card__note">{{ resource.no_create_hint }}</p>{% endif %}
         {% if can_write and resource.can_create %}
           <a class="btn btn--primary" href="{% url 'panel:resource_create' resource.slug %}">
             <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>{{ resource.create_label }}

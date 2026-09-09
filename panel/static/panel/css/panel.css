@@ -18,6 +18,8 @@
      12. Palette, toasts, menus, toolbars
      13. Empty states and pagination
      14. Responsive
+     15. Inventory — counter, receipts, stock cells
+     16. Tables on a small screen
    ========================================================================== */
 
 /* ==========================================================================
@@ -1244,8 +1246,466 @@ kbd {
   .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
+/* ==========================================================================
+   15. Inventory — the counter, receipts and stock cells
+   Sits after the responsive block on purpose: the till has its own breakpoint
+   and its own idea of what a two-column grid means.
+   ========================================================================== */
+
+/* -- list cells ----------------------------------------------------------- */
+
+.stockcell { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+
+.delta {
+  display: inline-block; min-width: 2.5rem;
+  font-variant-numeric: tabular-nums; font-weight: 700;
+}
+.delta--in { color: var(--green); }
+.delta--out { color: var(--red); }
+
+/* -- the till ------------------------------------------------------------- */
+
+.till { display: grid; gap: 1.1rem; align-items: start; }
+.till__browse { display: grid; gap: 0.8rem; align-content: start; min-width: 0; }
+.till__basket { display: grid; gap: 1.1rem; align-content: start; min-width: 0; }
+
+.till__find {
+  display: grid; gap: 0.55rem;
+  padding-bottom: 0.2rem;
+}
+
+.till__scan {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.85rem;
+  background: var(--brand-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--brand);
+  transition: border-color var(--t) var(--ease);
+}
+.till__scan:focus-within { border-color: var(--brand); }
+.till__scan .icon { font-size: 1.05rem; }
+.till__scan input {
+  flex: 1; min-width: 0;
+  padding: 0.35rem 0;
+  border: 0; background: none; outline: 0;
+  font-family: var(--mono); font-size: 0.9rem; letter-spacing: 0.04em;
+  color: var(--text);
+}
+.till__scan input::placeholder {
+  font-family: var(--font); letter-spacing: 0; color: var(--text-3);
+}
+.till__key {
+  display: none;
+  padding: 0.1rem 0.4rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-xs);
+  font-family: var(--mono); font-size: 0.7rem; color: var(--text-3);
+}
+
+.tiles {
+  display: grid; gap: 0.6rem;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+}
+.tiles > li { display: grid; }
+.tiles form { display: grid; }
+
+.tile {
+  display: grid; gap: 0.45rem; width: 100%; height: 100%;
+  grid-template-rows: auto 1fr auto;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  text-align: left; cursor: pointer; color: var(--text);
+  transition: transform var(--t) var(--ease), border-color var(--t) var(--ease),
+              box-shadow var(--t) var(--ease);
+}
+.tile:hover { transform: translateY(-2px); border-color: var(--brand); box-shadow: var(--shadow-sm); }
+.tile:active { transform: translateY(0) scale(0.99); }
+.tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.tile[disabled] { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.tile__shot { position: relative; display: block; }
+.tile__shot img {
+  width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+  border-radius: var(--radius-sm); background: var(--surface-2);
+}
+.tile__shot .pill {
+  position: absolute; left: 0.3rem; bottom: 0.3rem;
+  box-shadow: var(--shadow-xs);
+}
+.tile__add {
+  position: absolute; top: 0.3rem; right: 0.3rem;
+  display: grid; place-items: center; width: 26px; height: 26px;
+  background: var(--brand); color: #fff;
+  border-radius: 50%; font-size: 0.85rem;
+  opacity: 0; transform: scale(0.8);
+  transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.tile:hover .tile__add, .tile:focus-visible .tile__add { opacity: 1; transform: none; }
+.tile[disabled] .tile__add { display: none; }
+
+.tile__body { display: grid; gap: 0.1rem; min-width: 0; align-content: start; }
+.tile__body strong { font-size: 0.82rem; font-weight: 600; line-height: 1.3; }
+.tile__meta {
+  font-size: 0.7rem; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tile__price { font-size: 0.95rem; color: var(--brand); }
+
+/* -- the basket ----------------------------------------------------------- */
+
+.basket { display: grid; margin-bottom: 0.5rem; }
+.basket__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.5rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.basket__line:first-child { padding-top: 0.2rem; }
+.basket__line.is-short {
+  padding-inline: 0.5rem;
+  background: var(--red-bg);
+  border-bottom-color: transparent;
+  border-radius: var(--radius-sm);
+}
+
+.basket__body { display: grid; gap: 0.1rem; min-width: 0; }
+.basket__body strong { font-size: 0.86rem; line-height: 1.3; }
+.basket__sku {
+  font-size: 0.72rem; color: var(--text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.basket__warn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.73rem; font-weight: 600; color: var(--red);
+}
+.basket__total { text-align: right; font-size: 0.92rem; align-self: start; }
+
+.basket__controls {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;
+}
+.basket__controls.is-sending { opacity: 0.5; pointer-events: none; }
+/* One basket change at a time: the page is about to reload with the answer. */
+.till-page.is-busy .basket { opacity: 0.6; pointer-events: none; }
+
+.stepper {
+  display: inline-flex; align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.stepper__btn {
+  display: grid; place-items: center;
+  width: 30px; height: 30px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--text-2); font-size: 0.85rem;
+}
+.stepper__btn:hover { background: var(--brand-soft); color: var(--brand); }
+.stepper__btn:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.stepper__input {
+  width: 3.4rem; height: 30px; padding: 0 0.2rem;
+  border: 0; border-inline: 1px solid var(--line-2);
+  background: var(--surface); color: var(--text);
+  text-align: center; font: inherit; font-size: 0.84rem; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stepper__input:focus { outline: 2px solid var(--brand); outline-offset: -2px; }
+
+.basket__price {
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  padding: 0 0.45rem; height: 30px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem; color: var(--text-3);
+}
+.basket__price input {
+  width: 3.6rem; border: 0; background: none; outline: 0;
+  font: inherit; font-size: 0.84rem; font-weight: 600; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.basket__controls .icon-btn { margin-left: auto; }
+
+/* Steppers and auto-apply replace the manual button, but only once the
+   JavaScript that drives them is actually running. */
+.js .basket__apply { display: none; }
+
+.basket__empty {
+  display: grid; gap: 0.4rem; justify-items: center; text-align: center;
+  padding: 1.4rem 0.5rem 1rem;
+}
+.basket__empty p { font-size: 0.88rem; color: var(--text-2); max-width: 30ch; }
+.basket__empty kbd {
+  padding: 0.05rem 0.35rem; border: 1px solid var(--line-2);
+  border-radius: var(--radius-xs); font-family: var(--mono); font-size: 0.75rem;
+}
+
+.till__close { display: grid; gap: 0.75rem; }
+.till__close.is-sending { opacity: 0.6; pointer-events: none; }
+
+.tally {
+  display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 1rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+}
+.tally dt { color: var(--text-2); }
+.tally dd { text-align: right; }
+.tally__grand {
+  padding-top: 0.35rem; margin-top: 0.15rem;
+  border-top: 1px solid var(--line-2);
+  font-size: 1.1rem; font-weight: 800;
+}
+.tally dd.tally__grand { color: var(--brand); }
+.tally__change { color: var(--green); font-weight: 700; }
+
+.field__input.is-invalid { border-color: var(--red); background: var(--red-bg); }
+
+/* -- payment, as a row of one-tap chips ----------------------------------- */
+
+.field[data-field="payment_method"] ul {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+}
+.field[data-field="payment_method"] li label {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+}
+.field[data-field="payment_method"] li label:hover { border-color: var(--brand); }
+.field[data-field="payment_method"] li label:has(.segmented__input:checked) {
+  background: var(--brand-soft); border-color: var(--brand); color: var(--brand);
+}
+.field[data-field="payment_method"] li label:has(.segmented__input:focus-visible) {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}
+.segmented__input { accent-color: var(--brand); width: 14px; height: 14px; }
+
+/* -- the compact checkout grid -------------------------------------------- */
+
+.grid.grid--tight { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.55rem; }
+.grid.grid--tight .field__input { padding: 0.45rem 0.6rem; font-size: 0.85rem; }
+.grid.grid--tight .field__label { font-size: 0.74rem; }
+.grid.grid--tight .field__help { display: none; }
+
+/* -- the phone-sized jump back to the basket ------------------------------ */
+
+.tillbar {
+  position: fixed; left: 0.75rem; right: 0.75rem; bottom: 0.75rem; z-index: 40;
+  display: none; align-items: center; gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--brand); color: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font-size: 0.86rem; font-weight: 600;
+}
+.tillbar:hover { color: #fff; background: var(--brand-600); }
+.tillbar__count {
+  display: grid; place-items: center; min-width: 22px; height: 22px;
+  padding-inline: 0.3rem;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: var(--radius-pill); font-size: 0.75rem;
+}
+.tillbar__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tillbar__total { font-size: 0.95rem; }
+
+/* -- the receipt ---------------------------------------------------------- */
+
+.receipt { max-width: 720px; }
+.receipt__head {
+  display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: space-between;
+  padding-bottom: 0.8rem; border-bottom: 1px dashed var(--line-2);
+}
+.receipt__head > div { display: grid; gap: 0.1rem; font-size: 0.8rem; color: var(--text-2); }
+.receipt__head strong { font-size: 1rem; color: var(--text); }
+.receipt__ref { text-align: right; }
+.receipt__ref strong { font-family: var(--mono); letter-spacing: 0.02em; }
+
+.receipt__who {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.9rem;
+  font-size: 0.82rem;
+}
+.receipt__who dt { color: var(--text-3); }
+.receipt__who dd { font-weight: 600; }
+
+.tally--receipt { margin-left: auto; min-width: min(300px, 100%); }
+.receipt__note {
+  padding: 0.6rem 0.8rem; background: var(--surface-2);
+  border-radius: var(--radius-sm); font-size: 0.84rem; color: var(--text-2);
+}
+.receipt__thanks { text-align: center; font-size: 0.8rem; color: var(--text-3); }
+
+.table--plain { min-width: 0; }
+.table--plain thead th { background: none; }
+
+/* -- stock room ----------------------------------------------------------- */
+
+.ranklist--plain a, .ranklist__gone {
+  display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.25rem;
+}
+.ranklist__gone { color: var(--text-3); }
+
+.taglist { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip--link { color: var(--text); }
+.chip--link:hover { background: var(--brand-soft); color: var(--brand); }
+.chip--link span { color: var(--text-3); font-weight: 500; }
+
+.meta--split { margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--line); }
+
+/* -- responsive ----------------------------------------------------------- */
+
+@media (max-width: 419px) {
+  /* Two fields side by side stop being readable somewhere around here. */
+  .grid.grid--tight { grid-template-columns: minmax(0, 1fr); }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); }
+}
+
+@media (max-width: 1099px) {
+  /* The basket sits under the shelves, so the bar is how you get back to it. */
+  .till-page .tillbar { display: flex; }
+  .till-page { padding-bottom: 5rem; }
+  /* A toast landing on the running total is the one thing it must not cover. */
+  body:has(.tillbar) .toasts { bottom: 4.6rem; }
+}
+
+@media (min-width: 720px) {
+  .till__find { grid-template-columns: minmax(0, 1fr) minmax(0, 320px); }
+  .till__find .filters { grid-column: 1 / -1; }
+  .till__key { display: inline-block; }
+}
+
+@media (min-width: 1100px) {
+  .till { grid-template-columns: minmax(0, 1fr) 372px; }
+  /* Search and scanner stay put while the shelves scroll under them. */
+  .till__find {
+    position: sticky; top: calc(var(--top-h) - 1px); z-index: 5;
+    padding-block: 0.6rem;
+    background: linear-gradient(var(--bg) 82%, transparent);
+  }
+}
+
+@media (min-width: 1400px) {
+  .till { grid-template-columns: minmax(0, 1fr) 400px; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile, .tile__add { transition: none; }
+  .tile:hover { transform: none; }
+}
+
+/* ==========================================================================
+   16. Tables on a small screen
+   A list table is a grid of facts; below the width where that grid fits, the
+   same facts read better as one card per row with its column name beside it.
+   Nothing here changes the markup's meaning — the header row is still there
+   for screen readers, and every cell still says which column it came from.
+   ========================================================================== */
+
+@media (max-width: 719px) {
+  .tablewrap:has(.table--stack) {
+    overflow: visible;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .table--stack { display: block; width: 100%; min-width: 0; }
+
+  .table--stack thead {
+    position: absolute; width: 1px; height: 1px;
+    margin: -1px; padding: 0; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+
+  .table--stack tbody { display: block; }
+
+  .table--stack tbody tr {
+    display: block;
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xs);
+  }
+  .table--stack tbody tr:last-child { margin-bottom: 0; }
+  .table--stack tbody tr:hover { background: var(--surface); }
+  .table--stack tbody tr.is-checked { background: var(--brand-soft); border-color: var(--brand); }
+
+  .table--stack tbody td {
+    display: grid;
+    grid-template-columns: 38% minmax(0, 1fr);
+    gap: 0 0.7rem;
+    padding: 0.28rem 0;
+    border: 0;
+    text-align: left;
+  }
+  .table--stack tbody td.is-end { text-align: left; }
+
+  .table--stack tbody td::before {
+    content: attr(data-label);
+    grid-column: 1;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-3);
+    align-self: start; padding-top: 0.15rem;
+  }
+  .table--stack tbody td > * { grid-column: 2; }
+
+  /* A picture needs no label and no column to sit in. */
+  .table--stack tbody td[data-label=""] { display: block; margin-bottom: 0.4rem; }
+  .table--stack tbody td[data-label=""]::before { display: none; }
+  .table--stack tbody td[data-label=""] .thumb { width: 84px; height: 63px; }
+
+  /* The three cells that are furniture rather than data. */
+  .table--stack tbody td.table__check,
+  .table--stack tbody td.table__drag,
+  .table--stack tbody td.table__end { display: block; width: auto; }
+  .table--stack tbody td.table__check::before,
+  .table--stack tbody td.table__drag::before,
+  .table--stack tbody td.table__end::before { display: none; }
+
+  .table--stack tbody td.table__check { float: right; margin-left: 0.6rem; }
+  .table--stack tbody td.table__drag { display: none; }
+
+  .table--stack tbody td.table__end {
+    margin-top: 0.5rem; padding-top: 0.55rem;
+    border-top: 1px solid var(--line);
+    text-align: right;
+  }
+  .table--stack tbody td.table__end .rowacts { gap: 0.3rem; }
+  .table--stack tbody td.table__end .icon-btn { width: 38px; height: 38px; }
+
+  .table--stack .cell__excerpt { max-width: none; }
+
+  /* Cards carry their own edges, so the bulk bar should not float over them. */
+  .bulkbar { position: sticky; bottom: 0.5rem; z-index: 20; box-shadow: var(--shadow-md); }
+}
+
+@media (max-width: 719px) and (hover: none) {
+  /* Touch targets on the row actions, which are the only controls in a card. */
+  .table--stack tbody td.table__end .icon-btn { width: 42px; height: 42px; }
+}
+
 @media print {
   .side, .topbar, .toolbar, .filters, .pager, .toasts, .palette { display: none !important; }
   .body { margin: 0; }
   .card, .tablewrap { box-shadow: none; border-color: #ccc; }
+  /* A receipt prints as a receipt: no sidebar of controls, no page furniture. */
+  .form__side, .notice, .tillbar, .till__find { display: none !important; }
+  .form__body { display: block; }
+  .receipt { max-width: none; border: 0; padding: 0; }
+  .receipt__thanks { margin-top: 1.2rem; }
 }

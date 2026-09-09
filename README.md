@@ -153,6 +153,7 @@ panel/                          the staff control panel
 | Group | Sections |
 | --- | --- |
 | Operations | Bookings, Enquiries, Staffs, Staff types, Coupons |
+| Inventory | Counter, Stock room, Stock items, Stock groups, Suppliers, Stock ledger, Counter sales |
 | Catalogue | Products, Occasions, Gallery photos, Add-ons, Pricing table |
 | Homepage | Hero slider, Reviews, Promises, How it works, FAQs, Trust badges |
 | Site | Cities, Time slots, Menu links |
@@ -161,6 +162,46 @@ panel/                          the staff control panel
 Plus a **Dashboard** (revenue and booking trends, status mix, top-earning
 packages, overdue jobs, content alerts) and a **Schedule** — six weeks of
 calendar with every booking placed on its date.
+
+### Inventory and the counter
+
+Two screens and five tables, all under `/manage/`:
+
+- **Counter** (`/manage/counter/`) is the till. Search, filter or scan a SKU or
+  barcode to drop an item into the basket, set quantities, take a discount, add
+  tax, record what was tendered, and close the sale. The basket lives in the
+  session, so a reload or a lookup on another screen does not lose it. Closing a
+  sale writes the receipt, snapshots each line's name, price and cost, and takes
+  the stock off the shelf in one transaction. It refuses to sell more than there
+  is. Editor role and above.
+- **Stock room** (`/manage/stock/`) is the inventory dashboard: what the shelves
+  are worth at cost and at retail, what is at or under its reorder level and who
+  supplies it, fourteen days of counter takings, best sellers, value by group,
+  the payment mix and the latest ledger rows.
+- **Stock items** carry a SKU (generated if you leave it blank), a group, a
+  supplier, a unit, a shelf, a reorder level, cost and sale prices, and a photo.
+  The list shows the count with its own verdict — in stock, running low, out —
+  and filters on exactly that.
+- **Stock ledger** is append-only: every unit in or out with a reason, who did
+  it, and the balance it left behind. Receiving stock, writing off breakages and
+  correcting a count all happen here. The reason decides the direction, so you
+  type a plain number; only a stock-count adjustment takes a minus sign.
+- **Counter sales** are the receipts. They cannot be created or edited into
+  something else — a receipt that could be rewritten is not a record — but the
+  customer, payment method and notes stay editable, and each has a printable
+  page with a **Refund** that puts every line back on the shelf.
+
+The count on an item is never typed. `InventoryItem.quantity` is written only by
+`StockMovement.save()`, under `select_for_update` on the item, so two people
+receiving stock at once cannot lose a count and the ledger always reconciles
+with the shelf.
+
+At the till: `/` jumps to the scanner, the basket has `−`/`+` steppers and an
+editable unit price, and the tally recalculates as the discount, tax and cash
+taken are typed. All of that is an enhancement over plain forms — every control
+is a real POST that works with JavaScript off, and the basket lives in the
+session rather than in the page. On a narrow screen the basket moves below the
+shelves and a bar pinned to the bottom carries the running total back to it.
 
 ### How it is built
 
@@ -302,6 +343,10 @@ database arrived.
 | `Enquiry` | Contact-form messages |
 | `StaffMember` `StaffCategory` | The people who work a booking, and the type of work each does |
 | `Coupon` | Discount codes |
+| `Supplier` `StockCategory` | Who stock is bought from, and how the store room is divided |
+| `InventoryItem` | One SKU on a shelf. `quantity` is read-only — the ledger writes it |
+| `StockMovement` | The append-only stock ledger. `save()` applies the change and records `balance_after` |
+| `CounterSale` `CounterSaleLine` | Walk-in sales. Totals and line prices are stored, not derived, so an old receipt still reads true |
 | `StaffProfile` `InviteCode` `ActivityLog` | Panel accounts and audit trail. A `StaffMember` links to one through `account` when that person also signs in |
 
 Two abstract bases do most of the repetitive work: `Positioned` (a `position`
@@ -319,6 +364,13 @@ upload-or-URL pair and the `image` property).
 - **Hero video URLs** seeded by `seed_demo` are Google's public sample files.
   Replace them with your own encodes — 1920×1080 H.264, no audio track, a few MB.
 - **Photographs** are `picsum.photos` placeholders until something is uploaded.
+
+### On a phone
+
+The panel's list tables are wide by nature, so below 720px each row folds into a
+card with its column names beside the values (`table--stack`), rather than a
+680px-wide table behind a horizontal scrollbar. Bespoke tables that are already
+narrow — the receipt, the reorder list — keep their shape at every width.
 
 ## Design system
 

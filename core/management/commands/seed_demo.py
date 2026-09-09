@@ -22,24 +22,36 @@ from core.models import (
     Booking,
     Category,
     City,
+    CounterSale,
+    CounterSaleLine,
     Coupon,
     Enquiry,
     FAQ,
     Feature,
     HeroSlide,
     HowItWorksStep,
+    InventoryItem,
     NavLink,
     Package,
     PricingRow,
     SiteSettings,
     StaffCategory,
     StaffMember,
+    StockCategory,
+    StockMovement,
+    Supplier,
     Testimonial,
     TimeSlot,
     TrustBadge,
 )
 
 CONTENT_MODELS = [
+    # Inventory first: sales and ledger rows hang off the items above them.
+    CounterSale,
+    StockMovement,
+    InventoryItem,
+    StockCategory,
+    Supplier,
     Booking,
     Enquiry,
     Coupon,
@@ -68,6 +80,40 @@ LAST_NAMES = [
     "Raghavan", "Sethi", "Joshi", "Nair", "Deshmukh", "Malhotra", "Sheikh",
     "Krishnan", "Bansal", "Qureshi", "Iyer", "Kapoor", "Menon", "Verma",
 ]
+#: (group, tone) — how the demo store room is divided up.
+STOCK_GROUPS = [
+    ("Balloons", "violet", "Latex, foil, arches and everything to inflate them."),
+    ("Fresh flowers", "green", "Stems and garlands, counted in bunches."),
+    ("Fabric & drapes", "blue", "Backdrop cloth, runners, chair covers."),
+    ("Lighting", "amber", "Fairy lights, uplighters, spare bulbs."),
+    ("Tableware", "grey", "Crockery, cutlery and serving pieces on hire."),
+]
+
+SUPPLIERS = [
+    ("Metro Party Supplies", "Rakesh Menon", 2),
+    ("Green Valley Florists", "Sundari Devi", 1),
+    ("Drape House Textiles", "Imtiaz Khan", 5),
+]
+
+#: (name, group, supplier, unit, cost, sale, reorder, opening)
+STOCK_ITEMS = [
+    ("Latex balloon pack of 50", 0, 0, "pack", 120, 220, 10, 46),
+    ("Foil number balloon", 0, 0, "piece", 90, 180, 12, 38),
+    ("Balloon arch kit", 0, 0, "set", 340, 650, 4, 9),
+    ("Helium canister", 0, 0, "piece", 1600, 2600, 2, 5),
+    ("Rose bunch (20 stems)", 1, 1, "pack", 260, 480, 8, 22),
+    ("Marigold garland", 1, 1, "piece", 70, 150, 15, 12),
+    ("Orchid stem", 1, 1, "piece", 55, 120, 20, 64),
+    ("Backdrop cloth, 3m", 2, 2, "metre", 180, 340, 12, 30),
+    ("Chair cover", 2, 2, "piece", 45, 95, 40, 120),
+    ("Table runner", 2, 2, "piece", 110, 240, 10, 26),
+    ("Fairy light string, 10m", 3, 0, "roll", 210, 420, 8, 18),
+    ("Warm uplighter", 3, 0, "piece", 900, 1500, 3, 7),
+    ("Spare bulb pack", 3, 0, "pack", 130, 260, 6, 4),
+    ("Dinner plate set of 12", 4, 2, "set", 420, 780, 4, 8),
+    ("Cutlery set of 12", 4, 2, "set", 380, 700, 4, 3),
+]
+
 DECORATOR_NAMES = [
     "Lakshmi Crew", "Studio Marigold", "The Balloon Room", "Anand Events",
     "Petal & Post", "Northside Decor", "Bright Hall Team",
@@ -111,6 +157,7 @@ class Command(BaseCommand):
         self.seed_bookings(packages, cities, decorators, options["bookings"])
         self.seed_enquiries(categories)
         self.seed_coupons()
+        self.seed_inventory(decorators)
 
         self.stdout.write(self.style.SUCCESS("\nSeeded. Sign in at /manage/ to edit any of it."))
 
@@ -394,6 +441,99 @@ class Command(BaseCommand):
                 created_at=timezone.now() - timedelta(days=index, hours=random.randint(0, 20))
             )
         self.stdout.write(f"  {Enquiry.objects.count()} enquiries")
+
+    def seed_inventory(self, staff):
+        """
+        Stock, its ledger and a month of counter sales.
+
+        Counts are never assigned directly, exactly as in the panel: every item
+        gets an opening-balance movement and the shelf total follows from it.
+        """
+        if InventoryItem.objects.exists():
+            return
+
+        groups = []
+        for position, (name, tone, blurb) in enumerate(STOCK_GROUPS):
+            group, _ = StockCategory.objects.get_or_create(
+                name=name,
+                defaults={"tone": tone, "description": blurb, "position": position},
+            )
+            groups.append(group)
+
+        suppliers = []
+        for name, contact, lead in SUPPLIERS:
+            supplier, _ = Supplier.objects.get_or_create(
+                name=name,
+                defaults={
+                    "contact_name": contact,
+                    "lead_time_days": lead,
+                    "phone": f"+9180{random.randint(10000000, 99999999)}",
+                    "email": f"orders@{name.split()[0].lower()}.example",
+                },
+            )
+            suppliers.append(supplier)
+
+        items = []
+        for name, group_index, supplier_index, unit, cost, price, reorder, opening in STOCK_ITEMS:
+            item = InventoryItem.objects.create(
+                name=name,
+                category=groups[group_index],
+                supplier=suppliers[supplier_index],
+                unit=unit,
+                cost_price=cost,
+                sale_price=price,
+                reorder_level=reorder,
+                location=f"Rack {group_index + 1}-{len(items) % 4 + 1}",
+            )
+            item.record_movement(
+                opening, kind="opening", unit_cost=cost, note="Opening count",
+            )
+            items.append(item)
+        self.stdout.write(f"  {len(items)} stock items")
+
+        # A month of walk-ins, so the stock room has a shape to show.
+        now = timezone.now()
+        sellable = [item for item in items if item.quantity > 2]
+        for day_back in range(28, 0, -1):
+            for _ in range(random.randint(0, 2)):
+                basket = random.sample(sellable, random.randint(1, 3))
+                sale = CounterSale.objects.create(
+                    customer_name=(
+                        f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}"
+                        if random.random() > 0.35 else ""
+                    ),
+                    phone=f"+9198{random.randint(10000000, 99999999)}",
+                    sold_at=now - timedelta(days=day_back, hours=random.randint(0, 8)),
+                    served_by=random.choice(staff) if staff else None,
+                    payment_method=random.choice(["cash", "cash", "upi", "upi", "card"]),
+                    discount=random.choice([0, 0, 0, 50, 100]),
+                    tax_percent=random.choice([0, 0, 5]),
+                )
+                lines = []
+                for item in basket:
+                    item.refresh_from_db()
+                    if item.quantity < 1:
+                        continue
+                    quantity = min(random.randint(1, 3), int(item.quantity))
+                    lines.append(CounterSaleLine(
+                        sale=sale, item=item, name=item.name, sku=item.sku,
+                        quantity=quantity, unit_price=item.sale_price,
+                        unit_cost=item.cost_price,
+                    ))
+                if not lines:
+                    sale.delete()
+                    continue
+                CounterSaleLine.objects.bulk_create(lines)
+                sale.recalculate()
+                sale.apply_stock()
+
+        # One refund, because a panel that has never seen one looks untested.
+        refundable = CounterSale.objects.order_by("-sold_at").first()
+        if refundable:
+            refundable.refund(note="Customer changed their mind")
+
+        sold = CounterSale.objects.count()
+        self.stdout.write(f"  {sold} counter sales, {StockMovement.objects.count()} ledger rows")
 
     def seed_coupons(self):
         rows = [

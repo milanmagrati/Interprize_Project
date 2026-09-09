@@ -6,7 +6,9 @@ key in `resources.BY_SLUG`, so adding a model to the registry adds its five
 URLs at the same time.
 
 The catch-all resource patterns come last so the named pages above them
-(schedule, settings, staff…) are never shadowed by a resource with the same slug.
+(schedule, counter, stock, settings, staff…) are never shadowed by a resource
+with the same slug — which is why the inventory tables are `stock-items` and
+`stock-ledger` rather than plain `stock`.
 """
 
 from django.urls import path
@@ -34,6 +36,12 @@ urlpatterns = [
     path("staff/invite/<int:pk>/revoke/", views.invite_delete, name="invite_delete"),
     path("activity/", views.activity, name="activity"),
     path("media/", views.media_library, name="media"),
+
+    # -- inventory --------------------------------------------------------
+    path("counter/", views.counter, name="counter"),
+    path("counter/<int:pk>/", views.counter_sale, name="counter_sale"),
+    path("counter/<int:pk>/refund/", views.counter_refund, name="counter_refund"),
+    path("stock/", views.stock_room, name="stock"),
 
     # -- json -------------------------------------------------------------
     path("search/", views.quick_search, name="search"),

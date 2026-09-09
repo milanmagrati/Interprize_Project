@@ -1,0 +1,291 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+The inventory answer to the dashboard. Two questions it exists to settle
+without opening a table: what are the shelves worth, and what runs out next.
+{% endcomment %}
+
+{% block heading %}Stock room{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">What is on the shelves, what it is worth, and what the counter has been selling.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="toolbar">
+    <p class="card__note">Everything here reads from the stock ledger, so it is never out of date.</p>
+    <div class="toolbar__actions">
+      <a class="btn btn--ghost" href="{% url 'panel:resource_list' 'stock-ledger' %}">
+        <svg class="icon" aria-hidden="true"><use href="#p-clipboard"></use></svg>The ledger
+      </a>
+      {% if can_write %}
+        <a class="btn btn--ghost" href="{% url 'panel:resource_create' 'stock-ledger' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Receive stock
+        </a>
+        <a class="btn btn--primary" href="{% url 'panel:counter' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-cart"></use></svg>Open the counter
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ kpis #}
+  <ul class="kpis">
+    {% for kpi in kpis %}
+      <li class="kpi kpi--{{ kpi.tone }}">
+        <span class="kpi__icon" aria-hidden="true">
+          <svg class="icon"><use href="#p-{{ kpi.icon }}"></use></svg>
+        </span>
+        <p class="kpi__label">{{ kpi.label }}</p>
+        <p class="kpi__value">{{ kpi.value }}</p>
+        <p class="kpi__foot">
+          {% if kpi.trend.pct is not None %}
+            <span class="trend trend--{{ kpi.trend.direction }}">
+              <svg class="icon" aria-hidden="true">
+                <use href="#p-arrow-{% if kpi.trend.direction == 'down' %}down{% else %}up{% endif %}"></use>
+              </svg>{{ kpi.trend.pct }}%
+            </span>
+          {% endif %}
+          {{ kpi.foot }}
+        </p>
+      </li>
+    {% endfor %}
+  </ul>
+
+  <div class="cols cols--2-1">
+
+    {# ------------------------------------------------------- what runs out #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Order these next</h2>
+        <a class="card__more" href="{% url 'panel:resource_list' 'stock-items' %}?stock=attention">
+          All {{ low_total }}<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+      {% if low %}
+        <p class="card__note">
+          Refilling everything below costs about <strong>{{ restock_cost|money }}</strong>.
+        </p>
+        <div class="tablewrap">
+          <table class="table table--plain">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Supplier</th>
+                <th class="is-end">On hand</th>
+                <th class="is-end">Short by</th>
+                <th class="is-end">Costs to refill</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in low %}
+                <tr>
+                  <td>
+                    <a href="{% url 'panel:resource_edit' 'stock-items' item.pk %}">
+                      <span class="cell__main">{{ item.name }}</span>
+                    </a>
+                    <span class="cell__hint">{{ item.sku }}{% if item.location %} · {{ item.location }}{% endif %}</span>
+                  </td>
+                  <td>
+                    {% if item.supplier %}
+                      <span class="cell__main">{{ item.supplier.name }}</span>
+                      <span class="cell__hint">
+                        {% if item.supplier.lead_time_days %}{{ item.supplier.lead_time_days }} day lead{% else %}{{ item.supplier.contact_line }}{% endif %}
+                      </span>
+                    {% else %}
+                      <span class="cell__hint">No supplier set</span>
+                    {% endif %}
+                  </td>
+                  <td class="is-end">
+                    <span class="pill pill--{{ item.stock_tone }}">{{ item.quantity_label }}</span>
+                  </td>
+                  <td class="is-end">
+                    <span class="num">{{ item.shortfall_label }}</span>
+                    <span class="cell__hint">{{ item.unit_label }}</span>
+                  </td>
+                  <td class="is-end">
+                    <span class="num">{{ item.restock_cost|money }}</span>
+                    <span class="cell__hint">at {{ item.cost_price|money }} each</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="card__note">Nothing is at its reorder level. The shelves are in good shape.</p>
+      {% endif %}
+    </section>
+
+    {# ---------------------------------------------------- value by group #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Where the value sits</h2>
+      </div>
+      {% if group_rows %}
+        <ul class="bars">
+          {% for row in group_rows %}
+            <li>
+              <p class="bars__row">
+                <span class="dot dot--{{ row.group.tone }}" aria-hidden="true"></span>
+                <span class="bars__label">{{ row.group.name }}</span>
+                <strong>{{ row.value|money }}</strong>
+              </p>
+              <span class="bars__track">
+                <span class="bars__fill bars__fill--{{ row.group.tone }}" style="width: {{ row.pct }}%"></span>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="card__note">No stock groups with items in them yet.</p>
+      {% endif %}
+      <a class="card__more" href="{% url 'panel:resource_list' 'stock-groups' %}">
+        Stock groups<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+      </a>
+    </section>
+  </div>
+
+  <div class="cols cols--2-1">
+
+    {# ----------------------------------------------------- counter takings #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Counter takings</h2>
+        <p class="card__note">{{ chart_total }} over the last 14 days</p>
+      </div>
+      <div class="chart" role="img" aria-label="Counter takings per day over the last fourteen days">
+        {% for bar in chart %}
+          <div class="chart__col{% if bar.is_today %} is-today{% endif %}">
+            <span class="chart__bar" style="height: {{ bar.height }}%">
+              <span class="chart__tip">{{ bar.value }} on {{ bar.label }}</span>
+            </span>
+            <span class="chart__x">{{ bar.day|date:"j" }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {# ---------------------------------------------------------- best sellers #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Selling best</h2>
+      </div>
+      {% if best %}
+        <ol class="ranklist ranklist--plain">
+          {% for row in best %}
+            <li>
+              {% if row.item_id %}
+                <a href="{% url 'panel:resource_edit' 'stock-items' row.item_id %}">
+                  <span class="ranklist__body">
+                    <strong>{{ row.name }}</strong>
+                    <span>{{ row.units }} sold · {{ row.sku }}</span>
+                  </span>
+                  <span class="num">{{ row.earned|money }}</span>
+                </a>
+              {% else %}
+                <span class="ranklist__gone">
+                  <span class="ranklist__body">
+                    <strong>{{ row.name }}</strong>
+                    <span>{{ row.units }} sold · no longer stocked</span>
+                  </span>
+                  <span class="num">{{ row.earned|money }}</span>
+                </span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="card__note">Nothing has gone over the counter yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="cols cols--1-1">
+
+    {# ------------------------------------------------------------- ledger #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Latest movements</h2>
+        <a class="card__more" href="{% url 'panel:resource_list' 'stock-ledger' %}">
+          Full ledger<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+      {% if movements %}
+        <ul class="feed">
+          {% for move in movements %}
+            <li>
+              <span class="pill pill--{{ move.kind_tone }}">{{ move.get_kind_display }}</span>
+              <span class="feed__text">
+                <strong>{{ move.item.name }}</strong>
+                <span>
+                  <span class="delta delta--{% if move.is_incoming %}in{% else %}out{% endif %}">{{ move.signed_label }}</span>
+                  · {{ move.balance_label }} · {{ move.by_label }}
+                </span>
+              </span>
+              <time>{{ move.created_at|timesince }} ago</time>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="card__note">
+          The ledger is empty. Receiving stock is the first thing to do —
+          every count in the panel is built from these rows.
+        </p>
+      {% endif %}
+    </section>
+
+    {# ----------------------------------------------------- sales and money #}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Recent sales</h2>
+        <a class="card__more" href="{% url 'panel:resource_list' 'counter-sales' %}">
+          All<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+        </a>
+      </div>
+      {% if recent_sales %}
+        <ul class="notelist">
+          {% for sale in recent_sales %}
+            <li>
+              <a href="{% url 'panel:counter_sale' sale.pk %}">
+                <strong>{{ sale.reference }} · {{ sale.total|money }}</strong>
+                <span>{{ sale.customer_label }} · {{ sale.items_label }} · {{ sale.get_payment_method_display }}</span>
+                <time>{{ sale.sold_label }}{% if sale.is_refunded %} · refunded{% endif %}</time>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if payments %}
+          <dl class="meta meta--split">
+            {% for row in payments %}
+              <dt>{{ row.label }}</dt><dd>{{ row.total|money }} <span class="cell__hint">{{ row.count }} sale{{ row.count|pluralize }}</span></dd>
+            {% endfor %}
+          </dl>
+        {% endif %}
+      {% else %}
+        <p class="card__note">No counter sales yet. Open the counter to ring the first one up.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if dead %}
+    <section class="card">
+      <div class="card__head">
+        <h2 class="card__title">Never sold</h2>
+        <p class="card__note">Stock sitting there that has not gone over the counter once.</p>
+      </div>
+      <ul class="taglist">
+        {% for item in dead %}
+          <li>
+            <a class="chip chip--link" href="{% url 'panel:resource_edit' 'stock-items' item.pk %}">
+              {{ item.name }} <span>{{ item.quantity_label }} · {{ item.stock_value|money }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

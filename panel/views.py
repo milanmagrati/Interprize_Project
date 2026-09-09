@@ -6,22 +6,37 @@ Three kinds of thing live here:
   * account flow  — signup (invite-gated), login, logout, profile, password
   * generic CRUD  — one list / form / delete view driving every entry in
                     `resources.RESOURCES`
-  * bespoke pages — dashboard, schedule board, settings, staff, activity, media
+  * bespoke pages — dashboard, schedule board, the counter, the stock room,
+                    settings, staff, activity, media
 
-The generic views are the reason the panel covers eighteen models without
-eighteen copies of the same code. Anything a model needs beyond the defaults is
+The generic views are the reason the panel covers two dozen models without two
+dozen copies of the same code. Anything a model needs beyond the defaults is
 expressed in its `Resource` declaration or its `ModelForm`, not here.
+
+The counter is the one screen that is not a table: it holds a basket in the
+session, and closing a sale is the only place in the panel where money and
+stock move together.
 """
 
 import csv
 from collections import OrderedDict
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Count, ProtectedError, Q, Sum
+from django.db import transaction
+from django.db.models import (
+    Count,
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    ProtectedError,
+    Q,
+    Sum,
+)
 from django.db.models.functions import TruncDate
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -34,8 +49,11 @@ from core.models import (
     ActivityLog,
     Booking,
     Category,
+    CounterSale,
+    CounterSaleLine,
     Enquiry,
     HeroSlide,
+    InventoryItem,
     InviteCode,
     Package,
     PackageImage,
@@ -43,6 +61,9 @@ from core.models import (
     StaffCategory,
     StaffMember,
     StaffProfile,
+    StockCategory,
+    StockMovement,
+    normalise_quantity,
 )
 
 from . import forms as f
@@ -64,13 +85,18 @@ def panel_context(request, **extra):
     counters that earn a dot in the sidebar (new bookings, unread enquiries).
     """
     profile = getattr(request, "profile", None)
+    match = request.resolver_match
     context = {
         "profile": profile,
         "groups": resources.grouped(profile),
+        # What the sidebar highlights: a resource is known by its slug, a
+        # bespoke page by its URL name.
+        "nav_key": (match.kwargs.get("slug") or match.url_name) if match else "",
         "panel_theme": getattr(profile, "theme", "light"),
         "counts": {
             "bookings": Booking.objects.filter(status="new").count(),
             "enquiries": Enquiry.objects.filter(status="new").count(),
+            "low_stock": InventoryItem.objects.needs_attention().count(),
         },
         "can_write": bool(profile and profile.can_write),
         "can_configure": bool(profile and profile.can_configure),
@@ -364,6 +390,19 @@ def _alerts():
             "url": reverse("panel:resource_list", args=["packages"]), "cta": "Add a product",
         })
 
+    short = InventoryItem.objects.needs_attention().count()
+    if short:
+        empty_count = InventoryItem.objects.active().out_of_stock().count()
+        tail = f", {empty_count} of them empty." if empty_count else "."
+        rows.append({
+            "tone": "red" if empty_count else "amber", "icon": "package",
+            "text": (
+                f"{short} stock item{'s' if short > 1 else ''} at or below "
+                f"the reorder level{tail}"
+            ),
+            "url": reverse("panel:stock"), "cta": "Open the stock room",
+        })
+
     if SiteSettings.objects.current().maintenance_mode:
         rows.append({
             "tone": "red", "icon": "alert",
@@ -527,6 +566,19 @@ def resource_form(request, slug, pk=None):
     # Viewers may open a record and read it; only saving is gated. Blocking the
     # page outright would leave them unable to see anything but list rows.
     writable = request.profile.at_least(resource.permission)
+    frozen = bool(pk) and not resource.can_edit
+    if frozen:
+        # An append-only table: the row is history, and history is read.
+        writable = False
+    if request.method == "POST" and frozen:
+        # `_guard` answers "may this person write?", which is the wrong
+        # question here — nobody may, whatever role they hold.
+        messages.error(
+            request,
+            f"{resource.plural} are never edited. Record another movement to "
+            "correct this one.",
+        )
+        return redirect("panel:resource_list", slug=slug)
     if request.method == "POST" and not writable:
         return _guard(request, resource)
 
@@ -536,19 +588,34 @@ def resource_form(request, slug, pk=None):
         if not resource.can_create or not writable:
             messages.error(
                 request,
-                f"{resource.plural} arrive from the website, not from here."
+                (
+                    resource.no_create_hint
+                    or f"{resource.plural} arrive from the website, not from here."
+                )
                 if not resource.can_create
                 else f"Creating {resource.plural.lower()} needs the {resource.permission} role.",
             )
             return redirect("panel:resource_list", slug=slug)
         instance = resource.model()
 
+    # A new record can be seeded from the link that opened it, so "record a
+    # movement" from a stock item arrives with that item already chosen.
+    initial = {}
+    if not pk:
+        for name in resource.form_class.base_fields:
+            if name in request.GET:
+                initial[name] = request.GET[name]
+
     form = resource.form_class(
-        request.POST or None, request.FILES or None, instance=instance
+        request.POST or None, request.FILES or None, instance=instance, initial=initial
     )
 
     if request.method == "POST" and form.is_valid():
-        obj = form.save()
+        obj = form.save(commit=False)
+        if resource.slug == "stock-ledger" and not pk:
+            obj.created_by = request.user
+        obj.save()
+        form.save_m2m()
         log(request, "update" if pk else "create", obj=obj, model_label=resource.label)
         messages.success(
             request,
@@ -578,8 +645,26 @@ def resource_form(request, slug, pk=None):
         sections=list(form.sections()) if hasattr(form, "sections") else None,
         preview_url=preview,
         writable=writable,
+        readonly_reason=(
+            f"{resource.plural} are a record of what happened, so rows are never "
+            "edited. Correct a mistake by recording another movement."
+            if frozen
+            else ""
+        ),
         related_images=(
             instance.images.all() if pk and resource.slug == "packages" else None
+        ),
+        # A stock item and a receipt are both worth more than their own fields:
+        # one needs its ledger beside it, the other its lines.
+        stock_item=instance if pk and resource.slug == "stock-items" else None,
+        stock_history=(
+            instance.movements.select_related("created_by")[:8]
+            if pk and resource.slug == "stock-items" else None
+        ),
+        sale=instance if pk and resource.slug == "counter-sales" else None,
+        sale_lines=(
+            instance.lines.select_related("item")
+            if pk and resource.slug == "counter-sales" else None
         ),
     ))
 
@@ -973,6 +1058,10 @@ def media_library(request):
         items.append({"url": category.image_file.url, "name": category.image_file.name,
                       "used_by": category.name, "kind": "Occasion",
                       "url_to": reverse("panel:resource_edit", args=["categories", category.pk])})
+    for stock_item in InventoryItem.objects.exclude(image_file="").only("id", "name", "image_file"):
+        items.append({"url": stock_item.image_file.url, "name": stock_item.image_file.name,
+                      "used_by": stock_item.name, "kind": "Stock item",
+                      "url_to": reverse("panel:resource_edit", args=["stock-items", stock_item.pk])})
 
     return render(request, "panel/pages/media.html", panel_context(
         request, title="Media", items=items,
@@ -1018,6 +1107,23 @@ def quick_search(request):
                 "meta": member.type_name or "No type yet",
                 "url": reverse("panel:resource_edit", args=["staffs", member.pk]),
             })
+        for item in InventoryItem.objects.filter(
+            Q(name__icontains=term) | Q(sku__icontains=term) | Q(barcode__icontains=term)
+        ).select_related("category")[:5]:
+            results.append({
+                "group": "Stock items", "label": item.name,
+                "meta": f"{item.sku} · {item.quantity_label} on hand",
+                "url": reverse("panel:resource_edit", args=["stock-items", item.pk]),
+            })
+        for sale in CounterSale.objects.filter(
+            Q(reference__icontains=term) | Q(customer_name__icontains=term)
+            | Q(phone__icontains=term)
+        )[:4]:
+            results.append({
+                "group": "Counter sales", "label": f"{sale.reference} · {sale.customer_label}",
+                "meta": f"{sale.sold_label} · ₹{sale.total:,}",
+                "url": reverse("panel:counter_sale", args=[sale.pk]),
+            })
         for enquiry in Enquiry.objects.filter(
             Q(name__icontains=term) | Q(message__icontains=term)
         )[:4]:
@@ -1042,13 +1148,467 @@ def quick_search(request):
 @panel_login_required
 def stats_json(request):
     """Small JSON feed the dashboard polls to keep its counters honest."""
+    today = timezone.localdate()
     return JsonResponse({
         "new_bookings": Booking.objects.filter(status="new").count(),
         "new_enquiries": Enquiry.objects.filter(status="new").count(),
         "open_jobs": Booking.objects.open().count(),
         "revenue_today": _money(
             Booking.objects.earning()
-            .filter(event_date=timezone.localdate())
+            .filter(event_date=today)
             .aggregate(total=Sum("amount"))["total"]
         ),
+        "counter_today": _money(
+            CounterSale.objects.earning().on(today).aggregate(total=Sum("total"))["total"]
+        ),
+        "low_stock": InventoryItem.objects.needs_attention().count(),
     })
+
+
+# ---------------------------------------------------------------------------
+# Inventory — the counter and the stock room
+# ---------------------------------------------------------------------------
+
+#: The basket lives in the session, so a half-rung sale survives a reload, a
+#: lookup on another screen and the customer changing their mind twice.
+CART_KEY = "counter_cart"
+
+
+def _cart(request):
+    return request.session.get(CART_KEY) or {}
+
+
+def _save_cart(request, cart):
+    request.session[CART_KEY] = cart
+    request.session.modified = True
+
+
+def _cart_lines(cart):
+    """
+    Resolve the session basket into rows the template can render.
+
+    Anything that has since been deleted or retired quietly drops out — a stale
+    session should never be able to break the till.
+    """
+    keys = [key for key in cart if key.isdigit()]
+    items = {
+        str(item.pk): item
+        for item in InventoryItem.objects.filter(pk__in=keys).select_related("category")
+    }
+    lines, subtotal, units = [], 0, Decimal("0")
+    for key in list(cart):
+        item = items.get(key)
+        if item is None:
+            continue
+        row = cart[key]
+        quantity = Decimal(str(row.get("qty", 1)))
+        price = int(row.get("price", item.sale_price))
+        total = int(round(quantity * price))
+        lines.append({
+            "item": item,
+            "quantity": quantity,
+            "quantity_label": normalise_quantity(quantity),
+            "price": price,
+            "total": total,
+            "cost": int(round(quantity * item.cost_price)),
+            "short": quantity > item.quantity,
+            "available": item.quantity_label,
+        })
+        subtotal += total
+        units += quantity
+    return lines, subtotal, units
+
+
+def _cart_add(cart, item, quantity):
+    key = str(item.pk)
+    row = cart.get(key)
+    if row:
+        row["qty"] = str(Decimal(str(row["qty"])) + quantity)
+    else:
+        cart[key] = {"qty": str(quantity), "price": item.sale_price}
+    return cart
+
+
+def _quantity(raw, fallback=Decimal("1")):
+    """Counter input is typed in a hurry; anything unreadable is just a 1."""
+    try:
+        value = Decimal(str(raw).strip())
+    except (InvalidOperation, AttributeError, TypeError):
+        return fallback
+    if value <= 0:
+        return Decimal("0")
+    return value.quantize(Decimal("0.01"))
+
+
+@panel_login_required
+@require_role("editor")
+def counter(request):
+    """
+    The till. Search or scan on the left, basket on the right, one button to
+    close the sale — which is also the only thing in the panel that moves stock
+    and takes money in the same breath.
+    """
+    cart = _cart(request)
+
+    if request.method == "POST":
+        return _counter_action(request, cart)
+
+    lines, subtotal, units = _cart_lines(cart)
+    if len(lines) != len(cart):
+        # Something in the basket has since been deleted or retired. It has
+        # already been dropped from the view; drop it from the session too,
+        # rather than leave a key nothing can ever resolve.
+        keep = {str(line["item"].pk) for line in lines}
+        _save_cart(request, {k: v for k, v in cart.items() if k in keep})
+
+    term = request.GET.get("q", "").strip()
+    group = request.GET.get("group", "")
+
+    catalogue = InventoryItem.objects.sellable().select_related("category")
+    if term:
+        catalogue = catalogue.filter(
+            Q(name__icontains=term) | Q(sku__icontains=term)
+            | Q(barcode__icontains=term) | Q(category__name__icontains=term)
+        )
+    if group:
+        catalogue = catalogue.filter(category__slug=group)
+    if request.GET.get("stocked") == "1":
+        catalogue = catalogue.filter(quantity__gt=0)
+
+    matches = list(catalogue.order_by("name")[:48])
+    today = timezone.localdate()
+    takings = CounterSale.objects.earning().on(today).aggregate(
+        total=Sum("total"), n=Count("id")
+    )
+
+    return render(request, "panel/pages/counter.html", panel_context(
+        request,
+        title="Counter",
+        items=matches,
+        item_total=catalogue.count(),
+        groups_list=StockCategory.objects.filter(is_active=True).order_by("position", "id"),
+        q=term,
+        group=group,
+        stocked=request.GET.get("stocked") == "1",
+        lines=lines,
+        subtotal=subtotal,
+        units=normalise_quantity(units),
+        form=f.CounterCheckoutForm(subtotal=subtotal),
+        today_total=_money(takings["total"]),
+        today_count=takings["n"] or 0,
+        recent=CounterSale.objects.select_related("served_by").order_by("-sold_at")[:6],
+    ))
+
+
+@require_POST
+def _counter_action(request, cart):
+    """Every button on the counter screen posts here and then redirects back."""
+    action = request.POST.get("action", "")
+    back = f"{reverse('panel:counter')}?{request.POST.get('querystring', '')}"
+
+    if action == "clear":
+        _save_cart(request, {})
+        messages.success(request, "Basket cleared.")
+        return redirect(back)
+
+    if action == "add":
+        item = get_object_or_404(InventoryItem, pk=request.POST.get("item"))
+        quantity = _quantity(request.POST.get("qty", "1"))
+        if quantity <= 0:
+            messages.warning(request, "Nothing added — the quantity has to be more than zero.")
+            return redirect(back)
+        _save_cart(request, _cart_add(cart, item, quantity))
+        return redirect(back)
+
+    if action == "scan":
+        code = request.POST.get("code", "").strip()
+        if not code:
+            return redirect(back)
+        found = list(
+            InventoryItem.objects.sellable().filter(
+                Q(sku__iexact=code) | Q(barcode__iexact=code) | Q(name__iexact=code)
+            )[:2]
+        )
+        if len(found) == 1:
+            _save_cart(request, _cart_add(cart, found[0], Decimal("1")))
+            messages.success(request, f"Added {found[0].name}.")
+            return redirect(back)
+        messages.warning(
+            request,
+            f"No single item matches “{code}”." if not found
+            else f"“{code}” matches more than one item — pick it from the list.",
+        )
+        return redirect(f"{reverse('panel:counter')}?q={code}")
+
+    if action == "set":
+        key = request.POST.get("item", "")
+        quantity = _quantity(request.POST.get("qty", "1"), fallback=Decimal("0"))
+        if key in cart:
+            if quantity <= 0:
+                cart.pop(key)
+            else:
+                cart[key]["qty"] = str(quantity)
+                price = (request.POST.get("price") or "").strip()
+                if price.isdigit():
+                    cart[key]["price"] = min(int(price), 10_000_000)
+            _save_cart(request, cart)
+        return redirect(back)
+
+    if action == "remove":
+        cart.pop(request.POST.get("item", ""), None)
+        _save_cart(request, cart)
+        return redirect(back)
+
+    if action == "checkout":
+        return _counter_checkout(request, cart, back)
+
+    messages.error(request, "That is not something the counter can do.")
+    return redirect(back)
+
+
+def _counter_checkout(request, cart, back):
+    lines, subtotal, _units = _cart_lines(cart)
+    if not lines:
+        # Also the second half of a double submit: the first one emptied it.
+        messages.warning(request, "The basket is empty.")
+        return redirect(back)
+
+    form = f.CounterCheckoutForm(request.POST, subtotal=subtotal)
+    if not form.is_valid():
+        first = next(iter(form.errors.values()))[0]
+        messages.error(request, first)
+        return redirect(back)
+
+    short = [line for line in lines if line["short"]]
+    if short:
+        names = ", ".join(line["item"].name for line in short[:3])
+        messages.error(
+            request,
+            f"Not enough stock for {names}. Receive more on the stock ledger, "
+            "or drop the quantity.",
+        )
+        return redirect(back)
+
+    data = form.cleaned_data
+    with transaction.atomic():
+        sale = CounterSale.objects.create(
+            customer_name=data["customer_name"],
+            phone=data["phone"],
+            served_by=data["served_by"],
+            cashier=request.user,
+            payment_method=data["payment_method"],
+            discount=data["discount"],
+            tax_percent=data["tax_percent"],
+            amount_tendered=data["amount_tendered"],
+            notes=data["notes"],
+        )
+        CounterSaleLine.objects.bulk_create([
+            CounterSaleLine(
+                sale=sale,
+                item=line["item"],
+                name=line["item"].name,
+                sku=line["item"].sku,
+                quantity=line["quantity"],
+                unit_price=line["price"],
+                unit_cost=line["item"].cost_price,
+            )
+            for line in lines
+        ])
+        sale.recalculate()
+        sale.apply_stock(user=request.user)
+
+    _save_cart(request, {})
+    log(request, "create", obj=sale, model_label="Counter sale",
+        detail=f"{len(lines)} lines, ₹{sale.total:,}")
+    messages.success(request, f"{sale.reference} rung up — ₹{sale.total:,}.")
+    return redirect("panel:counter_sale", pk=sale.pk)
+
+
+@panel_login_required
+def counter_sale(request, pk):
+    """The receipt. Printable as it stands, and where a sale gets refunded."""
+    sale = get_object_or_404(
+        CounterSale.objects.select_related("served_by", "cashier"), pk=pk
+    )
+    return render(request, "panel/pages/counter_sale.html", panel_context(
+        request,
+        title=sale.reference,
+        sale=sale,
+        lines=sale.lines.select_related("item"),
+        movements=sale.movements.select_related("item").order_by("created_at"),
+    ))
+
+
+@panel_login_required
+@require_role("editor")
+@require_POST
+def counter_refund(request, pk):
+    sale = get_object_or_404(CounterSale, pk=pk)
+    if sale.is_refunded:
+        messages.warning(request, f"{sale.reference} was already refunded.")
+        return redirect("panel:counter_sale", pk=pk)
+
+    returned = sale.refund(user=request.user, note=request.POST.get("note", ""))
+    log(request, "update", obj=sale, model_label="Counter sale",
+        detail=f"refunded, {returned} lines back on the shelf")
+    messages.success(
+        request,
+        f"{sale.reference} refunded and {returned} line{'s' if returned != 1 else ''} "
+        "put back into stock.",
+    )
+    return redirect("panel:counter_sale", pk=pk)
+
+
+def _stock_totals(queryset):
+    """Cost and retail value of a set of items, added up in the database."""
+    money = DecimalField(max_digits=16, decimal_places=2)
+    return queryset.aggregate(
+        cost=Sum(ExpressionWrapper(F("quantity") * F("cost_price"), output_field=money)),
+        retail=Sum(ExpressionWrapper(F("quantity") * F("sale_price"), output_field=money)),
+        units=Sum("quantity"),
+    )
+
+
+@panel_login_required
+def stock_room(request):
+    """
+    The inventory answer to the dashboard: what the shelves are worth, what is
+    about to run out, and what the counter has been selling.
+    """
+    today = timezone.localdate()
+    month_start = today.replace(day=1)
+    prev_month_end = month_start - timedelta(days=1)
+    prev_month_start = prev_month_end.replace(day=1)
+
+    items = InventoryItem.objects.active()
+    totals = _stock_totals(items)
+    stock_value = _money(totals["cost"])
+    retail_value = _money(totals["retail"])
+
+    low = list(
+        InventoryItem.objects.needs_attention()
+        .select_related("category", "supplier")
+        .order_by("quantity", "name")[:12]
+    )
+    low_total = InventoryItem.objects.needs_attention().count()
+    out_total = InventoryItem.objects.active().out_of_stock().count()
+
+    sales = CounterSale.objects.earning()
+    this_month = sales.filter(sold_at__date__gte=month_start, sold_at__date__lte=today)
+    last_month = sales.filter(
+        sold_at__date__gte=prev_month_start, sold_at__date__lte=prev_month_end
+    )
+    taken_now = _money(this_month.aggregate(total=Sum("total"))["total"])
+    taken_prev = _money(last_month.aggregate(total=Sum("total"))["total"])
+    today_total = _money(sales.on(today).aggregate(total=Sum("total"))["total"])
+
+    kpis = [
+        {
+            "label": "Stock on hand", "value": f"₹{stock_value:,}", "icon": "package",
+            "trend": {"pct": None, "direction": "flat"},
+            "foot": f"{items.count()} items · worth ₹{retail_value:,} at retail",
+            "tone": "blue",
+        },
+        {
+            "label": "Counter takings", "value": f"₹{taken_now:,}", "icon": "trending-up",
+            "trend": _trend(taken_now, taken_prev),
+            "foot": f"₹{taken_prev:,} in the same stretch last month", "tone": "green",
+        },
+        {
+            "label": "Sold today", "value": f"₹{today_total:,}", "icon": "cart",
+            "trend": {"pct": None, "direction": "flat"},
+            "foot": f"{sales.on(today).count()} sale{'s' if sales.on(today).count() != 1 else ''} so far",
+            "tone": "violet",
+        },
+        {
+            "label": "Needs ordering", "value": low_total, "icon": "alert",
+            "trend": {"pct": None, "direction": "flat"},
+            "foot": f"{out_total} of them completely out" if out_total else "Nothing has run out",
+            "tone": "red" if low_total else "grey",
+        },
+    ]
+
+    # Fourteen days of counter takings, as bar heights the template renders directly.
+    since = today - timedelta(days=13)
+    per_day = {
+        row["day"]: row["total"]
+        for row in sales.filter(sold_at__date__gte=since)
+        .annotate(day=TruncDate("sold_at"))
+        .values("day")
+        .annotate(total=Sum("total"))
+    }
+    peak = max(per_day.values(), default=0) or 1
+    chart = []
+    for offset in range(14):
+        day = since + timedelta(days=offset)
+        value = _money(per_day.get(day, 0))
+        chart.append({
+            "day": day,
+            "label": day.strftime("%d %b"),
+            "value": f"₹{value:,}",
+            "height": max(round(value * 100 / peak), 4 if value else 2),
+            "is_today": day == today,
+        })
+
+    best = (
+        CounterSaleLine.objects.filter(sale__status="completed")
+        .values("name", "sku", "item_id")
+        .annotate(
+            units=Sum("quantity"),
+            earned=Sum(ExpressionWrapper(
+                F("quantity") * F("unit_price"),
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            )),
+        )
+        .order_by("-earned")[:6]
+    )
+    for row in best:
+        row["units"] = normalise_quantity(row["units"])
+        row["earned"] = _money(row["earned"])
+
+    by_group = list(
+        StockCategory.objects.annotate(item_count=Count("items"))
+        .filter(item_count__gt=0)
+        .order_by("position", "id")
+    )
+    group_rows = []
+    for group in by_group:
+        group_totals = _stock_totals(group.items.filter(is_active=True))
+        value = _money(group_totals["cost"])
+        group_rows.append({
+            "group": group,
+            "count": group.item_count,
+            "value": value,
+            "pct": round(value * 100 / stock_value) if stock_value else 0,
+        })
+    group_rows.sort(key=lambda row: row["value"], reverse=True)
+
+    payment_rows = (
+        sales.values("payment_method").annotate(n=Count("id"), total=Sum("total")).order_by("-total")
+    )
+    payment_labels = dict(CounterSale.PAYMENT_CHOICES)
+    payments = [
+        {
+            "label": payment_labels.get(row["payment_method"], row["payment_method"]),
+            "count": row["n"],
+            "total": _money(row["total"]),
+        }
+        for row in payment_rows
+    ]
+
+    return render(request, "panel/pages/stock.html", panel_context(
+        request,
+        title="Stock room",
+        kpis=kpis,
+        chart=chart,
+        chart_total=f"₹{_money(sum(per_day.values())):,}",
+        low=low,
+        low_total=low_total,
+        best=best,
+        group_rows=group_rows,
+        payments=payments,
+        restock_cost=sum(item.restock_cost for item in low),
+        movements=StockMovement.objects.select_related("item", "created_by")[:10],
+        recent_sales=CounterSale.objects.select_related("served_by")[:8],
+        dead=InventoryItem.objects.active().filter(sale_lines__isnull=True).order_by("-quantity")[:6],
+    ))

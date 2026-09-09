@@ -20,6 +20,8 @@
      14. Copy to clipboard
      15. Theme switch
      16. Password visibility toggle
+     17. Submit-once guard
+     18. The counter — tally, steppers, scanner
    ========================================================================== */
 
 (function () {
@@ -572,5 +574,154 @@
         $('use', button).setAttribute('href', showing ? '#p-eye' : '#p-eye-off');
       });
     });
+  }());
+
+  /* ------------------------------------------------------- 17. submit once */
+
+  (function submitOnce() {
+    // Two taps on "Complete sale" must not be two sales. The server refuses the
+    // second one anyway; this stops it being sent and makes the wait visible.
+    $$('[data-once]').forEach(function (form) {
+      form.addEventListener('submit', function () {
+        // After the tick, so the browser has already collected the submitter's
+        // name and value — disabling it any sooner drops the button's value.
+        setTimeout(function () {
+          $$('button[type="submit"], input[type="submit"]', form).forEach(function (button) {
+            button.disabled = true;
+          });
+          form.classList.add('is-sending');
+        }, 0);
+      });
+    });
+
+    window.addEventListener('pageshow', function (event) {
+      if (!event.persisted) { return; }
+      // Restored from the back/forward cache: let it be used again.
+      $$('[data-once]').forEach(function (form) {
+        form.classList.remove('is-sending');
+        $$('button[type="submit"], input[type="submit"]', form).forEach(function (button) {
+          button.disabled = false;
+        });
+      });
+    });
+  }());
+
+  /* -------------------------------------------------------------- 18. till */
+
+  (function till() {
+    var root = $('[data-till]');
+    if (!root) { return; }
+
+    /* -- the running tally --------------------------------------------- */
+
+    var close = $('.till__close', root);
+    var anchor = close && $('[data-subtotal]', close);
+    var discount = close && $('#id_discount', close);
+    var tax = close && $('#id_tax_percent', close);
+    var tendered = close && $('#id_amount_tendered', close);
+    var discountOut = close && $('[data-discount-out]', close);
+    var taxOut = close && $('[data-tax-out]', close);
+    var changeOut = close && $('[data-change-out]', close);
+    var changeRow = close && $('[data-change-row]', close);
+
+    if (anchor && discount && tax && tendered && discountOut && taxOut && changeOut && changeRow) {
+      var subtotal = parseInt(anchor.dataset.subtotal, 10) || 0;
+      var totals = $$('[data-total-out]', root);
+
+      var rupees = function (value) {
+        return '₹' + Math.round(value).toLocaleString('en-IN');
+      };
+
+      var recalc = function () {
+        var off = Math.min(Math.max(parseFloat(discount.value) || 0, 0), subtotal);
+        var net = subtotal - off;
+        var taxed = Math.round(net * (parseFloat(tax.value) || 0) / 100);
+        var total = net + taxed;
+        var paid = parseFloat(tendered.value) || 0;
+        var owing = paid > total;
+
+        discountOut.textContent = off ? '−' + rupees(off) : '₹0';
+        taxOut.textContent = rupees(taxed);
+        totals.forEach(function (cell) { cell.textContent = rupees(total); });
+
+        changeRow.hidden = !owing;
+        changeOut.hidden = !owing;
+        if (owing) { changeOut.textContent = rupees(paid - total); }
+
+        // Over the subtotal is a typo, not a discount.
+        discount.classList.toggle('is-invalid', (parseFloat(discount.value) || 0) > subtotal);
+      };
+
+      [discount, tax, tendered].forEach(function (input) {
+        input.addEventListener('input', recalc);
+      });
+      recalc();
+    }
+
+    /* -- quantity steppers and price overrides -------------------------- */
+
+    // Each basket line is its own form, so applying a change means submitting
+    // that form through its own hidden button — which carries the action the
+    // view reads. Each line gets its own timer: a shared one would let a change
+    // to the second line swallow an unsent change to the first.
+    var busy = false;
+
+    function applier(form) {
+      return debounce(function () {
+        if (busy) { return; }
+        busy = true;
+        form.classList.add('is-sending');
+        root.classList.add('is-busy');
+        var button = $('.basket__apply', form);
+        if (button) { button.click(); } else { form.submit(); }
+      }, 420);
+    }
+
+    $$('[data-line]', root).forEach(function (form) {
+      var quantity = $('[data-qty]', form);
+      var price = $('[data-price]', form);
+      var apply = applier(form);
+      if (!quantity) { return; }
+
+      $$('[data-step]', form).forEach(function (button) {
+        button.addEventListener('click', function () {
+          var by = parseFloat(button.dataset.step) || 0;
+          var next = Math.max((parseFloat(quantity.value) || 0) + by, 0);
+          // Tapping + four times should send one request, not four.
+          quantity.value = String(Math.round(next * 100) / 100);
+          apply();
+        });
+      });
+
+      [quantity, price].forEach(function (input) {
+        if (!input) { return; }
+        input.addEventListener('change', function () { apply(); });
+        input.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') { event.preventDefault(); apply(); }
+        });
+      });
+    });
+
+    /* -- the scanner ---------------------------------------------------- */
+
+    var scan = $('[data-scan]', root);
+    if (scan) {
+      // A till is driven by a scanner, so the code box owns the keyboard —
+      // but not on a phone, where focusing it throws up the keyboard on load.
+      if (window.matchMedia('(min-width: 900px)').matches) { scan.focus(); }
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key !== '/' || event.defaultPrevented) { return; }
+        var inField = event.target.closest('input, textarea, select, [contenteditable]');
+        if (inField) { return; }
+        event.preventDefault();
+        scan.focus();
+        scan.select();
+      });
+
+      scan.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') { scan.value = ''; scan.blur(); }
+      });
+    }
   }());
 }());

@@ -22,12 +22,14 @@ from core.models import (
     Booking,
     Category,
     City,
+    CounterSale,
     Coupon,
     Enquiry,
     FAQ,
     Feature,
     HeroSlide,
     HowItWorksStep,
+    InventoryItem,
     InviteCode,
     NavLink,
     Package,
@@ -37,6 +39,9 @@ from core.models import (
     StaffCategory,
     StaffMember,
     StaffProfile,
+    StockCategory,
+    StockMovement,
+    Supplier,
     Testimonial,
     TimeSlot,
     TrustBadge,
@@ -772,3 +777,269 @@ class NavLinkForm(PanelModelForm):
     class Meta:
         model = NavLink
         fields = ["label", "url_name", "anchor", "is_active", "position"]
+
+
+# ---------------------------------------------------------------------------
+# Inventory
+# ---------------------------------------------------------------------------
+
+
+class SupplierForm(PanelModelForm):
+    class Meta:
+        model = Supplier
+        fields = [
+            "name", "contact_name", "phone", "email",
+            "gst_number", "lead_time_days", "address", "notes", "is_active",
+        ]
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 3}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    SECTIONS = [
+        ("Who they are", ["name", "contact_name", "phone", "email"]),
+        ("Trading details", ["gst_number", "lead_time_days", "address"]),
+        ("Standing", ["notes", "is_active"]),
+    ]
+
+    def sections(self):
+        for title, names in self.SECTIONS:
+            yield title, [self[name] for name in names]
+
+
+class StockCategoryForm(PanelModelForm):
+    class Meta:
+        model = StockCategory
+        fields = ["name", "slug", "description", "tone", "is_active", "position"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["slug"].required = False
+        self.fields["slug"].help_text = "Left blank, it is made from the name."
+
+
+class InventoryItemForm(PanelModelForm):
+    """
+    Everything about an item except how much of it there is — that number is
+    the ledger's to write, and a field here would let it be typed over.
+    """
+
+    class Meta:
+        model = InventoryItem
+        fields = [
+            "name", "sku", "category", "supplier", "description",
+            "unit", "barcode", "location", "reorder_level",
+            "cost_price", "sale_price",
+            "image_file", "image_url",
+            "is_sellable", "is_active", "notes",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    SECTIONS = [
+        ("What it is", ["name", "sku", "category", "supplier", "description"]),
+        ("How it is counted", ["unit", "barcode", "location", "reorder_level"]),
+        ("Money", ["cost_price", "sale_price"]),
+        ("Picture", ["image_file", "image_url"]),
+        ("Standing", ["is_sellable", "is_active", "notes"]),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["sku"].required = False
+        groups = StockCategory.objects.filter(is_active=True)
+        if self.instance.category_id:
+            groups = StockCategory.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.category_id)
+            )
+        self.fields["category"].queryset = groups.order_by("position", "id")
+        self.fields["category"].empty_label = "No group yet"
+
+        suppliers = Supplier.objects.filter(is_active=True)
+        if self.instance.supplier_id:
+            suppliers = Supplier.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.supplier_id)
+            )
+        self.fields["supplier"].queryset = suppliers.order_by("name")
+        self.fields["supplier"].empty_label = "No supplier"
+
+        if self.instance.pk:
+            self.fields["sku"].help_text = "Changing this changes it on future receipts only."
+
+    def sections(self):
+        for title, names in self.SECTIONS:
+            yield title, [self[name] for name in names]
+
+    def clean_sku(self):
+        return (self.cleaned_data.get("sku") or "").upper().strip()
+
+    def clean(self):
+        cleaned = super().clean()
+        cost = cleaned.get("cost_price") or 0
+        price = cleaned.get("sale_price") or 0
+        if price and cost > price:
+            self.add_error(
+                "sale_price",
+                "That sells for less than it costs. Fix the price, or leave it at 0 "
+                "if the item is never sold.",
+            )
+        return cleaned
+
+
+class StockMovementForm(PanelModelForm):
+    """
+    Receiving stock, writing off breakages, correcting a count.
+
+    The reason decides the direction, so the quantity is typed as a plain
+    positive number — except on an adjustment, where a signed number is the
+    whole point.
+    """
+
+    class Meta:
+        model = StockMovement
+        fields = [
+            "item", "kind", "change", "unit_cost",
+            "supplier", "booking", "reference", "note",
+        ]
+        widgets = {"note": forms.Textarea(attrs={"rows": 2})}
+
+    SECTIONS = [
+        ("What moved", ["item", "kind", "change"]),
+        ("Where it came from or went", ["unit_cost", "supplier", "booking"]),
+        ("For the record", ["reference", "note"]),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["item"].queryset = (
+            InventoryItem.objects.active().select_related("category").order_by("name")
+        )
+        self.fields["item"].label_from_instance = (
+            lambda item: f"{item.name} · {item.sku} · {item.quantity_label} on hand"
+        )
+        self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True)
+        self.fields["supplier"].empty_label = "Not from a supplier"
+        self.fields["booking"].queryset = (
+            Booking.objects.open().select_related("package").order_by("-event_date")[:200]
+        )
+        self.fields["booking"].empty_label = "Not for a booking"
+        self.fields["change"].help_text = (
+            "How many units. Purchases and returns add stock, sales, damage and "
+            "event use take it away — type a plain number and the reason sorts "
+            "out the sign. On a stock-count adjustment, type a minus for a loss."
+        )
+        if self.instance.pk:
+            # An existing ledger row is history; the form is a read-back only.
+            for field in self.fields.values():
+                field.disabled = True
+
+    def sections(self):
+        for title, names in self.SECTIONS:
+            yield title, [self[name] for name in names]
+
+    def clean(self):
+        cleaned = super().clean()
+        kind = cleaned.get("kind")
+        change = cleaned.get("change")
+        item = cleaned.get("item")
+        if kind is None or change is None:
+            return cleaned
+
+        if change == 0:
+            self.add_error("change", "A movement of zero would not change anything.")
+            return cleaned
+
+        direction = StockMovement.DIRECTIONS.get(kind, 0)
+        if direction:
+            # "5 damaged" means five off the shelf however it was typed.
+            cleaned["change"] = abs(change) * direction
+
+        if item is not None and cleaned["change"] < 0:
+            short = item.quantity + cleaned["change"]
+            if short < 0:
+                self.add_error(
+                    "change",
+                    f"There are only {item.quantity_label} of {item.name} on the shelf. "
+                    "Receive more first, or correct the count with an adjustment.",
+                )
+        return cleaned
+
+
+class CounterSaleForm(PanelModelForm):
+    """
+    A sale after the fact: who it was for, how it was paid, what was noted.
+
+    The lines and the totals are not editable here — a receipt that could be
+    rewritten is not a record. Refunds happen on the sale's own page.
+    """
+
+    class Meta:
+        model = CounterSale
+        fields = ["customer_name", "phone", "served_by", "payment_method", "notes"]
+        widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["served_by"].queryset = StaffMember.objects.assignable().order_by("name")
+        self.fields["served_by"].empty_label = "Nobody in particular"
+
+
+class CounterCheckoutForm(PanelFormMixin, forms.Form):
+    """The right-hand column of the counter screen — how this sale is closed."""
+
+    customer_name = forms.CharField(
+        max_length=120, required=False, label="Customer",
+        widget=forms.TextInput(attrs={"placeholder": "Walk-in"}),
+    )
+    phone = forms.CharField(max_length=40, required=False)
+    served_by = forms.ModelChoiceField(
+        queryset=StaffMember.objects.none(), required=False,
+        label="Sold by", empty_label="Nobody in particular",
+    )
+    payment_method = forms.ChoiceField(
+        choices=CounterSale.PAYMENT_CHOICES,
+        initial="cash",
+        label="Paid by",
+        # One tap beats opening a dropdown when there is a queue.
+        widget=forms.RadioSelect,
+    )
+    discount = forms.IntegerField(
+        min_value=0, initial=0, required=False, label="Discount (₹)"
+    )
+    tax_percent = forms.DecimalField(
+        min_value=0, max_value=100, max_digits=5, decimal_places=2,
+        initial=0, required=False, label="Tax %",
+    )
+    amount_tendered = forms.IntegerField(
+        min_value=0, initial=0, required=False, label="Cash taken (₹)",
+        help_text="Optional. Fills in the change line on the receipt.",
+    )
+    notes = forms.CharField(
+        max_length=400, required=False, widget=forms.Textarea(attrs={"rows": 2})
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.subtotal = kwargs.pop("subtotal", 0)
+        super().__init__(*args, **kwargs)
+        self.fields["served_by"].queryset = StaffMember.objects.assignable().order_by("name")
+        # The mixin dresses every widget as a text input; radios want neither
+        # that class nor a `required` on each of the five of them.
+        self.fields["payment_method"].widget.attrs = {"class": "segmented__input"}
+        for name in ("discount", "tax_percent", "amount_tendered"):
+            self.fields[name].widget.attrs.update({"inputmode": "decimal", "min": "0"})
+
+    def clean_discount(self):
+        discount = self.cleaned_data.get("discount") or 0
+        if discount > self.subtotal:
+            raise forms.ValidationError(
+                f"The discount is more than the sale is worth (₹{self.subtotal:,})."
+            )
+        return discount
+
+    def clean_tax_percent(self):
+        return self.cleaned_data.get("tax_percent") or 0
+
+    def clean_amount_tendered(self):
+        return self.cleaned_data.get("amount_tendered") or 0

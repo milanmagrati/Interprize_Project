@@ -55,6 +55,21 @@ column kind is a branch here rather than a change to each list template.
   </span>
   {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
 
+{% elif column.kind == "stock" %}
+  {% comment %}
+  A count is only meaningful next to where it should be, so the cell carries
+  the item's own verdict rather than a bare number.
+  {% endcomment %}
+  <span class="stockcell">
+    <span class="num">{{ value }}</span>
+    <span class="pill pill--{{ row.stock_tone }}">{{ row.stock_state }}</span>
+  </span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
+{% elif column.kind == "delta" %}
+  <span class="delta delta--{% if row.is_incoming %}in{% else %}out{% endif %}">{{ value }}</span>
+  {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
+
 {% elif column.kind == "chip" %}
   <span class="chip">{{ value }}</span>
 

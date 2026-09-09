@@ -1,0 +1,290 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+The till. Two columns: what you can sell on the left, what is being sold on the
+right. Every control posts back to this URL and redirects, so the basket — which
+lives in the session — survives a reload, a stock lookup or a browser crash, and
+the page still works with JavaScript off. The stepper buttons and the live tally
+are enhancements on top of that, not the mechanism.
+{% endcomment %}
+
+{% block heading %}Counter{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">
+    Ring up a walk-in sale. Stock comes off the shelf the moment the sale is closed.
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page till-page" data-till>
+  <div class="till">
+
+    {# ------------------------------------------------------------ browse #}
+    <section class="till__browse">
+
+      <div class="till__find">
+        <form class="toolbar__search" method="get" role="search">
+          {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
+          {% if stocked %}<input type="hidden" name="stocked" value="1">{% endif %}
+          <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+          <input type="search" name="q" value="{{ q }}" placeholder="Search by name, SKU or shelf…"
+                 aria-label="Search stock items">
+          {% if q %}
+            <a class="toolbar__clear" href="{% querystring q=None %}" aria-label="Clear search">
+              <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+            </a>
+          {% endif %}
+        </form>
+
+        <form class="till__scan" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="querystring" value="{{ request.GET.urlencode }}">
+          <svg class="icon" aria-hidden="true"><use href="#p-scan"></use></svg>
+          <input type="text" name="code" placeholder="Scan or type a code" autocomplete="off"
+                 spellcheck="false" aria-label="Add an item by SKU or barcode" data-scan>
+          <button class="btn btn--primary btn--sm" type="submit" name="action" value="scan">Add</button>
+          <kbd class="till__key" aria-hidden="true">/</kbd>
+        </form>
+
+        <form class="filters" method="get" data-autosubmit>
+          {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+          <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+          <label class="filters__one">
+            <span class="sr-only">Stock group</span>
+            <select name="group" data-submit>
+              <option value="">Every group</option>
+              {% for one in groups_list %}
+                <option value="{{ one.slug }}"{% if group == one.slug %} selected{% endif %}>{{ one.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="filters__one">
+            <span class="sr-only">Availability</span>
+            <select name="stocked" data-submit>
+              <option value="">Everything sellable</option>
+              <option value="1"{% if stocked %} selected{% endif %}>In stock only</option>
+            </select>
+          </label>
+          {% if q or group or stocked %}
+            <a class="filters__reset" href="{% url 'panel:counter' %}">Clear</a>
+          {% endif %}
+          <noscript><button class="btn btn--ghost btn--sm" type="submit">Apply</button></noscript>
+        </form>
+      </div>
+
+      {% if items %}
+        <ul class="tiles">
+          {% for item in items %}
+            <li>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="item" value="{{ item.pk }}">
+                <input type="hidden" name="querystring" value="{{ request.GET.urlencode }}">
+                <button class="tile{% if item.is_out %} is-out{% endif %}" type="submit"
+                        name="action" value="add"
+                        {% if item.is_out %}disabled{% endif %}
+                        aria-label="Add {{ item.name }}, {{ item.sale_price|money }}, {{ item.quantity_label }} in stock"
+                        title="{% if item.is_out %}Nothing left on the shelf{% else %}Add {{ item.name }}{% endif %}">
+                  <span class="tile__shot">
+                    <img src="{{ item.image }}" alt="" width="160" height="120" loading="lazy" decoding="async">
+                    <span class="pill pill--{{ item.stock_tone }}">{{ item.quantity_label }}</span>
+                    <span class="tile__add" aria-hidden="true">
+                      <svg class="icon"><use href="#p-plus"></use></svg>
+                    </span>
+                  </span>
+                  <span class="tile__body">
+                    <strong>{{ item.name }}</strong>
+                    <span class="tile__meta">{{ item.sku }}{% if item.category %} · {{ item.category.name }}{% endif %}</span>
+                  </span>
+                  <span class="tile__price num">{{ item.sale_price|money }}</span>
+                </button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+        {% if item_total > items|length %}
+          <p class="card__note">
+            Showing {{ items|length }} of {{ item_total }} matches — narrow the search to see the rest.
+          </p>
+        {% endif %}
+      {% else %}
+        <div class="empty">
+          <span class="empty__mark" aria-hidden="true">
+            <svg class="icon"><use href="#p-package"></use></svg>
+          </span>
+          {% if q or group or stocked %}
+            <h2>Nothing matches that</h2>
+            <p>No sellable stock item matches the current search.</p>
+            <a class="btn btn--ghost" href="{% url 'panel:counter' %}">Clear the search</a>
+          {% else %}
+            <h2>Nothing to sell yet</h2>
+            <p>
+              Stock items marked “Sell at the counter” show up here. Add one, then
+              receive some stock against it.
+            </p>
+            {% if can_write %}
+              <a class="btn btn--primary" href="{% url 'panel:resource_create' 'stock-items' %}">
+                <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New stock item
+              </a>
+            {% endif %}
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+
+    {# ------------------------------------------------------------ basket #}
+    <aside class="till__basket" id="till-basket">
+      <section class="card card--sticky">
+        <div class="card__head">
+          <h2 class="card__title">Basket</h2>
+          {% if lines %}
+            <p class="card__note">{{ units }} units · {{ lines|length }} line{{ lines|pluralize }}</p>
+          {% endif %}
+        </div>
+
+        {% if lines %}
+          <ul class="basket">
+            {% for line in lines %}
+              <li class="basket__line{% if line.short %} is-short{% endif %}">
+                <span class="basket__body">
+                  <strong>{{ line.item.name }}</strong>
+                  <span class="basket__sku">{{ line.item.sku }} · {{ line.available }} on the shelf</span>
+                  {% if line.short %}
+                    <span class="basket__warn">
+                      <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+                      Only {{ line.available }} left — drop the quantity
+                    </span>
+                  {% endif %}
+                </span>
+                <span class="basket__total num">{{ line.total|money }}</span>
+
+                <form class="basket__controls" method="post" data-line>
+                  {% csrf_token %}
+                  <input type="hidden" name="item" value="{{ line.item.pk }}">
+                  <input type="hidden" name="querystring" value="{{ request.GET.urlencode }}">
+
+                  <span class="stepper">
+                    <button class="stepper__btn" type="button" data-step="-1"
+                            aria-label="One less {{ line.item.name }}">
+                      <svg class="icon" aria-hidden="true"><use href="#p-minus"></use></svg>
+                    </button>
+                    <input class="stepper__input" type="number" name="qty" data-qty
+                           value="{{ line.quantity_label }}" min="0" step="0.01" inputmode="decimal"
+                           aria-label="Quantity of {{ line.item.name }}">
+                    <button class="stepper__btn" type="button" data-step="1"
+                            aria-label="One more {{ line.item.name }}">
+                      <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>
+                    </button>
+                  </span>
+
+                  <label class="basket__price">
+                    <span class="sr-only">Unit price for {{ line.item.name }}</span>
+                    <span aria-hidden="true">₹</span>
+                    <input type="number" name="price" value="{{ line.price }}" min="0" step="1"
+                           inputmode="numeric" data-price>
+                  </label>
+
+                  <button class="btn btn--ghost btn--sm basket__apply" type="submit" name="action" value="set">
+                    Update
+                  </button>
+                  <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit" name="action" value="remove"
+                          aria-label="Take {{ line.item.name }} out of the basket" title="Remove">
+                    <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                  </button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+
+          <form class="till__close" method="post" novalidate data-once>
+            {% csrf_token %}
+            <input type="hidden" name="querystring" value="{{ request.GET.urlencode }}">
+
+            <dl class="tally">
+              <dt>Subtotal</dt><dd class="num" data-subtotal="{{ subtotal }}">{{ subtotal|money }}</dd>
+              <dt>Discount</dt><dd class="num" data-discount-out>₹0</dd>
+              <dt>Tax</dt><dd class="num" data-tax-out>₹0</dd>
+              <dt class="tally__grand">To pay</dt>
+              <dd class="num tally__grand" data-total-out>{{ subtotal|money }}</dd>
+              <dt data-change-row hidden>Change</dt>
+              <dd class="num tally__change" data-change-out hidden>₹0</dd>
+            </dl>
+
+            {% field form.payment_method %}
+
+            <div class="grid grid--tight">
+              {% field form.discount %}
+              {% field form.tax_percent %}
+              {% field form.amount_tendered %}
+              {% field form.served_by %}
+              {% field form.customer_name %}
+              {% field form.phone %}
+            </div>
+            {% field form.notes %}
+
+            <div class="stack">
+              <button class="btn btn--primary btn--lg btn--block" type="submit" name="action" value="checkout">
+                <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>
+                Complete sale · <span data-total-out>{{ subtotal|money }}</span>
+              </button>
+              <button class="btn btn--quiet btn--block" type="submit" name="action" value="clear"
+                      formnovalidate data-confirm="Empty the basket and start again?">Clear basket</button>
+            </div>
+          </form>
+
+        {% else %}
+          <div class="basket__empty">
+            <span class="empty__mark" aria-hidden="true">
+              <svg class="icon"><use href="#p-cart"></use></svg>
+            </span>
+            <p>Nothing in the basket yet.</p>
+            <p class="card__note">
+              Tap an item on the left, or scan a code — press <kbd>/</kbd> to jump to the scanner.
+            </p>
+          </div>
+          <dl class="meta meta--split">
+            <dt>Taken today</dt><dd>{{ today_total|money }}</dd>
+            <dt>Sales today</dt><dd>{{ today_count }}</dd>
+          </dl>
+        {% endif %}
+      </section>
+
+      {% if recent %}
+        <section class="card">
+          <div class="card__head">
+            <h2 class="card__title">Last through the till</h2>
+            <a class="card__more" href="{% url 'panel:resource_list' 'counter-sales' %}">
+              All<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+            </a>
+          </div>
+          <ul class="notelist">
+            {% for sale in recent %}
+              <li>
+                <a href="{% url 'panel:counter_sale' sale.pk %}">
+                  <strong>{{ sale.reference }} · {{ sale.total|money }}</strong>
+                  <span>{{ sale.customer_label }} · {{ sale.items_label }}</span>
+                  <time>{{ sale.sold_at|timesince }} ago{% if sale.is_refunded %} · refunded{% endif %}</time>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+
+  {% comment %}
+  A basket you have scrolled past is a basket you cannot check. On a phone
+  this bar rides the bottom of the screen and jumps back to it.
+  {% endcomment %}
+  {% if lines %}
+    <a class="tillbar" href="#till-basket">
+      <span class="tillbar__count">{{ lines|length }}</span>
+      <span class="tillbar__text">{{ units }} units in the basket</span>
+      <span class="tillbar__total num" data-total-out>{{ subtotal|money }}</span>
+      <svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+    </a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -47,6 +47,77 @@ grouped cards; anything else falls back to a single column of fields.
           </section>
         {% endif %}
 
+        {% if stock_history is not None %}
+          <section class="card">
+            <div class="card__head">
+              <h2 class="card__title">Stock ledger</h2>
+              <a class="card__more" href="{% url 'panel:resource_list' 'stock-ledger' %}?q={{ stock_item.sku }}">
+                Everything for this item<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+              </a>
+            </div>
+            {% if stock_history %}
+              <ul class="feed">
+                {% for move in stock_history %}
+                  <li>
+                    <span class="pill pill--{{ move.kind_tone }}">{{ move.get_kind_display }}</span>
+                    <span class="feed__text">
+                      <strong>
+                        <span class="delta delta--{% if move.is_incoming %}in{% else %}out{% endif %}">{{ move.signed_label }}</span>
+                        {{ move.balance_label }}
+                      </strong>
+                      <span>{{ move.note|default:move.source_label }} · {{ move.by_label }}</span>
+                    </span>
+                    <time>{{ move.created_at|date:"j M, H:i" }}</time>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="card__note">
+                Nothing has moved yet, so this item counts as zero on the shelf.
+                Record a purchase or an opening balance to give it a count.
+              </p>
+            {% endif %}
+            {% if can_write %}
+              <a class="btn btn--ghost btn--sm"
+                 href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}">
+                <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Record a movement
+              </a>
+            {% endif %}
+          </section>
+        {% endif %}
+
+        {% if sale_lines is not None %}
+          <section class="card">
+            <div class="card__head">
+              <h2 class="card__title">What was sold</h2>
+              <a class="card__more" href="{% url 'panel:counter_sale' sale.pk %}">
+                Open the receipt<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+              </a>
+            </div>
+            <div class="tablewrap">
+              <table class="table table--plain">
+                <thead>
+                  <tr><th>Item</th><th class="is-end">Qty</th><th class="is-end">Price</th><th class="is-end">Amount</th></tr>
+                </thead>
+                <tbody>
+                  {% for line in sale_lines %}
+                    <tr>
+                      <td><span class="cell__main">{{ line.name }}</span><span class="cell__hint">{{ line.sku }}</span></td>
+                      <td class="is-end"><span class="num">{{ line.quantity_label }}</span></td>
+                      <td class="is-end"><span class="num">{{ line.unit_price|money }}</span></td>
+                      <td class="is-end"><span class="num">{{ line.line_total|money }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="card__note">
+              Lines and totals are fixed once a sale is closed — a receipt that could be
+              rewritten is not a record. Refund it on the receipt to reverse it.
+            </p>
+          </section>
+        {% endif %}
+
         {% if related_images is not None %}
           <section class="card">
             <h2 class="card__title">Gallery photos</h2>
@@ -78,8 +149,11 @@ grouped cards; anything else falls back to a single column of fields.
           <div class="card card--sticky">
             <h2 class="card__title">Read only</h2>
             <p class="card__note">
-              Your role can open {{ resource.plural|lower }} but not change them.
-              Ask an owner if you need editing rights.
+              {% if readonly_reason %}{{ readonly_reason }}
+              {% else %}
+                Your role can open {{ resource.plural|lower }} but not change them.
+                Ask an owner if you need editing rights.
+              {% endif %}
             </p>
             <a class="btn btn--quiet btn--block" href="{% url 'panel:resource_list' resource.slug %}">Back to the list</a>
           </div>
@@ -100,6 +174,54 @@ grouped cards; anything else falls back to a single column of fields.
         </div>
         {% endif %}
 
+        {% if stock_item %}
+          <div class="card">
+            <h2 class="card__title">On the shelf</h2>
+            <p class="kpi__value">{{ stock_item.quantity_label }}</p>
+            <p>
+              <span class="pill pill--{{ stock_item.stock_tone }}">{{ stock_item.stock_state }}</span>
+              <span class="card__note">{{ stock_item.reorder_label }}</span>
+            </p>
+            <dl class="meta">
+              <dt>Stock value</dt><dd>{{ stock_item.stock_value|money }}</dd>
+              <dt>At retail</dt><dd>{{ stock_item.retail_value|money }}</dd>
+              <dt>Margin</dt><dd>{{ stock_item.margin_label }}</dd>
+              <dt>Sold to date</dt><dd>{{ stock_item.sold_units }}</dd>
+              {% if stock_item.supplier %}<dt>Supplier</dt><dd>{{ stock_item.supplier.name }}</dd>{% endif %}
+            </dl>
+            <p class="card__note">
+              The count is written by the ledger, never typed — that is what keeps
+              it honest.
+            </p>
+            {% if can_write %}
+              <div class="stack">
+                <a class="btn btn--ghost btn--block btn--sm"
+                   href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}&amp;kind=purchase">
+                  <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Receive stock
+                </a>
+                <a class="btn btn--quiet btn--block btn--sm"
+                   href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}&amp;kind=adjustment">
+                  <svg class="icon" aria-hidden="true"><use href="#p-clipboard"></use></svg>Correct the count
+                </a>
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        {% if sale %}
+          <div class="card">
+            <h2 class="card__title">This sale</h2>
+            <p class="kpi__value">{{ sale.total|money }}</p>
+            <dl class="meta">
+              <dt>State</dt>
+              <dd><span class="pill pill--{% if sale.is_refunded %}red{% else %}green{% endif %}">{{ sale.get_status_display }}</span></dd>
+              <dt>Sold</dt><dd>{{ sale.sold_label }}</dd>
+              <dt>Basket</dt><dd>{{ sale.items_label }}</dd>
+              <dt>Margin</dt><dd>{{ sale.profit|money }} · {{ sale.margin_percent }}%</dd>
+            </dl>
+          </div>
+        {% endif %}
+
         {% if instance %}
           <div class="card">
             <h2 class="card__title">This record</h2>
@@ -111,7 +233,7 @@ grouped cards; anything else falls back to a single column of fields.
             <div class="stack">
               {% if preview_url %}
                 <a class="btn btn--ghost btn--block" href="{{ preview_url }}" target="_blank" rel="noopener">
-                  <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>View on the site
+                  <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>{{ resource.preview_label }}
                 </a>
               {% endif %}
               {% if resource.can_delete and writable %}

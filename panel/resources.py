@@ -12,7 +12,8 @@ new URL and two new templates.
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from django.db.models import Count, Q
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q
+from django.urls import reverse
 
 from core import models as m
 from . import forms as f
@@ -26,6 +27,7 @@ class Column:
     label: str
     kind: str = "text"            # text image money toggle badge tag access
                                   # date datetime rating chip excerpt
+                                  # stock delta
     sortable: str = ""            # ORM field to order by; blank means not sortable
     hint: str = ""                # a second, quieter line under the value
     align: str = ""               # "" | "end"
@@ -50,6 +52,24 @@ class Filter:
         return queryset.filter(**{lookup: value})
 
 
+class StockFilter(Filter):
+    """
+    "Running low" is not a column, it is a comparison between two of them, so
+    this filter reaches for the queryset methods that know how to express it.
+    """
+
+    def apply(self, queryset, value):
+        if value == "low":
+            return queryset.low_stock()
+        if value == "out":
+            return queryset.out_of_stock()
+        if value == "attention":
+            return queryset.needs_attention()
+        if value == "in":
+            return queryset.in_stock()
+        return queryset
+
+
 @dataclass
 class Resource:
     slug: str
@@ -71,8 +91,11 @@ class Resource:
     prefetch_related: list = field(default_factory=list)
     annotate: Optional[Callable] = None
     can_create: bool = True
+    can_edit: bool = True          # False makes existing rows open read-only
     can_delete: bool = True
-    preview_url: str = ""          # "get_absolute_url" if rows have a public page
+    no_create_hint: str = ""       # why this table has no New button
+    preview_url: str = ""          # "get_absolute_url" if rows have a page of their own
+    preview_label: str = "View on the site"
 
     def queryset(self):
         qs = self.model.objects.all()
@@ -92,11 +115,59 @@ class Resource:
         query = Q()
         for name in self.search_fields:
             query |= Q(**{f"{name}__icontains": term})
-        return queryset.filter(query)
+        queryset = queryset.filter(query)
+        if any("__" in name for name in self.search_fields):
+            # A search that reaches through a relation joins, and a join can
+            # hand the same row back once per match.
+            queryset = queryset.distinct()
+        return queryset
 
     @property
     def create_label(self):
         return self.add_label or f"New {self.label.lower()}"
+
+    @property
+    def url(self):
+        return reverse("panel:resource_list", args=[self.slug])
+
+    @property
+    def nav_key(self):
+        return self.slug
+
+
+@dataclass
+class PageLink:
+    """
+    A bespoke page that belongs in a sidebar group beside the resources — the
+    counter and the stock room are screens, not tables, but a person looking
+    for them looks under Inventory.
+    """
+
+    url_name: str
+    plural: str
+    icon: str
+    permission: str = "viewer"
+
+    @property
+    def url(self):
+        return reverse(f"panel:{self.url_name}")
+
+    @property
+    def nav_key(self):
+        return self.url_name
+
+    @property
+    def slug(self):
+        return ""
+
+
+#: Pages pinned to the top of a group, before its resources.
+GROUP_PAGES = {
+    "Inventory": [
+        PageLink("counter", "Counter", "cart", permission="editor"),
+        PageLink("stock", "Stock room", "trending-up"),
+    ],
+}
 
 
 YES_NO = [("__true__", "Yes"), ("__false__", "No")]
@@ -121,6 +192,23 @@ STATUS_TONES = {
     "paid": "green",
     "refunded": "grey",
 }
+MOVEMENT_TONES = {
+    "Opening balance": "grey",
+    "Purchase in": "green",
+    "Counter sale": "blue",
+    "Customer return": "violet",
+    "Returned to supplier": "amber",
+    "Used on a booking": "violet",
+    "Damaged or lost": "red",
+    "Stock count adjustment": "grey",
+}
+SALE_TONES = {"Completed": "green", "Refunded": "red"}
+STOCK_STATES = [
+    ("attention", "Needs ordering"),
+    ("low", "Running low"),
+    ("out", "Out of stock"),
+    ("in", "In stock"),
+]
 GROUP_TONES = {
     "Field crew — on site at the event": "green",
     "Office — coordination and support": "blue",
@@ -506,6 +594,177 @@ RESOURCES = [
         search_fields=["code"],
         filters=[PUBLISHED_FILTER],
     ),
+    # ------------------------------------------------------------- inventory
+    Resource(
+        slug="stock-items",
+        model=m.InventoryItem,
+        form_class=f.InventoryItemForm,
+        label="Stock item",
+        plural="Stock items",
+        icon="package",
+        group="Inventory",
+        blurb=(
+            "Everything on the shelves — what it is, what it cost, what it "
+            "sells for and how much is left. The count itself is written by "
+            "the stock ledger, never typed in."
+        ),
+        add_label="New stock item",
+        columns=[
+            Column("image", "", "image"),
+            Column("name", "Item", sortable="name", hint="sku"),
+            Column("category", "Group", "tag", sortable="category__name", hint="shelf_label"),
+            Column("quantity_label", "On hand", "stock", sortable="quantity", hint="reorder_label"),
+            Column("cost_price", "Cost", "money", sortable="cost_price"),
+            Column("sale_price", "Sells for", "money", sortable="sale_price", hint="margin_label"),
+            Column("stock_value", "Stock value", "money", sortable="value_total", align="end"),
+            Column("is_sellable", "At counter", "toggle", sortable="is_sellable"),
+            Column("is_active", "Active", "toggle", sortable="is_active"),
+        ],
+        search_fields=[
+            "name", "sku", "barcode", "location", "description",
+            "category__name", "supplier__name",
+        ],
+        filters=[
+            Filter("group", "Group", [], lookup="category__slug"),
+            Filter("supplier", "Supplier", [], lookup="supplier_id"),
+            StockFilter("stock", "Stock", STOCK_STATES),
+            Filter("unit", "Counted in", m.InventoryItem.UNIT_CHOICES),
+            Filter("is_sellable", "At the counter", YES_NO),
+            Filter("is_active", "Active", YES_NO),
+        ],
+        select_related=["category", "supplier"],
+        annotate=lambda qs: qs.annotate(
+            value_total=ExpressionWrapper(
+                F("quantity") * F("cost_price"),
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            )
+        ),
+        ordering="name",
+    ),
+    Resource(
+        slug="stock-groups",
+        model=m.StockCategory,
+        form_class=f.StockCategoryForm,
+        label="Stock group",
+        plural="Stock groups",
+        icon="layers",
+        group="Inventory",
+        blurb=(
+            "How the store room is divided up. Every stock item gets one, and "
+            "the stock list filters on it."
+        ),
+        permission="admin",
+        add_label="New stock group",
+        columns=[
+            Column("name", "Group", "tag", sortable="name", hint="description"),
+            Column("item_total", "Items", "chip", sortable="item_count"),
+            Column("low_total", "Need ordering", "chip"),
+            Column("stock_value", "Stock value", "money", align="end"),
+            Column("is_active", "Selectable", "toggle", sortable="is_active"),
+        ],
+        search_fields=["name", "slug", "description"],
+        filters=[Filter("is_active", "Selectable", YES_NO)],
+        annotate=lambda qs: qs.annotate(item_count=Count("items")),
+        prefetch_related=["items"],
+        ordering="position,id",
+        orderable=True,
+    ),
+    Resource(
+        slug="suppliers",
+        model=m.Supplier,
+        form_class=f.SupplierForm,
+        label="Supplier",
+        plural="Suppliers",
+        icon="truck",
+        group="Inventory",
+        blurb="Who the stock is bought from, and how long they take to deliver.",
+        permission="admin",
+        columns=[
+            Column("name", "Supplier", sortable="name", hint="contact_line"),
+            Column("gst_number", "GSTIN"),
+            Column("item_total", "Items", "chip", sortable="item_count"),
+            Column("lead_time_days", "Lead days", sortable="lead_time_days", align="end"),
+            Column("stock_value", "Stock value", "money", align="end"),
+            Column("is_active", "Selectable", "toggle", sortable="is_active"),
+        ],
+        search_fields=["name", "contact_name", "phone", "email", "gst_number"],
+        filters=[Filter("is_active", "Selectable", YES_NO)],
+        annotate=lambda qs: qs.annotate(item_count=Count("items")),
+        prefetch_related=["items"],
+        ordering="name",
+    ),
+    Resource(
+        slug="stock-ledger",
+        model=m.StockMovement,
+        form_class=f.StockMovementForm,
+        label="Stock movement",
+        plural="Stock ledger",
+        icon="clipboard",
+        group="Inventory",
+        blurb=(
+            "Every unit that came in or went out, and why. Receive stock, write "
+            "off breakages or correct a count here — rows are never edited "
+            "afterwards, they are corrected with another movement."
+        ),
+        add_label="Record a movement",
+        can_edit=False,
+        can_delete=False,
+        columns=[
+            Column("created_at", "When", "datetime", sortable="created_at", hint="by_label"),
+            Column("item", "Item", sortable="item__name", hint="source_label"),
+            Column("get_kind_display", "Reason", "badge", sortable="kind", badges=MOVEMENT_TONES),
+            Column("signed_label", "Change", "delta", sortable="change", hint="balance_label"),
+            Column("value", "Value", "money", align="end"),
+            Column("note", "Note", "excerpt"),
+        ],
+        search_fields=[
+            "item__name", "item__sku", "reference", "note", "supplier__name",
+        ],
+        filters=[
+            Filter("kind", "Reason", m.StockMovement.KIND_CHOICES),
+            Filter("group", "Group", [], lookup="item__category__slug"),
+            Filter("supplier", "Supplier", [], lookup="supplier_id"),
+        ],
+        select_related=["item", "supplier", "sale", "booking", "created_by"],
+        ordering="-created_at,-id",
+    ),
+    Resource(
+        slug="counter-sales",
+        model=m.CounterSale,
+        form_class=f.CounterSaleForm,
+        label="Counter sale",
+        plural="Counter sales",
+        icon="receipt",
+        group="Inventory",
+        blurb=(
+            "What went over the counter. Sales are rung up on the Counter "
+            "screen; this is the record of them, and where refunds are issued."
+        ),
+        can_create=False,
+        can_delete=False,
+        no_create_hint=(
+            "Sales are rung up on the Counter screen, not typed in here."
+        ),
+        preview_url="get_absolute_url",
+        preview_label="Open the receipt",
+        columns=[
+            Column("reference", "Receipt", sortable="reference", hint="sold_label"),
+            Column("customer_label", "Customer", sortable="customer_name", hint="phone"),
+            Column("items_label", "Basket"),
+            Column("served_label", "Sold by"),
+            Column("total", "Total", "money", sortable="total", hint="get_payment_method_display"),
+            Column("profit", "Margin", "money", align="end"),
+            Column("get_status_display", "State", "badge", sortable="status", badges=SALE_TONES),
+        ],
+        search_fields=["reference", "customer_name", "phone", "notes", "lines__name"],
+        filters=[
+            Filter("status", "State", m.CounterSale.STATUS_CHOICES),
+            Filter("payment_method", "Paid by", m.CounterSale.PAYMENT_CHOICES),
+        ],
+        select_related=["served_by", "cashier"],
+        prefetch_related=["lines"],
+        ordering="-sold_at,-id",
+    ),
     # ------------------------------------------------------------------- site
     Resource(
         slug="cities",
@@ -566,9 +825,10 @@ RESOURCES = [
 BY_SLUG = {resource.slug: resource for resource in RESOURCES}
 
 # Sidebar order. Groups not listed here fall to the end.
-GROUP_ORDER = ["Operations", "Catalogue", "Homepage", "Site"]
+GROUP_ORDER = ["Operations", "Inventory", "Catalogue", "Homepage", "Site"]
 GROUP_ICONS = {
     "Operations": "activity",
+    "Inventory": "package",
     "Catalogue": "box",
     "Homepage": "home",
     "Site": "settings",
@@ -580,8 +840,15 @@ def get(slug):
 
 
 def grouped(profile=None):
-    """Sidebar structure: [(group, icon, [resources])], filtered by role."""
+    """Sidebar structure: [(group, icon, [entries])], filtered by role."""
     groups = {}
+    for name, pages in GROUP_PAGES.items():
+        visible = [
+            page for page in pages
+            if profile is None or profile.at_least(page.permission)
+        ]
+        if visible:
+            groups[name] = list(visible)
     for resource in RESOURCES:
         if profile is not None and not profile.at_least("viewer"):
             continue
@@ -601,4 +868,12 @@ def dynamic_filter_choices():
     categories = [(c.slug, c.name) for c in m.Category.objects.all()]
     cities = [(c.slug, c.name) for c in m.City.objects.filter(is_active=True)]
     staff_types = [(c.slug, c.name) for c in m.StaffCategory.objects.all()]
-    return {"category": categories, "city": cities, "type": staff_types}
+    stock_groups = [(c.slug, c.name) for c in m.StockCategory.objects.all()]
+    suppliers = [(str(s.pk), s.name) for s in m.Supplier.objects.filter(is_active=True)]
+    return {
+        "category": categories,
+        "city": cities,
+        "type": staff_types,
+        "group": stock_groups,
+        "supplier": suppliers,
+    }

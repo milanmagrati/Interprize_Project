@@ -14,9 +14,14 @@ instead of a broken <img>.
 
 Everything editable lives here; `core/sample_data.py` is now only used by the
 `seed_demo` management command to populate a fresh database.
+
+The inventory models near the bottom are the one part that is not content: an
+item's `quantity` is never written directly, only through `StockMovement`, so
+the ledger and the shelf can never disagree.
 """
 
 from collections import namedtuple
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.validators import (
@@ -24,7 +29,7 @@ from django.core.validators import (
     MaxValueValidator,
     MinValueValidator,
 )
-from django.db import models
+from django.db import models, transaction
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.text import slugify
@@ -1299,6 +1304,810 @@ class Coupon(models.Model):
         if self.max_uses and self.used_count >= self.max_uses:
             return "used"
         return "live"
+
+
+# ---------------------------------------------------------------------------
+# Inventory — suppliers, stock, the ledger, and the counter
+# ---------------------------------------------------------------------------
+
+
+def normalise_quantity(value):
+    """`3.00` reads as `3`, `2.50` stays `2.5` — quantities are shown, not calculated."""
+    number = Decimal(str(value or 0)).normalize()
+    if number == number.to_integral_value():
+        number = number.quantize(Decimal(1))
+    return f"{number:f}"
+
+
+class Supplier(models.Model):
+    """Whoever the stock is bought from. Purchases point back at one of these."""
+
+    name = models.CharField(max_length=120, unique=True)
+    contact_name = models.CharField(
+        max_length=80, blank=True, verbose_name="Contact person"
+    )
+    phone = models.CharField(max_length=40, blank=True)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    gst_number = models.CharField(max_length=20, blank=True, verbose_name="GSTIN")
+    lead_time_days = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="Lead time (days)",
+        help_text="How long an order usually takes to arrive. 0 if it is bought over the counter.",
+    )
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Selectable",
+        help_text="Turn off to retire a supplier. Existing stock keeps them.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def item_total(self):
+        return self.items.count()
+
+    @property
+    def contact_line(self):
+        return self.phone or self.email or "No contact on file"
+
+    @property
+    def stock_value(self):
+        """What this supplier's goods, sitting on the shelf right now, cost."""
+        return sum(item.stock_value for item in self.items.all())
+
+
+class StockCategory(Positioned):
+    """
+    How the store room is divided up — balloons, fabric, lighting, crockery.
+
+    Deliberately separate from the public `Category`: an occasion is what a
+    customer browses, a stock group is where a thing lives on a shelf.
+    """
+
+    TONE_CHOICES = StaffCategory.TONE_CHOICES
+
+    name = models.CharField(max_length=60, unique=True)
+    slug = models.SlugField(max_length=70, unique=True, blank=True)
+    description = models.CharField(
+        max_length=200, blank=True, help_text="What belongs in this group."
+    )
+    tone = models.CharField(
+        max_length=10,
+        choices=TONE_CHOICES,
+        default="grey",
+        verbose_name="Badge colour",
+        help_text="The colour this group wears wherever it is shown.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Selectable",
+        help_text="Turn off to retire a group. Existing items keep it.",
+    )
+
+    class Meta(Positioned.Meta):
+        verbose_name = "Stock group"
+        verbose_name_plural = "Stock groups"
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        return super().save(*args, **kwargs)
+
+    @property
+    def item_total(self):
+        return self.items.count()
+
+    @property
+    def stock_value(self):
+        return sum(item.stock_value for item in self.items.all())
+
+    @property
+    def low_total(self):
+        return sum(1 for item in self.items.all() if item.is_low or item.is_out)
+
+
+class InventoryItemQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(is_active=True)
+
+    def sellable(self):
+        """What the counter screen is allowed to ring up."""
+        return self.filter(is_active=True, is_sellable=True)
+
+    def in_stock(self):
+        return self.filter(quantity__gt=0)
+
+    def out_of_stock(self):
+        return self.filter(quantity__lte=0)
+
+    def low_stock(self):
+        """At or under the reorder level, but not yet empty."""
+        return self.filter(
+            quantity__gt=0, reorder_level__gt=0, quantity__lte=models.F("reorder_level")
+        )
+
+    def needs_attention(self):
+        return self.active().filter(
+            models.Q(quantity__lte=0)
+            | models.Q(reorder_level__gt=0, quantity__lte=models.F("reorder_level"))
+        )
+
+
+class InventoryItem(PictureMixin, Timestamped):
+    """
+    One thing on a shelf: a stock-keeping unit with a cost, a price and a count.
+
+    `quantity` is a running total kept in step by `StockMovement` — nothing
+    writes it directly. Every change goes through a ledger row, so the history
+    and the number on the card can never drift apart.
+    """
+
+    UNIT_CHOICES = [
+        ("piece", "Piece"),
+        ("pack", "Pack"),
+        ("box", "Box"),
+        ("set", "Set"),
+        ("pair", "Pair"),
+        ("roll", "Roll"),
+        ("metre", "Metre"),
+        ("kg", "Kilogram"),
+        ("litre", "Litre"),
+        ("hour", "Hour"),
+    ]
+    UNIT_SHORT = {
+        "piece": "pc", "pack": "pack", "box": "box", "set": "set", "pair": "pr",
+        "roll": "roll", "metre": "m", "kg": "kg", "litre": "L", "hour": "hr",
+    }
+
+    sku = models.CharField(
+        max_length=32,
+        unique=True,
+        blank=True,
+        verbose_name="SKU",
+        help_text="Left blank, one is made from the name.",
+    )
+    name = models.CharField(max_length=120)
+    category = models.ForeignKey(
+        StockCategory,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="items",
+        verbose_name="Stock group",
+        help_text="Where this lives. The list is managed under Stock groups.",
+    )
+    supplier = models.ForeignKey(
+        Supplier,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="items",
+        help_text="Who this is normally bought from.",
+    )
+    description = models.TextField(blank=True)
+    unit = models.CharField(
+        max_length=10,
+        choices=UNIT_CHOICES,
+        default="piece",
+        verbose_name="Counted in",
+        help_text="What one of these is.",
+    )
+    barcode = models.CharField(
+        max_length=40,
+        blank=True,
+        db_index=True,
+        help_text="Optional. The counter search looks at this too, so a scanner works.",
+    )
+    location = models.CharField(
+        max_length=60,
+        blank=True,
+        verbose_name="Shelf",
+        help_text="Where to find it — rack, shelf, room.",
+    )
+
+    quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        editable=False,
+        verbose_name="In stock",
+        help_text="Kept in step by the stock ledger. Use an adjustment to change it.",
+    )
+    reorder_level = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name="Reorder at",
+        help_text="Drop to this and the item is flagged as running low. 0 turns the warning off.",
+    )
+    cost_price = models.PositiveIntegerField(
+        default=0, help_text="What one costs you (₹)."
+    )
+    sale_price = models.PositiveIntegerField(
+        default=0, help_text="What one sells for at the counter (₹)."
+    )
+
+    is_sellable = models.BooleanField(
+        default=True,
+        verbose_name="Sell at the counter",
+        help_text="Off for consumables you track but never sell over the counter.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Active",
+        help_text="Turn off to retire an item without losing its history.",
+    )
+    notes = models.TextField(blank=True)
+
+    objects = InventoryItemQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Stock item"
+        verbose_name_plural = "Stock items"
+        indexes = [models.Index(fields=["is_active", "quantity"])]
+
+    def __str__(self):
+        return f"{self.name} ({self.sku})" if self.sku else self.name
+
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            self.sku = self._next_sku()
+        self.sku = self.sku.upper().strip()
+        return super().save(*args, **kwargs)
+
+    def _next_sku(self):
+        """A readable code — three letters of the name, then a running number."""
+        stem = "".join(ch for ch in self.name.upper() if ch.isalnum())[:3] or "ITM"
+        number = InventoryItem.objects.count() + 1
+        while InventoryItem.objects.filter(sku=f"{stem}-{number:04d}").exists():
+            number += 1
+        return f"{stem}-{number:04d}"
+
+    # -- money ------------------------------------------------------------
+
+    @property
+    def stock_value(self):
+        """What is on the shelf, at what it cost."""
+        return int(self.quantity * self.cost_price)
+
+    @property
+    def retail_value(self):
+        return int(self.quantity * self.sale_price)
+
+    @property
+    def margin(self):
+        return self.sale_price - self.cost_price
+
+    @property
+    def margin_percent(self):
+        if not self.sale_price:
+            return 0
+        return round(self.margin * 100 / self.sale_price)
+
+    @property
+    def margin_label(self):
+        if not self.sale_price:
+            return "No sale price yet"
+        return f"₹{self.margin:,} a unit · {self.margin_percent}%"
+
+    # -- stock ------------------------------------------------------------
+
+    @property
+    def is_out(self):
+        return self.quantity <= 0
+
+    @property
+    def is_low(self):
+        return bool(self.reorder_level and 0 < self.quantity <= self.reorder_level)
+
+    @property
+    def stock_state(self):
+        if self.is_out:
+            return "out of stock"
+        if self.is_low:
+            return "running low"
+        return "in stock"
+
+    @property
+    def stock_tone(self):
+        return {"out of stock": "red", "running low": "amber"}.get(self.stock_state, "green")
+
+    @property
+    def unit_label(self):
+        return self.UNIT_SHORT.get(self.unit, self.unit)
+
+    @property
+    def quantity_label(self):
+        return f"{normalise_quantity(self.quantity)} {self.unit_label}"
+
+    @property
+    def reorder_label(self):
+        if not self.reorder_level:
+            return "No reorder level"
+        return f"reorder at {normalise_quantity(self.reorder_level)}"
+
+    @property
+    def shortfall(self):
+        """How many to buy to get back over the reorder level."""
+        if not self.reorder_level:
+            return 0
+        return max(self.reorder_level - self.quantity, 0)
+
+    @property
+    def shortfall_label(self):
+        return normalise_quantity(self.shortfall)
+
+    @property
+    def restock_cost(self):
+        """What it would cost to get back over the reorder level."""
+        return int(self.shortfall * self.cost_price)
+
+    @property
+    def placeholder_image(self):
+        return placeholder(f"stock-{self.pk or self.sku or self.name}", 320, 240)
+
+    @property
+    def supplier_name(self):
+        return self.supplier.name if self.supplier_id else ""
+
+    @property
+    def category_name(self):
+        return self.category.name if self.category_id else ""
+
+    @property
+    def shelf_label(self):
+        return self.location or self.category_name or "Unshelved"
+
+    @property
+    def sold_units(self):
+        total = self.sale_lines.aggregate(n=models.Sum("quantity"))["n"]
+        return normalise_quantity(total or 0)
+
+    def record_movement(self, change, kind="adjustment", **extra):
+        """
+        The only supported way to move stock. Writes a ledger row, which is
+        what actually updates `quantity`.
+        """
+        return StockMovement.objects.create(
+            item=self, kind=kind, change=Decimal(str(change)), **extra
+        )
+
+
+class StockMovementQuerySet(models.QuerySet):
+    def incoming(self):
+        return self.filter(change__gt=0)
+
+    def outgoing(self):
+        return self.filter(change__lt=0)
+
+
+class StockMovement(models.Model):
+    """
+    One line of the stock ledger — every unit that ever came in or went out,
+    and why. Rows are never edited: a mistake is corrected with a new movement,
+    which is what keeps the history worth reading.
+    """
+
+    KIND_CHOICES = [
+        ("opening", "Opening balance"),
+        ("purchase", "Purchase in"),
+        ("sale", "Counter sale"),
+        ("return_in", "Customer return"),
+        ("return_out", "Returned to supplier"),
+        ("event", "Used on a booking"),
+        ("damage", "Damaged or lost"),
+        ("adjustment", "Stock count adjustment"),
+    ]
+    #: Which way each reason normally moves stock. The form reads a plain
+    #: quantity as a signed change with this, so nobody has to type a minus.
+    DIRECTIONS = {
+        "opening": 1,
+        "purchase": 1,
+        "return_in": 1,
+        "sale": -1,
+        "return_out": -1,
+        "event": -1,
+        "damage": -1,
+        "adjustment": 0,  # signed by hand — a count can go either way
+    }
+    KIND_TONES = {
+        "opening": "grey",
+        "purchase": "green",
+        "sale": "blue",
+        "return_in": "violet",
+        "return_out": "amber",
+        "event": "violet",
+        "damage": "red",
+        "adjustment": "grey",
+    }
+
+    item = models.ForeignKey(
+        InventoryItem, on_delete=models.CASCADE, related_name="movements"
+    )
+    kind = models.CharField(
+        max_length=12,
+        choices=KIND_CHOICES,
+        default="purchase",
+        db_index=True,
+        verbose_name="Reason",
+    )
+    change = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Quantity",
+        help_text="How many units moved. A negative number takes stock out.",
+    )
+    balance_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        editable=False,
+        verbose_name="Stock after",
+    )
+    unit_cost = models.PositiveIntegerField(
+        default=0, help_text="What one unit cost on this movement (₹). Purchases mostly."
+    )
+    supplier = models.ForeignKey(
+        Supplier, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="movements",
+    )
+    sale = models.ForeignKey(
+        "CounterSale", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="movements", editable=False,
+    )
+    booking = models.ForeignKey(
+        Booking, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="stock_movements",
+        help_text="If this stock went out on a job, which one.",
+    )
+    reference = models.CharField(
+        max_length=40, blank=True, help_text="Invoice or delivery-note number."
+    )
+    note = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="stock_movements", editable=False,
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = StockMovementQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Stock movement"
+        verbose_name_plural = "Stock ledger"
+
+    def __str__(self):
+        return f"{self.item} {self.signed_label}"
+
+    def save(self, *args, **kwargs):
+        """
+        Applying the change and writing the row are one step, under a lock on
+        the item, so two people receiving stock at once cannot lose a count.
+        """
+        if self.pk:
+            # The ledger is append-only; an edit would silently un-move stock.
+            return super().save(*args, **kwargs)
+
+        with transaction.atomic():
+            item = InventoryItem.objects.select_for_update().get(pk=self.item_id)
+            item.quantity = (item.quantity or Decimal("0")) + self.change
+            item.save(update_fields=["quantity", "updated_at"])
+            self.balance_after = item.quantity
+            super().save(*args, **kwargs)
+            # The caller's copy would otherwise still show the old count.
+            self.item.quantity = item.quantity
+        return None
+
+    @property
+    def is_incoming(self):
+        return self.change > 0
+
+    @property
+    def signed_label(self):
+        sign = "+" if self.change > 0 else "−"
+        return f"{sign}{normalise_quantity(abs(self.change))}"
+
+    @property
+    def balance_label(self):
+        return f"{normalise_quantity(self.balance_after)} left"
+
+    @property
+    def kind_tone(self):
+        return self.KIND_TONES.get(self.kind, "grey")
+
+    @property
+    def value(self):
+        """What the movement was worth, at the cost recorded on it."""
+        return int(abs(self.change) * self.unit_cost)
+
+    @property
+    def source_label(self):
+        if self.sale_id:
+            return self.sale.reference
+        if self.booking_id:
+            return self.booking.reference
+        if self.supplier_id:
+            return self.supplier.name
+        return self.reference or "—"
+
+    @property
+    def by_label(self):
+        if not self.created_by_id:
+            return "system"
+        return self.created_by.get_full_name() or self.created_by.get_username()
+
+
+class CounterSaleQuerySet(models.QuerySet):
+    def completed(self):
+        return self.filter(status="completed")
+
+    def earning(self):
+        """Rows that count towards takings — a refund cancels itself out."""
+        return self.filter(status="completed")
+
+    def on(self, day):
+        return self.filter(sold_at__date=day)
+
+
+class CounterSale(Timestamped):
+    """
+    A walk-in sale rung up at the counter.
+
+    Totals are stored rather than derived, so a receipt reprinted next year
+    still says what the customer actually paid, whatever the price list has
+    done in the meantime.
+    """
+
+    STATUS_CHOICES = [
+        ("completed", "Completed"),
+        ("refunded", "Refunded"),
+    ]
+    PAYMENT_CHOICES = [
+        ("cash", "Cash"),
+        ("upi", "UPI"),
+        ("card", "Card"),
+        ("bank", "Bank transfer"),
+        ("credit", "On account"),
+    ]
+
+    reference = models.CharField(max_length=20, unique=True, blank=True, editable=False)
+    customer_name = models.CharField(
+        max_length=120, blank=True, help_text="Optional — a walk-in needs no name."
+    )
+    phone = models.CharField(max_length=40, blank=True)
+
+    sold_at = models.DateTimeField(default=timezone.now, db_index=True, verbose_name="Sold")
+    served_by = models.ForeignKey(
+        StaffMember, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="counter_sales", verbose_name="Sold by",
+    )
+    cashier = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="counter_sales", editable=False,
+    )
+
+    payment_method = models.CharField(
+        max_length=10, choices=PAYMENT_CHOICES, default="cash", verbose_name="Paid by"
+    )
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default="completed", db_index=True
+    )
+
+    subtotal = models.PositiveIntegerField(default=0, editable=False)
+    discount = models.PositiveIntegerField(default=0, help_text="Flat ₹ off the whole sale.")
+    tax_percent = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0, verbose_name="Tax %",
+        help_text="GST or similar, applied after the discount. 0 for none.",
+    )
+    tax_amount = models.PositiveIntegerField(default=0, editable=False)
+    total = models.PositiveIntegerField(default=0, editable=False)
+    amount_tendered = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Cash taken",
+        help_text="What the customer handed over, for the change line on the receipt.",
+    )
+    cost_total = models.PositiveIntegerField(default=0, editable=False)
+
+    notes = models.TextField(blank=True)
+    stock_applied = models.BooleanField(default=False, editable=False)
+
+    objects = CounterSaleQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-sold_at", "-id"]
+        verbose_name = "Counter sale"
+        verbose_name_plural = "Counter sales"
+
+    def __str__(self):
+        return f"{self.reference} · ₹{self.total:,}"
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            self.reference = self._next_reference()
+        return super().save(*args, **kwargs)
+
+    @staticmethod
+    def _next_reference():
+        last = CounterSale.objects.order_by("-id").values_list("id", flat=True).first() or 0
+        return f"CS-{1000 + last + 1}"
+
+    # -- totals -----------------------------------------------------------
+
+    def recalculate(self, commit=True):
+        """Add the lines up. Called once the lines are attached, not before."""
+        lines = list(self.lines.all())
+        self.subtotal = sum(line.line_total for line in lines)
+        self.cost_total = sum(line.line_cost for line in lines)
+        net = max(self.subtotal - self.discount, 0)
+        self.tax_amount = int(round(net * float(self.tax_percent) / 100))
+        self.total = net + self.tax_amount
+        if commit:
+            self.save(update_fields=[
+                "subtotal", "cost_total", "tax_amount", "total", "updated_at",
+            ])
+        return self.total
+
+    @property
+    def profit(self):
+        return self.total - self.tax_amount - self.cost_total
+
+    @property
+    def margin_percent(self):
+        net = self.total - self.tax_amount
+        return round(self.profit * 100 / net) if net else 0
+
+    @property
+    def change_due(self):
+        return max(self.amount_tendered - self.total, 0)
+
+    @property
+    def line_count(self):
+        # len() rather than .count(), so a prefetched list page stays one query.
+        return len(self.lines.all())
+
+    @property
+    def item_count(self):
+        total = sum((line.quantity for line in self.lines.all()), Decimal("0"))
+        return normalise_quantity(total)
+
+    @property
+    def items_label(self):
+        count = self.line_count
+        return f"{count} line{'s' if count != 1 else ''} · {self.item_count} units"
+
+    @property
+    def customer_label(self):
+        return self.customer_name or "Walk-in"
+
+    @property
+    def served_label(self):
+        if self.served_by_id:
+            return self.served_by.name
+        if self.cashier_id:
+            return self.cashier.get_full_name() or self.cashier.get_username()
+        return "—"
+
+    @property
+    def is_refunded(self):
+        return self.status == "refunded"
+
+    @property
+    def sold_label(self):
+        return timezone.localtime(self.sold_at).strftime("%d %b, %H:%M")
+
+    # -- stock ------------------------------------------------------------
+
+    def apply_stock(self, user=None):
+        """Take the sold units off the shelf. Safe to call twice — it won't double up."""
+        if self.stock_applied:
+            return 0
+        moved = 0
+        for line in self.lines.select_related("item"):
+            if line.item_id is None:
+                continue
+            StockMovement.objects.create(
+                item=line.item,
+                kind="sale",
+                change=-line.quantity,
+                unit_cost=line.unit_cost,
+                sale=self,
+                reference=self.reference,
+                note=f"Counter sale to {self.customer_label}",
+                created_by=user,
+            )
+            moved += 1
+        CounterSale.objects.filter(pk=self.pk).update(stock_applied=True)
+        self.stock_applied = True
+        return moved
+
+    def refund(self, user=None, note=""):
+        """Reverse the sale: the stock goes back, the row stays for the record."""
+        if self.is_refunded:
+            return 0
+        returned = 0
+        if self.stock_applied:
+            for line in self.lines.select_related("item"):
+                if line.item_id is None:
+                    continue
+                StockMovement.objects.create(
+                    item=line.item,
+                    kind="return_in",
+                    change=line.quantity,
+                    unit_cost=line.unit_cost,
+                    sale=self,
+                    reference=self.reference,
+                    note=note or f"Refund of {self.reference}",
+                    created_by=user,
+                )
+                returned += 1
+        self.status = "refunded"
+        self.stock_applied = False
+        self.save(update_fields=["status", "stock_applied", "updated_at"])
+        return returned
+
+
+class CounterSaleLine(models.Model):
+    """
+    One line on a receipt. Name, price and cost are copied off the item as it
+    was sold, so the receipt survives a rename, a repricing or a deletion.
+    """
+
+    sale = models.ForeignKey(CounterSale, on_delete=models.CASCADE, related_name="lines")
+    item = models.ForeignKey(
+        InventoryItem, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="sale_lines",
+    )
+    name = models.CharField(max_length=120)
+    sku = models.CharField(max_length=32, blank=True)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2, default=1)
+    unit_price = models.PositiveIntegerField(default=0)
+    unit_cost = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["id"]
+        verbose_name = "Sale line"
+
+    def __str__(self):
+        return f"{self.name} × {normalise_quantity(self.quantity)}"
+
+    def save(self, *args, **kwargs):
+        # Snapshot whatever the item says today, once.
+        if self.item_id and not self.name:
+            self.name = self.item.name
+            self.sku = self.item.sku
+            if not self.unit_price:
+                self.unit_price = self.item.sale_price
+            if not self.unit_cost:
+                self.unit_cost = self.item.cost_price
+        return super().save(*args, **kwargs)
+
+    @property
+    def line_total(self):
+        return int(round(self.quantity * self.unit_price))
+
+    @property
+    def line_cost(self):
+        return int(round(self.quantity * self.unit_cost))
+
+    @property
+    def line_profit(self):
+        return self.line_total - self.line_cost
+
+    @property
+    def quantity_label(self):
+        return normalise_quantity(self.quantity)
 
 
 # ---------------------------------------------------------------------------
