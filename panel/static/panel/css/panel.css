@@ -1472,10 +1472,10 @@ kbd {
 
 /* -- payment, as a row of one-tap chips ----------------------------------- */
 
-.field[data-field="payment_method"] ul {
+.field[data-field="payment_method"] > div {
   display: flex; flex-wrap: wrap; gap: 0.35rem;
 }
-.field[data-field="payment_method"] li label {
+.field[data-field="payment_method"] label {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.35rem 0.7rem;
   background: var(--surface);
@@ -1484,14 +1484,14 @@ kbd {
   font-size: 0.82rem; font-weight: 600; cursor: pointer;
   transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
 }
-.field[data-field="payment_method"] li label:hover { border-color: var(--brand); }
-.field[data-field="payment_method"] li label:has(.segmented__input:checked) {
+.field[data-field="payment_method"] label:hover { border-color: var(--brand); }
+.field[data-field="payment_method"] label:has(.segmented__input:checked) {
   background: var(--brand-soft); border-color: var(--brand); color: var(--brand);
 }
-.field[data-field="payment_method"] li label:has(.segmented__input:focus-visible) {
+.field[data-field="payment_method"] label:has(.segmented__input:focus-visible) {
   outline: 2px solid var(--brand); outline-offset: 2px;
 }
-.segmented__input { accent-color: var(--brand); width: 14px; height: 14px; }
+input.segmented__input { accent-color: var(--brand); width: 14px; height: 14px; }
 
 /* -- the compact checkout grid -------------------------------------------- */
 
