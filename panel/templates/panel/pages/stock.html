@@ -221,7 +221,7 @@ without opening a table: what are the shelves worth, and what runs out next.
               <span class="feed__text">
                 <strong>{{ move.item.name }}</strong>
                 <span>
-                  <span class="delta delta--{% if move.is_incoming %}in{% else %}out{% endif %}">{{ move.signed_label }}</span>
+                  <span class="delta delta--{{ move.delta_state }}">{{ move.signed_label }}</span>
                   · {{ move.balance_label }} · {{ move.by_label }}
                 </span>
               </span>

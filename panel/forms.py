@@ -7,6 +7,8 @@ the things that are genuinely specific: field order, widgets that need rows or
 a date picker, and validation the model cannot express on its own.
 """
 
+from decimal import Decimal, InvalidOperation
+
 from django import forms
 from django.contrib.auth import get_user_model, password_validation
 from django.contrib.auth.forms import (
@@ -14,6 +16,7 @@ from django.contrib.auth.forms import (
     PasswordChangeForm,
     UserCreationForm,
 )
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -24,7 +27,12 @@ from core.models import (
     City,
     CounterSale,
     Coupon,
+    Customer,
     Enquiry,
+    Event,
+    EventExpense,
+    EventItem,
+    EventPayment,
     FAQ,
     Feature,
     HeroSlide,
@@ -45,6 +53,7 @@ from core.models import (
     Testimonial,
     TimeSlot,
     TrustBadge,
+    normalise_quantity,
 )
 
 User = get_user_model()
@@ -828,7 +837,7 @@ class InventoryItemForm(PanelModelForm):
         model = InventoryItem
         fields = [
             "name", "sku", "category", "supplier", "description",
-            "unit", "barcode", "location", "reorder_level",
+            "unit", "usage_type", "barcode", "location", "reorder_level",
             "cost_price", "sale_price",
             "image_file", "image_url",
             "is_sellable", "is_active", "notes",
@@ -840,7 +849,7 @@ class InventoryItemForm(PanelModelForm):
 
     SECTIONS = [
         ("What it is", ["name", "sku", "category", "supplier", "description"]),
-        ("How it is counted", ["unit", "barcode", "location", "reorder_level"]),
+        ("How it is counted", ["unit", "usage_type", "barcode", "location", "reorder_level"]),
         ("Money", ["cost_price", "sale_price"]),
         ("Picture", ["image_file", "image_url"]),
         ("Standing", ["is_sellable", "is_active", "notes"]),
@@ -925,6 +934,13 @@ class StockMovementForm(PanelModelForm):
             Booking.objects.open().select_related("package").order_by("-event_date")[:200]
         )
         self.fields["booking"].empty_label = "Not for a booking"
+        if not self.instance.pk:
+            # Reservations are written by events; a hand-typed one would move
+            # nothing and mean nothing.
+            self.fields["kind"].choices = [
+                choice for choice in self.fields["kind"].choices
+                if choice[0] not in StockMovement.EVENT_ONLY_KINDS
+            ]
         self.fields["change"].help_text = (
             "How many units. Purchases and returns add stock, sales, damage and "
             "event use take it away — type a plain number and the reason sorts "
@@ -1043,3 +1059,308 @@ class CounterCheckoutForm(PanelFormMixin, forms.Form):
 
     def clean_amount_tendered(self):
         return self.cleaned_data.get("amount_tendered") or 0
+
+
+# ---------------------------------------------------------------------------
+# Events
+# ---------------------------------------------------------------------------
+
+
+def _sections(form):
+    for title, names in form.SECTIONS:
+        yield title, [form[name] for name in names]
+
+
+class CustomerForm(PanelModelForm):
+    class Meta:
+        model = Customer
+        fields = ["name", "phone", "email", "address", "notes"]
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 2}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    SECTIONS = [
+        ("Who they are", ["name", "phone", "email"]),
+        ("On file", ["address", "notes"]),
+    ]
+
+    def sections(self):
+        return _sections(self)
+
+
+class EventForm(PanelModelForm):
+    """
+    The event itself. Status is not here: it only moves through the buttons on
+    the event page, because each step does something to stock.
+    """
+
+    new_customer_name = forms.CharField(
+        max_length=120, required=False, label="…or a new customer",
+        help_text="Type a name to add them to your customers as the event is saved.",
+    )
+    new_customer_phone = forms.CharField(
+        max_length=40, required=False, label="New customer's phone",
+    )
+
+    class Meta:
+        model = Event
+        fields = ["name", "customer", "event_date", "location", "guests", "revenue", "notes"]
+        widgets = {
+            "event_date": DateInput(),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    SECTIONS = [
+        ("The event", ["name", "event_date", "location", "guests"]),
+        ("Customer", ["customer", "new_customer_name", "new_customer_phone"]),
+        ("Money and notes", ["revenue", "notes"]),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        customer = self.fields["customer"]
+        customer.required = False
+        customer.widget.attrs.pop("required", None)
+        customer.queryset = Customer.objects.order_by("name")
+        customer.empty_label = "Pick a customer"
+        customer.help_text = "Somebody you have run an event for before."
+        self.fields["name"].widget.attrs.setdefault(
+            "placeholder", "Sharma wedding reception"
+        )
+        for name in ("guests", "revenue"):
+            self.fields[name].widget.attrs.update({"inputmode": "numeric", "min": "0"})
+
+    def sections(self):
+        return _sections(self)
+
+    def clean(self):
+        cleaned = super().clean()
+        customer = cleaned.get("customer")
+        new_name = (cleaned.get("new_customer_name") or "").strip()
+        if customer and new_name:
+            self.add_error(
+                "new_customer_name",
+                "Pick an existing customer or type a new one — not both.",
+            )
+        elif not customer and not new_name:
+            self.add_error("customer", "Pick a customer, or type a new one's name below.")
+        cleaned["new_customer_name"] = new_name
+        return cleaned
+
+    def save(self, commit=True):
+        event = super().save(commit=False)
+        new_name = self.cleaned_data.get("new_customer_name")
+        if new_name and not self.cleaned_data.get("customer"):
+            event.customer = Customer.objects.create(
+                name=new_name,
+                phone=(self.cleaned_data.get("new_customer_phone") or "").strip(),
+            )
+        if commit:
+            event.save()
+        return event
+
+
+class EventStockPickForm:
+    """
+    Add several stock items to an event at once — a tick and a quantity per
+    item. It posts `pick=<pk>` for every ticked item and `qty-<pk>` for its
+    quantity, so it is an ordinary form that works without JavaScript. Items
+    are only ever picked from stock, never created here.
+    """
+
+    MAX_QUANTITY = Decimal("9999999999")
+
+    def __init__(self, data=None, event=None):
+        self.data = data
+        self.event = event
+        self.is_bound = data is not None
+        self.errors = []
+        self.cleaned = []
+
+        lines = {}
+        if event is not None and event.pk:
+            for line in event.items.all():
+                if line.is_inventory and line.inventory_item_id:
+                    lines[line.inventory_item_id] = line
+
+        picked = set(data.getlist("pick")) if self.is_bound else set()
+        self.rows = []
+        for item in (
+            InventoryItem.objects.active().with_reserved()
+            .select_related("category").order_by("name")
+        ):
+            key = str(item.pk)
+            raw = (data.get(f"qty-{key}") or "").strip() if self.is_bound else ""
+            line = lines.get(item.pk)
+            self.rows.append({
+                "item": item,
+                "key": key,
+                "checked": key in picked,
+                "quantity": raw or "1",
+                "line": line,
+                "error": "",
+                "soldout": item.is_unavailable,
+                "search": f"{item.name} {item.sku} {item.category_name}".lower(),
+            })
+            picked.discard(key)
+        # Anything ticked that is not on the list any more was retired meanwhile.
+        self.unknown = [key for key in picked if key]
+
+    @property
+    def selected_count(self):
+        return sum(1 for row in self.rows if row["checked"])
+
+    @property
+    def has_errors(self):
+        return bool(self.errors) or any(row["error"] for row in self.rows)
+
+    def add_error(self, messages):
+        self.errors.extend(messages)
+
+    def is_valid(self):
+        if not self.is_bound:
+            return False
+        self.cleaned = []
+        if self.unknown:
+            self.errors.append(
+                "Something you ticked is no longer on the stock list — look again."
+            )
+        if not self.selected_count and not self.unknown:
+            self.errors.append("Tick at least one item to add.")
+
+        for row in self.rows:
+            if not row["checked"]:
+                continue
+            item = row["item"]
+            try:
+                quantity = Decimal(row["quantity"])
+            except (InvalidOperation, ValueError):
+                row["error"] = "Enter a number."
+                continue
+            if not quantity.is_finite() or quantity <= 0:
+                row["error"] = "The quantity has to be more than zero."
+                continue
+            if quantity != quantity.quantize(Decimal("0.01")) or quantity > self.MAX_QUANTITY:
+                row["error"] = "Use at most two decimal places."
+                continue
+            try:
+                EventItem.check_quantity(item, quantity)
+            except ValidationError as error:
+                row["error"] = " ".join(error.messages)
+                continue
+            # Whatever this event's line already needs but does not hold yet
+            # comes off the same free pile.
+            line = row["line"]
+            wanted = quantity + (line.unreserved if line is not None else Decimal("0"))
+            free = item.available_quantity
+            if wanted > free:
+                row["error"] = f"Only {normalise_quantity(free)} units are available."
+                continue
+            self.cleaned.append((item, quantity))
+        return not self.has_errors
+
+
+class EventExternalItemForm(PanelModelForm):
+    """Something arranged outside the company. It never enters stock."""
+
+    class Meta:
+        model = EventItem
+        fields = [
+            "name", "quantity", "unit_cost", "supplier", "vendor",
+            "image_file", "image_url", "notes",
+        ]
+        widgets = {"notes": forms.Textarea(attrs={"rows": 2})}
+        labels = {"image_file": "Photo", "image_url": "…or paste a photo URL"}
+        help_texts = {"image_file": "Optional. JPG, PNG, WebP, AVIF, GIF or SVG."}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.instance.pk:
+            self.fields["quantity"].initial = 1
+        self.fields["name"].widget.attrs.setdefault("placeholder", "Flower wall, rented sound…")
+        suppliers = Supplier.objects.filter(is_active=True)
+        if self.instance.supplier_id:
+            suppliers = Supplier.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.supplier_id)
+            )
+        self.fields["supplier"].queryset = suppliers.order_by("name")
+        self.fields["supplier"].empty_label = "Not from a listed supplier"
+        self.fields["quantity"].widget.attrs.update({"inputmode": "decimal", "step": "any", "min": "0.01"})
+        self.fields["unit_cost"].widget.attrs.update({"inputmode": "numeric", "min": "0"})
+
+    def save(self, commit=True):
+        line = super().save(commit=False)
+        line.item_type = "external"
+        if commit:
+            line.save()
+        return line
+
+
+class EventLineQuantityForm(PanelFormMixin, forms.Form):
+    """Change how many of a stock item an event needs."""
+
+    quantity = forms.DecimalField(
+        min_value=Decimal("0.01"), max_digits=12, decimal_places=2, label="Quantity needed",
+    )
+    notes = forms.CharField(
+        max_length=2000, required=False, widget=forms.Textarea(attrs={"rows": 2}),
+    )
+
+
+class EventUsageForm(PanelFormMixin, forms.Form):
+    """What came back from an event, and what did not."""
+
+    returned = forms.DecimalField(min_value=0, max_digits=12, decimal_places=2, required=False)
+    consumed = forms.DecimalField(min_value=0, max_digits=12, decimal_places=2, required=False)
+    damaged = forms.DecimalField(min_value=0, max_digits=12, decimal_places=2, required=False)
+    lost = forms.DecimalField(min_value=0, max_digits=12, decimal_places=2, required=False)
+
+    def clean(self):
+        cleaned = super().clean()
+        for name in ("returned", "consumed", "damaged", "lost"):
+            if cleaned.get(name) is None and name not in self.errors:
+                cleaned[name] = Decimal("0")
+        return cleaned
+
+
+class EventExpenseForm(PanelModelForm):
+    class Meta:
+        model = EventExpense
+        fields = ["name", "category", "amount", "spent_on", "notes"]
+        widgets = {"spent_on": DateInput()}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["name"].widget.attrs.setdefault("placeholder", "Tempo hire to the venue")
+        self.fields["amount"].widget.attrs.update({"inputmode": "numeric", "min": "1"})
+
+
+class EventPaymentForm(PanelModelForm):
+    class Meta:
+        model = EventPayment
+        fields = ["amount", "paid_on", "method", "reference", "notes"]
+        widgets = {"paid_on": DateInput(), "method": forms.RadioSelect}
+
+    def __init__(self, *args, event=None, **kwargs):
+        self.event = event
+        super().__init__(*args, **kwargs)
+        # Radios want neither the text-input class nor `required` on each one.
+        self.fields["method"].widget.attrs = {"class": "segmented__input"}
+        self.fields["amount"].widget.attrs.update({"inputmode": "numeric", "min": "1"})
+        if event is not None and event.remaining > 0 and not self.is_bound:
+            self.fields["amount"].initial = event.remaining
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount is None or self.event is None:
+            return amount
+        owed = self.event.remaining
+        if owed <= 0:
+            raise forms.ValidationError(
+                "This event is already paid in full. Raise its revenue first if "
+                "the customer owes more."
+            )
+        if amount > owed:
+            raise forms.ValidationError(f"That is more than the ₹{owed:,} still owed.")
+        return amount

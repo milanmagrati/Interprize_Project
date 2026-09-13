@@ -51,7 +51,10 @@ from core.models import (
     Category,
     CounterSale,
     CounterSaleLine,
+    Customer,
     Enquiry,
+    Event,
+    EventItem,
     HeroSlide,
     InventoryItem,
     InviteCode,
@@ -658,8 +661,17 @@ def resource_form(request, slug, pk=None):
         # one needs its ledger beside it, the other its lines.
         stock_item=instance if pk and resource.slug == "stock-items" else None,
         stock_history=(
-            instance.movements.select_related("created_by")[:8]
+            instance.movements.select_related("created_by", "event")[:8]
             if pk and resource.slug == "stock-items" else None
+        ),
+        stock_events=(
+            instance.event_lines.filter(event__status__in=Event.OPEN_STATUSES)
+            .select_related("event").order_by("event__event_date")[:8]
+            if pk and resource.slug == "stock-items" else None
+        ),
+        customer_events=(
+            instance.events.with_paid().order_by("-event_date")[:12]
+            if pk and resource.slug == "customers" else None
         ),
         sale=instance if pk and resource.slug == "counter-sales" else None,
         sale_lines=(
@@ -1062,6 +1074,12 @@ def media_library(request):
         items.append({"url": stock_item.image_file.url, "name": stock_item.image_file.name,
                       "used_by": stock_item.name, "kind": "Stock item",
                       "url_to": reverse("panel:resource_edit", args=["stock-items", stock_item.pk])})
+    for line in EventItem.objects.exclude(image_file="").select_related("event").only(
+        "id", "name", "image_file", "event__id", "event__number"
+    ):
+        items.append({"url": line.image_file.url, "name": line.image_file.name,
+                      "used_by": f"{line.name} · {line.event.number}", "kind": "Event item",
+                      "url_to": reverse("panel:event_line_edit", args=[line.event_id, line.pk])})
 
     return render(request, "panel/pages/media.html", panel_context(
         request, title="Media", items=items,
@@ -1115,6 +1133,23 @@ def quick_search(request):
                 "meta": f"{item.sku} · {item.quantity_label} on hand",
                 "url": reverse("panel:resource_edit", args=["stock-items", item.pk]),
             })
+        for event in Event.objects.filter(
+            Q(number__icontains=term) | Q(name__icontains=term)
+            | Q(customer__name__icontains=term) | Q(location__icontains=term)
+        ).select_related("customer")[:5]:
+            results.append({
+                "group": "Events", "label": f"{event.number} · {event.name}",
+                "meta": f"{event.event_date:%d %b} · {event.get_status_display()}",
+                "url": reverse("panel:event_detail", args=[event.pk]),
+            })
+        for customer in Customer.objects.filter(
+            Q(name__icontains=term) | Q(phone__icontains=term) | Q(email__icontains=term)
+        )[:4]:
+            results.append({
+                "group": "Customers", "label": customer.name,
+                "meta": customer.contact_line,
+                "url": reverse("panel:resource_edit", args=["customers", customer.pk]),
+            })
         for sale in CounterSale.objects.filter(
             Q(reference__icontains=term) | Q(customer_name__icontains=term)
             | Q(phone__icontains=term)
@@ -1135,6 +1170,11 @@ def quick_search(request):
 
     # Sections always match on their own name, so the palette doubles as nav.
     needle = slugify(term)
+    if not term or needle in "events":
+        results.append({
+            "group": "Go to", "label": "Events", "meta": "Events",
+            "url": reverse("panel:events"),
+        })
     for resource in resources.RESOURCES:
         if not term or needle in slugify(resource.plural) or needle in resource.slug:
             results.append({
@@ -1193,7 +1233,8 @@ def _cart_lines(cart):
     keys = [key for key in cart if key.isdigit()]
     items = {
         str(item.pk): item
-        for item in InventoryItem.objects.filter(pk__in=keys).select_related("category")
+        for item in InventoryItem.objects.filter(pk__in=keys)
+        .with_reserved().select_related("category")
     }
     lines, subtotal, units = [], 0, Decimal("0")
     for key in list(cart):
@@ -1211,8 +1252,9 @@ def _cart_lines(cart):
             "price": price,
             "total": total,
             "cost": int(round(quantity * item.cost_price)),
-            "short": quantity > item.quantity,
-            "available": item.quantity_label,
+            # Units held for events are on the shelf but not for sale.
+            "short": quantity > item.available_quantity,
+            "available": item.available_label,
         })
         subtotal += total
         units += quantity
@@ -1264,7 +1306,7 @@ def counter(request):
     term = request.GET.get("q", "").strip()
     group = request.GET.get("group", "")
 
-    catalogue = InventoryItem.objects.sellable().select_related("category")
+    catalogue = InventoryItem.objects.sellable().with_reserved().select_related("category")
     if term:
         catalogue = catalogue.filter(
             Q(name__icontains=term) | Q(sku__icontains=term)
@@ -1379,18 +1421,38 @@ def _counter_checkout(request, cart, back):
         messages.error(request, first)
         return redirect(back)
 
-    short = [line for line in lines if line["short"]]
-    if short:
+    def refuse(short):
         names = ", ".join(line["item"].name for line in short[:3])
         messages.error(
             request,
-            f"Not enough stock for {names}. Receive more on the stock ledger, "
+            f"Not enough free stock for {names}. Receive more on the stock ledger, "
             "or drop the quantity.",
         )
         return redirect(back)
 
+    short = [line for line in lines if line["short"]]
+    if short:
+        return refuse(short)
+
     data = form.cleaned_data
     with transaction.atomic():
+        # Check again under a lock on the items: between loading the basket and
+        # getting here, another sale or an event may have taken the last units.
+        ids = sorted(line["item"].pk for line in lines)
+        locked = {
+            item.pk: item
+            for item in InventoryItem.objects.select_for_update().filter(pk__in=ids).order_by("pk")
+        }
+        held = EventItem.reserved_totals(ids, lock=True)
+        short = [
+            line for line in lines
+            if line["item"].pk not in locked
+            or line["quantity"] > locked[line["item"].pk].quantity - held.get(line["item"].pk, 0)
+        ]
+        if short:
+            transaction.set_rollback(True)
+            return refuse(short)
+
         sale = CounterSale.objects.create(
             customer_name=data["customer_name"],
             phone=data["phone"],

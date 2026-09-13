@@ -1,0 +1,11 @@
+{% comment %}
+A small square picture for an event line: the stock item's photo, the external
+item's own, or a plain icon when there is none — never a stand-in photo.
+{% endcomment %}
+<span class="evthumb{% if size %} evthumb--{{ size }}{% endif %}{% if not line.picture %} evthumb--{% if line.is_external %}amber{% else %}blue{% endif %}{% endif %}" aria-hidden="true">
+  {% if line.picture %}
+    <img src="{{ line.picture }}" alt="" width="48" height="48" loading="lazy" decoding="async">
+  {% else %}
+    <svg class="icon"><use href="#p-{% if line.is_external %}truck{% else %}package{% endif %}"></use></svg>
+  {% endif %}
+</span>

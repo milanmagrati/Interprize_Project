@@ -62,7 +62,7 @@ grouped cards; anything else falls back to a single column of fields.
                     <span class="pill pill--{{ move.kind_tone }}">{{ move.get_kind_display }}</span>
                     <span class="feed__text">
                       <strong>
-                        <span class="delta delta--{% if move.is_incoming %}in{% else %}out{% endif %}">{{ move.signed_label }}</span>
+                        <span class="delta delta--{{ move.delta_state }}">{{ move.signed_label }}</span>
                         {{ move.balance_label }}
                       </strong>
                       <span>{{ move.note|default:move.source_label }} · {{ move.by_label }}</span>
@@ -82,6 +82,56 @@ grouped cards; anything else falls back to a single column of fields.
                  href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}">
                 <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Record a movement
               </a>
+            {% endif %}
+          </section>
+        {% endif %}
+
+        {% if stock_events %}
+          <section class="card">
+            <div class="card__head">
+              <h2 class="card__title">Booked on events</h2>
+              <a class="card__more" href="{% url 'panel:events' %}">
+                All events<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+              </a>
+            </div>
+            <ul class="notelist">
+              {% for line in stock_events %}
+                <li>
+                  <a href="{% url 'panel:event_detail' line.event.pk %}#inventory">
+                    <strong>{{ line.event.number }} · {{ line.event.name }}</strong>
+                    <span>{{ line.quantity_label }} needed · {{ line.outstanding|qty }} held now · {{ line.state_label }}</span>
+                    <time>{{ line.event.event_date|date:"D j M Y" }} · {{ line.event.get_status_display }}</time>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+
+        {% if customer_events is not None %}
+          <section class="card">
+            <div class="card__head">
+              <h2 class="card__title">Their events</h2>
+              {% if can_write %}
+                <a class="btn btn--ghost btn--sm" href="{% url 'panel:event_create' %}?customer={{ instance.pk }}">
+                  <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New event for them
+                </a>
+              {% endif %}
+            </div>
+            {% if customer_events %}
+              <ul class="notelist">
+                {% for one in customer_events %}
+                  <li>
+                    <a href="{% url 'panel:event_detail' one.pk %}">
+                      <strong>{{ one.number }} · {{ one.name }}</strong>
+                      <span>{{ one.revenue|money }} · {{ one.payment_label }} · {{ one.get_status_display }}</span>
+                      <time>{{ one.event_date|date:"D j M Y" }}</time>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="card__note">No events for this customer yet.</p>
             {% endif %}
           </section>
         {% endif %}
@@ -183,6 +233,9 @@ grouped cards; anything else falls back to a single column of fields.
               <span class="card__note">{{ stock_item.reorder_label }}</span>
             </p>
             <dl class="meta">
+              <dt>Kind</dt><dd>{{ stock_item.usage_label }}</dd>
+              <dt>Reserved for events</dt><dd>{{ stock_item.reserved_quantity|qty }} {{ stock_item.unit_label }}</dd>
+              <dt>Free to use</dt><dd>{{ stock_item.available_label }}</dd>
               <dt>Stock value</dt><dd>{{ stock_item.stock_value|money }}</dd>
               <dt>At retail</dt><dd>{{ stock_item.retail_value|money }}</dd>
               <dt>Margin</dt><dd>{{ stock_item.margin_label }}</dd>

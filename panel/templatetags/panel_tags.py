@@ -27,8 +27,21 @@ def lookup(obj, name):
 @register.filter
 def money(value):
     try:
-        return f"₹{int(value):,}"
+        amount = int(value)
     except (TypeError, ValueError):
+        return value
+    # A loss reads "−₹5,000", not "₹-5,000".
+    return f"−₹{-amount:,}" if amount < 0 else f"₹{amount:,}"
+
+
+@register.filter
+def qty(value):
+    """A quantity as people write it: 30, 2.5 — never 30.00."""
+    from core.models import normalise_quantity
+
+    try:
+        return normalise_quantity(value)
+    except (TypeError, ValueError, ArithmeticError):
         return value
 
 

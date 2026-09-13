@@ -79,8 +79,8 @@ class CounterSaleLineInline(admin.TabularInline):
 
 @admin.register(models.InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "sku", "category", "quantity", "cost_price", "sale_price", "is_active")
-    list_filter = ("category", "supplier", "unit", "is_sellable", "is_active")
+    list_display = ("name", "sku", "category", "usage_type", "quantity", "cost_price", "sale_price", "is_active")
+    list_filter = ("category", "supplier", "unit", "usage_type", "is_sellable", "is_active")
     search_fields = ("name", "sku", "barcode", "location")
     readonly_fields = ("quantity",)
 
@@ -112,6 +112,55 @@ class CounterSaleAdmin(admin.ModelAdmin):
     search_fields = ("reference", "customer_name", "phone")
     date_hierarchy = "sold_at"
     inlines = [CounterSaleLineInline]
+
+
+@admin.register(models.Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ("name", "phone", "email", "created_at")
+    search_fields = ("name", "phone", "email")
+
+
+class EventItemInline(admin.TabularInline):
+    """Read-only: stock lines are reserved through the panel, never typed in here."""
+
+    model = models.EventItem
+    extra = 0
+    can_delete = False
+    fields = (
+        "item_type", "name", "quantity", "unit_cost",
+        "reserved_qty", "returned_qty", "consumed_qty", "damaged_qty", "lost_qty",
+    )
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class EventExpenseInline(admin.TabularInline):
+    model = models.EventExpense
+    extra = 0
+
+
+class EventPaymentInline(admin.TabularInline):
+    model = models.EventPayment
+    extra = 0
+
+
+@admin.register(models.Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ("number", "name", "customer", "event_date", "status", "revenue")
+    list_filter = ("status",)
+    search_fields = ("number", "name", "customer__name", "location")
+    date_hierarchy = "event_date"
+    readonly_fields = ("number", "status")
+    inlines = [EventItemInline, EventExpenseInline, EventPaymentInline]
+
+    def has_delete_permission(self, request, obj=None):
+        # Deleting an event that still holds stock would drop the hold without
+        # a ledger row. Cancel it in the panel first.
+        if obj is not None and obj.has_outstanding:
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 @admin.register(models.InviteCode)

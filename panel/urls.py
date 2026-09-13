@@ -13,7 +13,7 @@ with the same slug — which is why the inventory tables are `stock-items` and
 
 from django.urls import path
 
-from . import views
+from . import event_views, views
 
 app_name = "panel"
 
@@ -42,6 +42,23 @@ urlpatterns = [
     path("counter/<int:pk>/", views.counter_sale, name="counter_sale"),
     path("counter/<int:pk>/refund/", views.counter_refund, name="counter_refund"),
     path("stock/", views.stock_room, name="stock"),
+
+    # -- events -----------------------------------------------------------
+    path("events/", event_views.event_list, name="events"),
+    path("events/new/", event_views.event_create, name="event_create"),
+    path("events/<int:pk>/", event_views.event_detail, name="event_detail"),
+    path("events/<int:pk>/edit/", event_views.event_edit, name="event_edit"),
+    path("events/<int:pk>/delete/", event_views.event_delete, name="event_delete"),
+    path("events/<int:pk>/action/", event_views.event_action, name="event_action"),
+    path("events/<int:pk>/items/stock/", event_views.event_add_stock, name="event_add_stock"),
+    path("events/<int:pk>/items/external/", event_views.event_add_external, name="event_add_external"),
+    path("events/<int:pk>/items/<int:line_pk>/", event_views.event_line_edit, name="event_line_edit"),
+    path("events/<int:pk>/items/<int:line_pk>/remove/", event_views.event_line_remove, name="event_line_remove"),
+    path("events/<int:pk>/items/<int:line_pk>/usage/", event_views.event_line_usage, name="event_line_usage"),
+    path("events/<int:pk>/expenses/", event_views.event_add_expense, name="event_add_expense"),
+    path("events/<int:pk>/expenses/<int:expense_pk>/remove/", event_views.event_remove_expense, name="event_remove_expense"),
+    path("events/<int:pk>/payments/", event_views.event_add_payment, name="event_add_payment"),
+    path("events/<int:pk>/payments/<int:payment_pk>/remove/", event_views.event_remove_payment, name="event_remove_payment"),
 
     # -- json -------------------------------------------------------------
     path("search/", views.quick_search, name="search"),

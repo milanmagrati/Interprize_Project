@@ -81,14 +81,14 @@ are enhancements on top of that, not the mechanism.
                 {% csrf_token %}
                 <input type="hidden" name="item" value="{{ item.pk }}">
                 <input type="hidden" name="querystring" value="{{ request.GET.urlencode }}">
-                <button class="tile{% if item.is_out %} is-out{% endif %}" type="submit"
+                <button class="tile{% if item.is_unavailable %} is-out{% endif %}" type="submit"
                         name="action" value="add"
-                        {% if item.is_out %}disabled{% endif %}
-                        aria-label="Add {{ item.name }}, {{ item.sale_price|money }}, {{ item.quantity_label }} in stock"
-                        title="{% if item.is_out %}Nothing left on the shelf{% else %}Add {{ item.name }}{% endif %}">
+                        {% if item.is_unavailable %}disabled{% endif %}
+                        aria-label="Add {{ item.name }}, {{ item.sale_price|money }}, {{ item.available_label }} free"
+                        title="{% if item.is_out %}Nothing left on the shelf{% elif item.is_unavailable %}Everything left is reserved for events{% else %}Add {{ item.name }}{% endif %}">
                   <span class="tile__shot">
                     <img src="{{ item.image }}" alt="" width="160" height="120" loading="lazy" decoding="async">
-                    <span class="pill pill--{{ item.stock_tone }}">{{ item.quantity_label }}</span>
+                    <span class="pill pill--{% if item.is_unavailable %}red{% else %}{{ item.stock_tone }}{% endif %}">{{ item.available_label }}</span>
                     <span class="tile__add" aria-hidden="true">
                       <svg class="icon"><use href="#p-plus"></use></svg>
                     </span>
@@ -149,7 +149,7 @@ are enhancements on top of that, not the mechanism.
               <li class="basket__line{% if line.short %} is-short{% endif %}">
                 <span class="basket__body">
                   <strong>{{ line.item.name }}</strong>
-                  <span class="basket__sku">{{ line.item.sku }} · {{ line.available }} on the shelf</span>
+                  <span class="basket__sku">{{ line.item.sku }} · {{ line.available }} free to sell</span>
                   {% if line.short %}
                     <span class="basket__warn">
                       <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>

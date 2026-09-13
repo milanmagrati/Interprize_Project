@@ -1,0 +1,92 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+Change one line on an event. A stock line only changes its quantity — going
+down lets go of the surplus at once, going up on a confirmed event reserves
+the extra. An external line is edited like any other record.
+{% endcomment %}
+
+{% block heading %}{{ title }}{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">
+    <a href="{% url 'panel:events' %}">Events</a>
+    <span aria-hidden="true">/</span> <a href="{{ event.get_absolute_url }}">{{ event.number }}</a>
+    <span aria-hidden="true">/</span> {{ line.name }}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+  <form class="form" method="post" novalidate data-dirty-guard {% if line.is_external %}enctype="multipart/form-data" data-line-total{% endif %}>
+    {% csrf_token %}
+    <div class="form__body">
+      <div class="form__main">
+        <section class="card">
+          <div class="card__head">
+            <span class="lineitem">
+              {% include "panel/events/_thumb.html" with line=line %}
+              <h2 class="card__title">{{ line.name }}</h2>
+            </span>
+            <span class="pill pill--{{ line.type_tone }}">{% if line.is_external %}External item{% else %}Inventory item · {{ line.type_label }}{% endif %}</span>
+          </div>
+          <div class="grid grid--pair">
+            {% if line.is_external %}
+              {% field form.name %}
+              {% field form.quantity %}
+              {% field form.unit_cost %}
+              <div class="field">
+                <span class="field__label">Total cost</span>
+                <output class="totalout num" data-line-total-out>{{ line.cost|money }}</output>
+              </div>
+              {% field form.supplier %}
+              {% field form.vendor %}
+              {% field form.image_file %}
+              {% field form.image_url %}
+            {% else %}
+              {% field form.quantity %}
+            {% endif %}
+          </div>
+          {% field form.notes %}
+          {% if line.is_inventory %}
+            <p class="card__note">
+              {% if event.status == 'draft' %}
+                Nothing is reserved while the event is a draft; the quantity is checked against what is free.
+              {% else %}
+                Lowering the quantity releases the surplus straight away. Raising it reserves the extra, if it is free.
+              {% endif %}
+              {% if line.settled_qty %}{{ line.settled_qty|qty }} have already come back or been used, so it cannot go below that.{% endif %}
+            </p>
+          {% endif %}
+        </section>
+      </div>
+
+      <aside class="form__side">
+        <div class="card card--sticky">
+          <h2 class="card__title">Save</h2>
+          <div class="stack">
+            <button class="btn btn--primary btn--block" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Save changes
+            </button>
+            <a class="btn btn--quiet btn--block" href="{{ event.get_absolute_url }}#items">Cancel</a>
+          </div>
+        </div>
+
+        {% if stock %}
+          <div class="card">
+            <h2 class="card__title">On the shelf</h2>
+            <p class="kpi__value">{{ stock.available_label }}</p>
+            <p class="card__note">free to use right now</p>
+            <dl class="meta">
+              <dt>On hand</dt><dd>{{ stock.quantity_label }}</dd>
+              <dt>Reserved, all events</dt><dd>{{ stock.reserved_quantity|qty }}</dd>
+              <dt>This event holds</dt><dd>{{ line.outstanding|qty }}</dd>
+              <dt>Kind</dt><dd>{{ stock.usage_label }}</dd>
+            </dl>
+          </div>
+        {% endif %}
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

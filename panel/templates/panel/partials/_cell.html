@@ -67,7 +67,7 @@ column kind is a branch here rather than a change to each list template.
   {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
 
 {% elif column.kind == "delta" %}
-  <span class="delta delta--{% if row.is_incoming %}in{% else %}out{% endif %}">{{ value }}</span>
+  <span class="delta delta--{{ row.delta_state }}">{{ value }}</span>
   {% if hint %}<span class="cell__hint">{{ hint }}</span>{% endif %}
 
 {% elif column.kind == "chip" %}

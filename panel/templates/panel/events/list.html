@@ -1,0 +1,215 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+Every event, with the three numbers that matter on each row — what it is worth,
+what it cost, and how much is still to collect. The status tabs count what they
+would show with the search and date filters kept, so the numbers never lie.
+{% endcomment %}
+
+{% block subheading %}
+  <p class="topbar__sub">Every event you run — what it is worth, what it cost and what is still owed.</p>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ------------------------------------------------------------- toolbar #}
+  <div class="toolbar">
+    <form class="toolbar__search" method="get" role="search">
+      {% for key, value in request.GET.items %}
+        {% if key != 'q' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
+      {% endfor %}
+      <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+      <input type="search" name="q" value="{{ q }}" placeholder="Search number, event, customer, venue…"
+             aria-label="Search events">
+      {% if q %}
+        <a class="toolbar__clear" href="{% querystring q=None %}" aria-label="Clear search">
+          <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+        </a>
+      {% endif %}
+    </form>
+
+    <div class="toolbar__actions">
+      <a class="btn btn--ghost" href="{% url 'panel:resource_list' 'customers' %}">
+        <svg class="icon" aria-hidden="true"><use href="#p-user"></use></svg>Customers
+      </a>
+      {% if can_write %}
+        <a class="btn btn--primary" href="{% url 'panel:event_create' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New event
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------------ kpis #}
+  <ul class="kpis">
+    {% for kpi in kpis %}
+      <li class="kpi kpi--{{ kpi.tone }}">
+        <span class="kpi__icon" aria-hidden="true">
+          <svg class="icon"><use href="#p-{{ kpi.icon }}"></use></svg>
+        </span>
+        <p class="kpi__label">{{ kpi.label }}</p>
+        <p class="kpi__value">{{ kpi.value }}</p>
+        <p class="kpi__foot">{{ kpi.foot }}</p>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {# ----------------------------------------------------------- status tabs #}
+  <nav class="tabs" aria-label="Filter by status">
+    {% for tab in tabs %}
+      <a class="tabs__one{% if status == tab.value %} is-active{% endif %}"
+         href="{% querystring status=tab.value %}"
+         {% if status == tab.value %}aria-current="true"{% endif %}>
+        {% if tab.tone %}<span class="dot dot--{{ tab.tone }}" aria-hidden="true"></span>{% endif %}
+        {{ tab.label }}
+        <span class="tabs__count">{{ tab.count }}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  {# -------------------------------------------------------------- filters #}
+  <form class="filters" method="get" data-autosubmit>
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+    <label class="filters__one">
+      <span class="sr-only">When</span>
+      <select name="when" data-submit>
+        <option value="">Any date</option>
+        {% for value, label in when_choices %}
+          <option value="{{ value }}"{% if when == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filters__one">
+      <span class="sr-only">Payment</span>
+      <select name="payment" data-submit>
+        <option value="">Payment: any</option>
+        {% for value, label in payment_choices %}
+          <option value="{{ value }}"{% if payment == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="filters__date">
+      <span>From</span>
+      <input type="date" name="from" value="{{ date_from }}" data-submit aria-label="Events from">
+    </label>
+    <label class="filters__date">
+      <span>To</span>
+      <input type="date" name="to" value="{{ date_to }}" data-submit aria-label="Events up to">
+    </label>
+    {% if is_filtered %}
+      <a class="filters__reset" href="{% url 'panel:events' %}">Clear all</a>
+    {% endif %}
+    <noscript><button class="btn btn--ghost btn--sm" type="submit">Apply</button></noscript>
+  </form>
+
+  {# ---------------------------------------------------------------- table #}
+  {% if rows %}
+    <div class="tablewrap">
+      <table class="table table--stack table--events">
+        <thead>
+          <tr>
+            <th><a class="table__sort is-{% sort_state 'number' %}" href="{% sort_link 'number' %}">Event<svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg></a></th>
+            <th><a class="table__sort is-{% sort_state 'customer__name' %}" href="{% sort_link 'customer__name' %}">Customer<svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg></a></th>
+            <th><a class="table__sort is-{% sort_state 'event_date' %}" href="{% sort_link 'event_date' %}">Date<svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg></a></th>
+            <th><a class="table__sort is-{% sort_state 'status' %}" href="{% sort_link 'status' %}">Status<svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg></a></th>
+            <th class="is-end"><a class="table__sort is-{% sort_state 'revenue' %}" href="{% sort_link 'revenue' %}">Revenue<svg class="icon" aria-hidden="true"><use href="#p-arrow-down"></use></svg></a></th>
+            <th class="is-end">Cost</th>
+            <th class="is-end">Profit</th>
+            <th>Payment</th>
+            <th class="table__end"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in rows %}
+            <tr>
+              <td data-label="Event">
+                <a class="evlink" href="{% url 'panel:event_detail' event.pk %}">
+                  <span class="evlink__no">{{ event.number }}</span>
+                  <span class="cell__main">{{ event.name }}</span>
+                </a>
+                {% if event.location %}<span class="cell__hint">{{ event.location|truncatechars:48 }}</span>{% endif %}
+              </td>
+              <td data-label="Customer">
+                <span class="cell__main">{{ event.customer.name }}</span>
+                <span class="cell__hint">{{ event.customer.contact_line }}</span>
+              </td>
+              <td data-label="Date">
+                <span class="cell__main nowrap">{{ event.event_date|date:"j M Y" }}</span>
+                <span class="cell__hint">{{ event.event_date|date:"D" }}{% if event.is_open %} · {{ event.when_label }}{% endif %}{% if event.guests %} · {{ event.guests }} guests{% endif %}</span>
+              </td>
+              <td data-label="Status">
+                <span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span>
+              </td>
+              <td data-label="Revenue" class="is-end"><span class="num">{{ event.revenue|money }}</span></td>
+              <td data-label="Cost" class="is-end"><span class="num">{{ event.total_cost|money }}</span></td>
+              <td data-label="Profit" class="is-end">
+                {% if event.is_cancelled %}
+                  <span class="cell__main">—</span>
+                  <span class="cell__hint">not earned</span>
+                {% else %}
+                  <span class="num {% if event.profit < 0 %}is-loss{% else %}is-gain{% endif %}">{{ event.profit|money }}</span>
+                  {% if event.revenue %}<span class="cell__hint">{{ event.margin_percent }}% margin</span>{% endif %}
+                {% endif %}
+              </td>
+              <td data-label="Payment">
+                {% if event.is_cancelled %}
+                  <span class="pill pill--grey">Cancelled</span>
+                  <span class="cell__hint">{% if event.paid %}{{ event.paid|money }} received{% else %}Nothing received{% endif %}</span>
+                {% else %}
+                <span class="paycell">
+                  <span class="pill pill--{{ event.payment_tone }}">{{ event.payment_label }}</span>
+                  <span class="meter meter--thin" aria-hidden="true"><span class="meter__fill meter__fill--{{ event.payment_tone }}" style="width: {{ event.paid_percent }}%"></span></span>
+                </span>
+                <span class="cell__hint">{{ event.paid|money }} paid{% if event.remaining > 0 %} · {{ event.remaining|money }} due{% endif %}</span>
+                {% endif %}
+              </td>
+              <td class="table__end">
+                <div class="rowacts">
+                  <a class="icon-btn icon-btn--sm" href="{% url 'panel:event_detail' event.pk %}" title="Open">
+                    <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
+                  </a>
+                  {% if can_write and not event.is_cancelled %}
+                    <a class="icon-btn icon-btn--sm" href="{% url 'panel:event_edit' event.pk %}" title="Edit">
+                      <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
+                    </a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% include "panel/partials/_pagination.html" %}
+
+  {% else %}
+    <div class="empty">
+      <span class="empty__mark" aria-hidden="true">
+        <svg class="icon"><use href="#p-sparkles"></use></svg>
+      </span>
+      {% if is_filtered %}
+        <h2>Nothing matches that</h2>
+        <p>No events match the current search, status or dates.</p>
+        <a class="btn btn--ghost" href="{% url 'panel:events' %}">Clear the filters</a>
+      {% else %}
+        <h2>No events yet</h2>
+        <p>
+          Create an event for a customer, add what it needs from stock or from
+          outside, then track its expenses and payments in one place.
+        </p>
+        {% if can_write %}
+          <a class="btn btn--primary" href="{% url 'panel:event_create' %}">
+            <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New event
+          </a>
+        {% endif %}
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

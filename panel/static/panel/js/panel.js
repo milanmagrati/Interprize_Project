@@ -22,6 +22,7 @@
      16. Password visibility toggle
      17. Submit-once guard
      18. The counter — tally, steppers, scanner
+     19. Events — stock picker, line totals
    ========================================================================== */
 
 (function () {
@@ -723,5 +724,206 @@
         if (event.key === 'Escape') { scan.value = ''; scan.blur(); }
       });
     }
+  }());
+
+  /* ------------------------------------------------------------ 19. events */
+
+  // The stock picker on an event: tick any number of items, each with its own
+  // quantity, and see straight away when one asks for more than is free. The
+  // server checks everything again under a lock — this only saves a round trip.
+  // Without JavaScript the ticks and quantity boxes still post as they are.
+  (function stockPicker() {
+    $$('[data-stock-picker]').forEach(function (form) {
+      var picks = $$('[data-pick]', form);
+      if (!picks.length) { return; }
+      var bar = $('[data-pick-bar]', form);
+      var filter = $('[data-pick-filter]', form);
+      var kinds = $$('[data-pick-kind]', form);
+      var count = $('[data-pick-count]', form);
+      var empty = $('[data-pick-empty]', form);
+      var summary = $('[data-pick-summary]', form);
+      var submit = $('[data-pick-submit]', form);
+      var label = $('[data-pick-label]', form);
+      var kind = '';
+
+      if (bar) { bar.hidden = false; }
+
+      function parts(pick) {
+        return {
+          check: $('.pick__check', pick),
+          qty: $('.pick__qty input', pick),
+          err: $('[data-pick-err]', pick),
+          steps: $$('[data-pick-step]', pick)
+        };
+      }
+
+      // What is wrong with this tile's quantity, or '' when it is fine.
+      function problem(pick) {
+        var p = parts(pick);
+        if (!p.check.checked) { return ''; }
+        var raw = p.qty.value.trim();
+        var wanted = Number(raw);
+        if (!raw || !isFinite(wanted)) { return 'Enter a number.'; }
+        if (wanted <= 0) { return 'The quantity has to be more than zero.'; }
+        if (pick.hasAttribute('data-whole') && Math.floor(wanted) !== wanted) {
+          return 'Reusable stock is counted in whole units.';
+        }
+        // A line already on the event that holds nothing yet needs its share too.
+        var extra = parseFloat(pick.dataset.extra) || 0;
+        var free = parseFloat(pick.dataset.available) || 0;
+        if (wanted + extra > free) { return 'Only ' + pick.dataset.available + ' units are available.'; }
+        return '';
+      }
+
+      function paint(pick) {
+        var p = parts(pick);
+        var on = p.check.checked;
+        // Until the tile is touched, the server's word on it stands.
+        var message = pick.dataset.touched ? problem(pick) : (p.err.textContent.trim() || problem(pick));
+        pick.classList.toggle('is-picked', on);
+        pick.classList.toggle('is-error', !!message);
+        p.err.textContent = message;
+        p.err.hidden = !message;
+        p.steps.forEach(function (step) { step.hidden = false; step.disabled = p.qty.disabled; });
+        return { on: on, bad: !!message };
+      }
+
+      function refresh() {
+        var ticked = 0;
+        var bad = 0;
+        picks.forEach(function (pick) {
+          var state = paint(pick);
+          if (state.on) { ticked += 1; }
+          if (state.bad) { bad += 1; }
+        });
+        if (count) { count.textContent = ticked; }
+        if (label) {
+          label.textContent = ticked === 0 ? 'Add ticked items'
+            : 'Add ' + ticked + ' item' + (ticked === 1 ? '' : 's') + ' to the event';
+        }
+        if (submit) { submit.disabled = ticked === 0; }
+        if (summary) {
+          summary.classList.toggle('is-warn', bad > 0);
+          if (bad) {
+            summary.textContent = bad + ' ticked item' + (bad === 1 ? ' asks' : 's ask') + ' for more than it can have.';
+          } else if (ticked) {
+            summary.textContent = ticked + ' item' + (ticked === 1 ? '' : 's') + ' ticked.';
+          } else {
+            summary.textContent = 'Tick the items this event needs and set how many of each.';
+          }
+        }
+        applyFilter();
+      }
+
+      function applyFilter() {
+        var term = filter ? filter.value.trim().toLowerCase() : '';
+        var shown = 0;
+        picks.forEach(function (pick) {
+          var check = $('.pick__check', pick);
+          var hit = (!term || (pick.dataset.search || '').indexOf(term) !== -1) &&
+            (!kind || (kind === 'picked' ? check.checked : pick.dataset.kind === kind));
+          pick.hidden = !hit;
+          if (hit) { shown += 1; }
+        });
+        if (empty) {
+          empty.hidden = shown > 0;
+          empty.textContent = kind === 'picked' && !term ? 'Nothing is ticked yet.' : 'No stock item matches that.';
+        }
+      }
+
+      picks.forEach(function (pick) {
+        var p = parts(pick);
+        var touch = function () { pick.dataset.touched = '1'; };
+        p.check.addEventListener('change', touch);
+        p.qty.addEventListener('input', touch);
+        p.steps.forEach(function (step) { step.addEventListener('click', touch); });
+        p.check.addEventListener('change', function () {
+          if (p.check.checked && (!p.qty.value.trim() || Number(p.qty.value) <= 0)) { p.qty.value = '1'; }
+          refresh();
+        });
+        p.qty.addEventListener('input', function () {
+          // Typing a quantity is as good as ticking the box.
+          if (!p.check.checked && !p.check.disabled && p.qty.value.trim()) { p.check.checked = true; }
+          refresh();
+        });
+        p.qty.addEventListener('focus', function () { p.qty.select(); });
+        p.steps.forEach(function (step) {
+          step.addEventListener('click', function () {
+            if (p.qty.disabled) { return; }
+            var next = Math.floor((Number(p.qty.value) || 0) + Number(step.dataset.pickStep));
+            if (next < 1) {
+              p.check.checked = false;
+              p.qty.value = '1';
+            } else {
+              p.qty.value = String(next);
+              if (!p.check.disabled) { p.check.checked = true; }
+            }
+            refresh();
+          });
+        });
+      });
+
+      kinds.forEach(function (button) {
+        button.addEventListener('click', function () {
+          kind = button.dataset.pickKind;
+          kinds.forEach(function (other) {
+            var on = other === button;
+            other.classList.toggle('is-on', on);
+            other.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          applyFilter();
+        });
+      });
+
+      if (filter) {
+        filter.addEventListener('input', applyFilter);
+        filter.addEventListener('keydown', function (event) {
+          if (event.key !== 'Enter') { return; }
+          // Enter picks the only match rather than sending the form.
+          event.preventDefault();
+          var visible = picks.filter(function (pick) { return !pick.hidden; });
+          if (visible.length !== 1) { return; }
+          var p = parts(visible[0]);
+          if (p.check.disabled) { return; }
+          p.check.checked = true;
+          refresh();
+          p.qty.focus();
+        });
+      }
+
+      // A quantity box sends the form on Enter; do that only once a tick exists.
+      form.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && event.target.matches('.pick__qty input') && submit && submit.disabled) {
+          event.preventDefault();
+        }
+      });
+
+      refresh();
+    });
+  }());
+
+  // Quantity × unit cost, for an external item, as it is typed.
+  (function lineTotals() {
+    $$('[data-line-total]').forEach(function (form) {
+      var quantity = $('input[name="quantity"]', form);
+      var cost = $('input[name="unit_cost"]', form);
+      var out = $('[data-line-total-out]', form);
+      if (!quantity || !cost || !out) { return; }
+
+      function recalc() {
+        var total = (parseFloat(quantity.value) || 0) * (parseFloat(cost.value) || 0);
+        out.textContent = '₹' + Math.round(total).toLocaleString('en-IN');
+      }
+      quantity.addEventListener('input', recalc);
+      cost.addEventListener('input', recalc);
+      recalc();
+    });
+  }());
+
+  // An event page that comes back with a form error opens on that form.
+  (function openDrawer() {
+    var open = $('details.drawer[open]');
+    if (!open || window.location.hash) { return; }
+    open.scrollIntoView({ block: 'center', behavior: reducedMotion.matches ? 'auto' : 'smooth' });
   }());
 }());

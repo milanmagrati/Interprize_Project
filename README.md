@@ -203,6 +203,39 @@ is a real POST that works with JavaScript off, and the basket lives in the
 session rather than in the page. On a narrow screen the basket moves below the
 shelves and a bar pinned to the bottom carries the running total back to it.
 
+### Events
+
+`/manage/events/` runs the events the company delivers, under the **Events**
+sidebar group next to **Customers**.
+
+- **Events** have a number (`EVT-00001`), a customer, date, location, guests,
+  revenue and notes, and move Draft → Confirmed → In progress → Completed (or
+  Cancelled) through buttons on the event page — never by editing a field.
+- **Items** are either *inventory* (an existing stock item, never copied) or
+  *external* (rented, bought in or outsourced; it never enters stock).
+  "Add from inventory" is a picture grid: tick any number of items, set a
+  quantity on each, and they are added together — all of them or none, with
+  every shortfall named. External items can carry their own photo; stock lines
+  show the stock item's.
+- **Stock is held, not taken.** Reserving 30 of 100 chairs leaves the count at
+  100 and makes 70 free. Reusable stock comes back (returned, damaged or lost —
+  only damage and loss lower the count); consumable stock is consumed or
+  returned unused. Available = on hand − held by every event. The counter
+  respects holds too. Every reserve, return, use, damage and loss is a row in
+  the stock ledger, e.g. “30 × Chair reserved for EVT-00001”.
+- Holds change under `select_for_update` locks on the stock items, so two
+  people cannot reserve the last units at once, and a shortfall is refused
+  (“Only 10 units are available.”) instead of going negative. Cancelling
+  releases everything; *Finalise inventory* settles what is still out after
+  completion.
+- **Expenses** and **payments** are recorded per event. Total cost = external
+  items + consumables used + reusable stock damaged or lost + expenses;
+  profit = revenue − total cost; remaining = revenue − paid.
+- Viewers can read, editors can run events, admins can delete a draft or
+  cancelled event. Logic lives on the models in `core/models.py`; the views are
+  in `panel/event_views.py`; tests in `core/test_events.py` and
+  `panel/test_events.py`.
+
 ### How it is built
 
 Every managed model is declared once in `panel/resources.py`:

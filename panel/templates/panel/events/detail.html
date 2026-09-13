@@ -1,0 +1,773 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+One event, top to bottom: where it stands and what to press next, the money at
+a glance, then overview, items, stock, expenses, payments and the stock history
+it wrote. Every button is a POST that comes back here, so nothing depends on
+JavaScript; the add-item drawers open themselves again if a form comes back
+with an error in it.
+{% endcomment %}
+
+{% block title %}{{ event.number }} · {{ event.name }}{% endblock %}
+{% block heading %}{{ event.name }}{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">
+    <a href="{% url 'panel:events' %}">Events</a>
+    <span aria-hidden="true">/</span> {{ event.number }} · {{ event.customer.name }}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form page--event">
+
+  {% if event.is_cancelled %}
+    <div class="notice notice--red">
+      <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+      <div>
+        <p><strong>This event was cancelled.</strong></p>
+        <p>
+          {% if event.has_outstanding %}It is still holding some stock — release it below.
+          {% else %}Everything it had reserved went back to stock. The record is kept as it was.{% endif %}
+        </p>
+      </div>
+    </div>
+  {% elif event.status == "completed" and event.has_outstanding %}
+    <div class="notice notice--amber">
+      <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+      <div>
+        <p><strong>{{ event.outstanding_units|qty }} units are still out.</strong></p>
+        <p>Record anything damaged or lost in <a href="#inventory">Inventory</a>, then finalise to settle the rest.</p>
+      </div>
+    </div>
+  {% elif event.status == "confirmed" and event.needs_allocation %}
+    <div class="notice notice--blue">
+      <svg class="icon" aria-hidden="true"><use href="#p-package"></use></svg>
+      <div>
+        <p><strong>Stock is not reserved yet.</strong></p>
+        <p>Reserve the inventory so nothing else can use it before the event starts.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {# ---------------------------------------------------------------- header #}
+  <section class="card evhead">
+    <div class="evhead__top">
+      <div class="evhead__who">
+        <p class="evhead__eyebrow">
+          <span class="evno">{{ event.number }}</span>
+          <span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span>
+          {% if event.is_open %}<span class="evhead__when">{{ event.when_label|capfirst }}</span>{% endif %}
+        </p>
+        <h2 class="evhead__title">{{ event.name }}</h2>
+        <ul class="evhead__facts">
+          <li><svg class="icon" aria-hidden="true"><use href="#p-calendar"></use></svg>{{ event.event_date|date:"l, j F Y" }}</li>
+          {% if event.location %}<li><svg class="icon" aria-hidden="true"><use href="#p-map-pin"></use></svg>{{ event.location }}</li>{% endif %}
+          <li><svg class="icon" aria-hidden="true"><use href="#p-users"></use></svg>{{ event.guests }} guest{{ event.guests|pluralize }}</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#p-user"></use></svg>{{ event.customer.name }}</li>
+        </ul>
+      </div>
+
+      {% if can_write %}
+        <div class="evhead__acts">
+          {% for action in actions %}
+            <form method="post" action="{% url 'panel:event_action' event.pk %}" data-once>
+              {% csrf_token %}
+              <button class="btn btn--{{ action.style }}" type="submit" name="action" value="{{ action.key }}"
+                      {% if action.confirm %}data-confirm="{{ action.confirm }}"{% endif %}>
+                <svg class="icon" aria-hidden="true"><use href="#p-{{ action.icon }}"></use></svg>{{ action.label }}
+              </button>
+            </form>
+          {% endfor %}
+          {% if not event.is_cancelled %}
+            <a class="btn btn--ghost" href="{% url 'panel:event_edit' event.pk %}">
+              <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>Edit
+            </a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {% if steps %}
+      <ol class="steps" aria-label="Progress">
+        {% for step in steps %}
+          <li class="steps__one is-{{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}>
+            <span class="steps__dot" aria-hidden="true">
+              {% if step.state == 'done' %}<svg class="icon"><use href="#p-check"></use></svg>{% else %}{{ forloop.counter }}{% endif %}
+            </span>
+            <span class="steps__label">{{ step.label }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  </section>
+
+  {# ------------------------------------------------------------- the money #}
+  <ul class="evstats">
+    <li class="evstat">
+      <span class="evstat__label">Revenue</span>
+      <strong class="evstat__value">{{ event.revenue|money }}</strong>
+    </li>
+    <li class="evstat">
+      <span class="evstat__label">Total cost</span>
+      <strong class="evstat__value">{{ event.total_cost|money }}</strong>
+    </li>
+    {% if event.is_cancelled %}
+      <li class="evstat">
+        <span class="evstat__label">Profit</span>
+        <strong class="evstat__value">—</strong>
+        <span class="evstat__foot">Not earned — the event was cancelled</span>
+      </li>
+    {% else %}
+      <li class="evstat evstat--{% if event.profit < 0 %}loss{% else %}gain{% endif %}">
+        <span class="evstat__label">Profit</span>
+        <strong class="evstat__value">{{ event.profit|money }}</strong>
+        {% if event.revenue %}<span class="evstat__foot">{{ event.margin_percent }}% margin</span>{% endif %}
+      </li>
+    {% endif %}
+    <li class="evstat">
+      <span class="evstat__label">Paid</span>
+      <strong class="evstat__value">{{ event.paid|money }}</strong>
+      <span class="meter meter--thin" aria-hidden="true"><span class="meter__fill meter__fill--{{ event.payment_tone }}" style="width: {{ event.paid_percent }}%"></span></span>
+    </li>
+    {% if event.is_cancelled %}
+      <li class="evstat">
+        <span class="evstat__label">Remaining</span>
+        <strong class="evstat__value">—</strong>
+        <span class="evstat__foot">Cancelled — nothing more to collect</span>
+      </li>
+    {% else %}
+      <li class="evstat evstat--{% if event.remaining > 0 %}due{% else %}settled{% endif %}">
+        <span class="evstat__label">Remaining</span>
+        <strong class="evstat__value">{{ event.remaining|money }}</strong>
+        <span class="evstat__foot">{{ event.payment_label }}</span>
+      </li>
+    {% endif %}
+  </ul>
+
+  <nav class="jumpnav" aria-label="On this page">
+    <a href="#overview">Overview</a>
+    <a href="#items">Items <span>{{ items|length }}</span></a>
+    <a href="#inventory">Inventory <span>{{ inventory_lines|length }}</span></a>
+    <a href="#expenses">Expenses <span>{{ expenses|length }}</span></a>
+    <a href="#payments">Payments <span>{{ payments|length }}</span></a>
+    <a href="#history">Stock history</a>
+  </nav>
+
+  <div class="form__body">
+    <div class="form__main">
+
+      {# ------------------------------------------------------------ overview #}
+      <section class="card anchor" id="overview">
+        <div class="card__head">
+          <h2 class="card__title">Overview</h2>
+        </div>
+        <dl class="facts">
+          <div><dt>Event number</dt><dd><span class="evno">{{ event.number }}</span></dd></div>
+          <div><dt>Status</dt><dd><span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span></dd></div>
+          <div><dt>Event name</dt><dd>{{ event.name }}</dd></div>
+          <div>
+            <dt>Customer</dt>
+            <dd>
+              <a href="{% url 'panel:resource_edit' 'customers' event.customer.pk %}">{{ event.customer.name }}</a>
+              <span class="cell__hint">{{ event.customer.contact_line }}</span>
+            </dd>
+          </div>
+          <div><dt>Date</dt><dd>{{ event.event_date|date:"D j M Y" }}</dd></div>
+          <div><dt>Guests</dt><dd>{{ event.guests }}</dd></div>
+          <div class="facts__wide"><dt>Location</dt><dd>{{ event.location|default:"Not set yet" }}</dd></div>
+          <div><dt>Created</dt><dd>{{ event.created_at|date:"j M Y, H:i" }}{% if event.created_by %} <span class="cell__hint">by {{ event.created_by.get_full_name|default:event.created_by.username }}</span>{% endif %}</dd></div>
+          <div><dt>Last change</dt><dd>{{ event.updated_at|date:"j M Y, H:i" }}</dd></div>
+          {% if event.notes %}<div class="facts__wide"><dt>Notes</dt><dd class="facts__notes">{{ event.notes|linebreaksbr }}</dd></div>{% endif %}
+        </dl>
+      </section>
+
+      {# --------------------------------------------------------------- items #}
+      <section class="card anchor" id="items">
+        <div class="card__head">
+          <h2 class="card__title">Items</h2>
+          <p class="card__note">
+            {{ inventory_lines|length }} from stock · {{ external_lines|length }} arranged outside
+          </p>
+        </div>
+
+        {% if items %}
+          <div class="tablewrap">
+            <table class="table table--stack table--plain">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Type</th>
+                  <th class="is-end">Quantity</th>
+                  <th class="is-end">Cost</th>
+                  <th>Status</th>
+                  {% if can_write and event.can_change_items %}<th class="table__end"><span class="sr-only">Actions</span></th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for line in items %}
+                  <tr>
+                    <td data-label="Item">
+                      <span class="lineitem">
+                        {% include "panel/events/_thumb.html" with line=line %}
+                        <span class="lineitem__text">
+                          {% if line.is_inventory and line.inventory_item_id %}
+                            <a href="{% url 'panel:resource_edit' 'stock-items' line.inventory_item_id %}"><span class="cell__main">{{ line.name }}</span></a>
+                            <span class="cell__hint">{{ line.inventory_item.sku }}{% if line.notes %} · {{ line.notes|truncatechars:60 }}{% endif %}</span>
+                          {% else %}
+                            <span class="cell__main">{{ line.name }}</span>
+                            <span class="cell__hint">{% if line.vendor_label %}From {{ line.vendor_label }}{% else %}No vendor noted{% endif %}{% if line.notes %} · {{ line.notes|truncatechars:60 }}{% endif %}</span>
+                          {% endif %}
+                        </span>
+                      </span>
+                    </td>
+                    <td data-label="Type">
+                      <span class="pill pill--{{ line.type_tone }}">
+                        <svg class="icon" aria-hidden="true"><use href="#p-{% if line.is_external %}truck{% else %}package{% endif %}"></use></svg>
+                        {% if line.is_external %}External{% else %}Inventory{% endif %}
+                      </span>
+                      <span class="cell__hint">{% if line.is_reusable %}Reusable{% elif line.is_inventory %}Consumable{% else %}Not in stock{% endif %}</span>
+                    </td>
+                    <td data-label="Quantity" class="is-end">
+                      <span class="num">{{ line.quantity_label }}{% if line.unit_label %} {{ line.unit_label }}{% endif %}</span>
+                    </td>
+                    <td data-label="Cost" class="is-end">
+                      <span class="num">{{ line.cost|money }}</span>
+                      <span class="cell__hint">{{ line.cost_note }}</span>
+                    </td>
+                    <td data-label="Status">
+                      <span class="pill pill--{{ line.state_tone }}">{{ line.state_label }}</span>
+                    </td>
+                    {% if can_write and event.can_change_items %}
+                      <td class="table__end">
+                        <div class="rowacts">
+                          <a class="icon-btn icon-btn--sm" href="{% url 'panel:event_line_edit' event.pk line.pk %}" title="Change {{ line.name }}">
+                            <svg class="icon" aria-hidden="true"><use href="#p-edit"></use></svg>
+                          </a>
+                          {% if line.settled_qty == 0 %}
+                            <form method="post" action="{% url 'panel:event_line_remove' event.pk line.pk %}" data-once>
+                              {% csrf_token %}
+                              <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit" title="Remove {{ line.name }}"
+                                      data-confirm="Remove {{ line.name }} from this event?{% if line.outstanding %} Its reserved stock goes back.{% endif %}">
+                                <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                              </button>
+                            </form>
+                          {% endif %}
+                        </div>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="card__note">
+            Nothing on this event yet. Add chairs, speakers and anything else from your
+            stock, or something you are arranging from outside.
+          </p>
+        {% endif %}
+
+        {% if can_write and event.can_change_items %}
+          <div class="drawers">
+            <details class="drawer" id="add-stock"{% if open_panel == 'stock' %} open{% endif %}>
+              <summary class="drawer__head">
+                <span class="drawer__icon drawer__icon--blue" aria-hidden="true"><svg class="icon"><use href="#p-package"></use></svg></span>
+                <span class="drawer__text">
+                  <strong>Add from inventory</strong>
+                  <span>Tick as many items as you need. {% if event.status == 'draft' %}They are reserved when the event is confirmed.{% else %}They are reserved as soon as they are added.{% endif %}</span>
+                </span>
+                <svg class="icon drawer__chev" aria-hidden="true"><use href="#p-chevron-down"></use></svg>
+              </summary>
+              <form class="drawer__body picker" method="post" action="{% url 'panel:event_add_stock' event.pk %}" novalidate data-once data-stock-picker>
+                {% csrf_token %}
+                {% if stock_pick.errors %}
+                  <div class="notice notice--red">
+                    <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+                    <div>{% for error in stock_pick.errors %}<p>{{ error }}</p>{% endfor %}</div>
+                  </div>
+                {% endif %}
+
+                {% if stock_pick.rows %}
+                  <div class="picker__bar" data-pick-bar hidden>
+                    <label class="picker__search">
+                      <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
+                      <span class="sr-only">Find a stock item</span>
+                      <input class="field__input" type="search" placeholder="Search by name, SKU or group" autocomplete="off" data-pick-filter>
+                    </label>
+                    <div class="picker__kinds" role="group" aria-label="Show">
+                      <button class="picker__kind is-on" type="button" data-pick-kind="" aria-pressed="true">All</button>
+                      <button class="picker__kind" type="button" data-pick-kind="reusable" aria-pressed="false">Reusable</button>
+                      <button class="picker__kind" type="button" data-pick-kind="consumable" aria-pressed="false">Consumable</button>
+                      <button class="picker__kind" type="button" data-pick-kind="picked" aria-pressed="false">Ticked <span class="picker__count" data-pick-count>{{ stock_pick.selected_count }}</span></button>
+                    </div>
+                  </div>
+
+                  <ul class="picks" data-picks>
+                    {% for row in stock_pick.rows %}{% with item=row.item %}
+                      <li class="pick{% if row.checked %} is-picked{% endif %}{% if row.soldout %} is-out{% endif %}{% if row.error %} is-error{% endif %}"
+                          data-pick data-search="{{ row.search }}" data-kind="{{ item.usage_type }}"
+                          data-available="{{ item.available_quantity|qty }}" data-unit="{{ item.unit_label }}"{% if row.line %} data-extra="{{ row.line.unreserved|qty }}"{% endif %}{% if item.is_reusable %} data-whole{% endif %}>
+                        <label class="pick__main">
+                          <input class="pick__check" type="checkbox" name="pick" value="{{ row.key }}"{% if row.checked %} checked{% endif %}{% if row.soldout and not row.checked %} disabled{% endif %}>
+                          <span class="pick__shot">
+                            {% if item.has_own_image %}
+                              <img src="{{ item.image }}" alt="" width="200" height="150" loading="lazy" decoding="async">
+                            {% else %}
+                              <span class="pick__noimg" aria-hidden="true"><svg class="icon"><use href="#p-package"></use></svg></span>
+                            {% endif %}
+                            <span class="pick__tick" aria-hidden="true"><svg class="icon"><use href="#p-check"></use></svg></span>
+                            <span class="pill pill--{% if item.is_reusable %}blue{% else %}violet{% endif %}">{{ item.usage_label }}</span>
+                          </span>
+                          <span class="pick__body">
+                            <strong class="pick__name">{{ item.name }}</strong>
+                            <span class="pick__meta">{{ item.sku }}{% if item.category_id %} · {{ item.category.name }}{% endif %}</span>
+                            <span class="pick__free{% if row.soldout %} is-out{% endif %}">{% if row.soldout %}None free{% else %}{{ item.available_label }} free{% endif %}</span>
+                            {% if row.line %}<span class="pick__on">{{ row.line.quantity|qty }} already on this event</span>{% endif %}
+                          </span>
+                        </label>
+                        <div class="pick__qty">
+                          <button class="pick__step" type="button" data-pick-step="-1" aria-label="One fewer" hidden>−</button>
+                          <input class="field__input" type="number" name="qty-{{ row.key }}" value="{{ row.quantity }}"
+                                 min="{% if item.is_reusable %}1{% else %}0.01{% endif %}" step="{% if item.is_reusable %}1{% else %}any{% endif %}"
+                                 inputmode="{% if item.is_reusable %}numeric{% else %}decimal{% endif %}" aria-label="How many {{ item.name }}"
+                                 {% if row.soldout and not row.checked %}disabled{% endif %}>
+                          <button class="pick__step" type="button" data-pick-step="1" aria-label="One more" hidden>+</button>
+                          <span class="pick__unit">{{ item.unit_label }}</span>
+                        </div>
+                        <p class="pick__err" data-pick-err{% if not row.error %} hidden{% endif %}>{{ row.error }}</p>
+                      </li>
+                    {% endwith %}{% endfor %}
+                  </ul>
+                  <p class="picker__empty" data-pick-empty hidden>No stock item matches that.</p>
+
+                  <div class="picker__foot">
+                    <p class="picker__sum" data-pick-summary>Tick the items this event needs and set how many of each.</p>
+                    <button class="btn btn--primary" type="submit" data-pick-submit>
+                      <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg><span data-pick-label>Add ticked items</span>
+                    </button>
+                  </div>
+                {% else %}
+                  <p class="card__note">
+                    There is no active stock to pick from yet. Add it under
+                    <a href="{% url 'panel:resource_list' 'stock-items' %}">Stock items</a> first.
+                  </p>
+                {% endif %}
+              </form>
+            </details>
+
+            <details class="drawer" id="add-external"{% if open_panel == 'external' %} open{% endif %}>
+              <summary class="drawer__head">
+                <span class="drawer__icon drawer__icon--amber" aria-hidden="true"><svg class="icon"><use href="#p-truck"></use></svg></span>
+                <span class="drawer__text">
+                  <strong>Add an external item</strong>
+                  <span>Rented, bought in or outsourced for this event only. It never enters stock.</span>
+                </span>
+                <svg class="icon drawer__chev" aria-hidden="true"><use href="#p-chevron-down"></use></svg>
+              </summary>
+              <form class="drawer__body" method="post" action="{% url 'panel:event_add_external' event.pk %}" enctype="multipart/form-data" novalidate data-once data-line-total>
+                {% csrf_token %}
+                <div class="grid grid--pair">
+                  {% field external_form.name %}
+                  {% field external_form.quantity %}
+                  {% field external_form.unit_cost %}
+                  <div class="field">
+                    <span class="field__label">Total cost</span>
+                    <output class="totalout num" data-line-total-out>₹0</output>
+                  </div>
+                  {% field external_form.supplier %}
+                  {% field external_form.vendor %}
+                  {% field external_form.image_file %}
+                  {% field external_form.image_url %}
+                </div>
+                {% field external_form.notes %}
+                <div class="row-actions">
+                  <button class="btn btn--primary" type="submit">
+                    <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Add external item
+                  </button>
+                </div>
+              </form>
+            </details>
+          </div>
+        {% endif %}
+      </section>
+
+      {# ----------------------------------------------------------- inventory #}
+      <section class="card anchor" id="inventory">
+        <div class="card__head">
+          <h2 class="card__title">Inventory</h2>
+          <a class="card__more" href="{% url 'panel:resource_list' 'stock-ledger' %}?q={{ event.number }}">
+            In the stock ledger<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg>
+          </a>
+        </div>
+
+        {% if inventory_lines %}
+          <ul class="holds">
+            {% for line in inventory_lines %}
+              <li class="hold" id="line-{{ line.pk }}">
+                <div class="hold__head">
+                  <span class="hold__name">
+                    {% include "panel/events/_thumb.html" with line=line size="sm" %}
+                    <strong>{{ line.name }}</strong>
+                    <span class="pill pill--{% if line.is_reusable %}blue{% else %}violet{% endif %}">{% if line.is_reusable %}Reusable{% else %}Consumable{% endif %}</span>
+                  </span>
+                  <span class="pill pill--{{ line.state_tone }}">{{ line.state_label }}</span>
+                </div>
+
+                {% if line.meter %}
+                  <div class="stockbar" role="img" aria-label="{% for seg in line.meter %}{{ seg.value }} {{ seg.label|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                    {% for seg in line.meter %}
+                      <span class="stockbar__seg stockbar__seg--{{ seg.key }}" style="width: {{ seg.pct }}%" title="{{ seg.value }} {{ seg.label|lower }}"></span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                <dl class="holdnums">
+                  <div><dt>Needed</dt><dd>{{ line.quantity|qty }}</dd></div>
+                  <div><dt>Allocated</dt><dd>{{ line.reserved_qty|qty }}</dd></div>
+                  <div class="holdnums--out"><dt>Out now</dt><dd>{{ line.outstanding|qty }}</dd></div>
+                  <div class="holdnums--returned"><dt>Returned</dt><dd>{{ line.returned_qty|qty }}</dd></div>
+                  <div class="holdnums--consumed"><dt>Consumed</dt><dd>{{ line.consumed_qty|qty }}</dd></div>
+                  <div class="holdnums--damaged"><dt>Damaged</dt><dd>{{ line.damaged_qty|qty }}</dd></div>
+                  <div class="holdnums--lost"><dt>Lost</dt><dd>{{ line.lost_qty|qty }}</dd></div>
+                </dl>
+
+                {% if line.stock and event.is_open %}
+                  <p class="card__note">
+                    Shelf: {{ line.stock.quantity_label }} on hand · {{ line.stock.reserved_quantity|qty }} reserved across events · <strong>{{ line.stock.available_label }} free</strong>
+                  </p>
+                {% endif %}
+
+                {% if can_write and event.can_record_usage and line.outstanding > 0 %}
+                  <form class="usage" method="post" action="{% url 'panel:event_line_usage' event.pk line.pk %}" novalidate data-once>
+                    {% csrf_token %}
+                    <p class="usage__lead">{{ line.outstanding|qty }} still out — record what happened to them:</p>
+                    <div class="usage__fields">
+                      <label class="usage__one usage__one--returned">
+                        <span>Returned</span>
+                        <input class="field__input" type="number" name="returned" min="0" step="{% if line.is_reusable %}1{% else %}any{% endif %}" inputmode="decimal" placeholder="0">
+                      </label>
+                      {% if line.is_reusable %}
+                        <label class="usage__one usage__one--damaged">
+                          <span>Damaged</span>
+                          <input class="field__input" type="number" name="damaged" min="0" step="1" inputmode="numeric" placeholder="0">
+                        </label>
+                        <label class="usage__one usage__one--lost">
+                          <span>Lost</span>
+                          <input class="field__input" type="number" name="lost" min="0" step="1" inputmode="numeric" placeholder="0">
+                        </label>
+                      {% else %}
+                        <label class="usage__one usage__one--consumed">
+                          <span>Consumed</span>
+                          <input class="field__input" type="number" name="consumed" min="0" step="any" inputmode="decimal" placeholder="0">
+                        </label>
+                      {% endif %}
+                      <button class="btn btn--primary btn--sm" type="submit">Record</button>
+                    </div>
+                  </form>
+                  <form class="usage__quick" method="post" action="{% url 'panel:event_line_usage' event.pk line.pk %}" data-once>
+                    {% csrf_token %}
+                    {% if line.is_reusable %}
+                      <input type="hidden" name="returned" value="{{ line.outstanding|qty }}">
+                      <button class="btn btn--quiet btn--sm" type="submit"
+                              data-confirm="Mark all {{ line.outstanding|qty }} × {{ line.name }} as returned?">
+                        <svg class="icon" aria-hidden="true"><use href="#p-undo"></use></svg>All {{ line.outstanding|qty }} came back
+                      </button>
+                    {% else %}
+                      <input type="hidden" name="consumed" value="{{ line.outstanding|qty }}">
+                      <button class="btn btn--quiet btn--sm" type="submit"
+                              data-confirm="Mark all {{ line.outstanding|qty }} × {{ line.name }} as used up?">
+                        <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>All {{ line.outstanding|qty }} were used
+                      </button>
+                    {% endif %}
+                  </form>
+                {% elif event.status == 'confirmed' and line.outstanding > 0 %}
+                  <p class="card__note">Returns and usage are recorded once the event has started.</p>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+          <ul class="legend">
+            <li class="legend__one"><span class="dot stockdot--returned" aria-hidden="true"></span>Returned</li>
+            <li class="legend__one"><span class="dot stockdot--consumed" aria-hidden="true"></span>Consumed</li>
+            <li class="legend__one"><span class="dot stockdot--damaged" aria-hidden="true"></span>Damaged</li>
+            <li class="legend__one"><span class="dot stockdot--lost" aria-hidden="true"></span>Lost</li>
+            <li class="legend__one"><span class="dot stockdot--out" aria-hidden="true"></span>Reserved or out</li>
+            <li class="legend__one"><span class="dot stockdot--todo" aria-hidden="true"></span>Not reserved</li>
+          </ul>
+        {% else %}
+          <p class="card__note">
+            No stock on this event. Reusable stock added here is reserved, used and
+            returned; consumable stock is issued and used up.
+          </p>
+        {% endif %}
+      </section>
+
+      {# ------------------------------------------------------------ expenses #}
+      <section class="card anchor" id="expenses">
+        <div class="card__head">
+          <h2 class="card__title">Expenses</h2>
+          <p class="card__note">{{ event.expenses_total|money }} in total</p>
+        </div>
+
+        {% if expense_buckets %}
+          <ul class="taglist">
+            {% for bucket in expense_buckets %}
+              <li><span class="chip"><span class="dot dot--{{ bucket.tone }}" aria-hidden="true"></span> {{ bucket.label }} · {{ bucket.total|money }}</span></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if expenses %}
+          <div class="tablewrap">
+            <table class="table table--stack table--plain">
+              <thead>
+                <tr>
+                  <th>Expense</th>
+                  <th>Category</th>
+                  <th>Date</th>
+                  <th class="is-end">Amount</th>
+                  {% if can_write %}<th class="table__end"><span class="sr-only">Actions</span></th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for expense in expenses %}
+                  <tr>
+                    <td data-label="Expense">
+                      <span class="cell__main">{{ expense.name }}</span>
+                      {% if expense.notes %}<span class="cell__hint">{{ expense.notes }}</span>{% endif %}
+                    </td>
+                    <td data-label="Category"><span class="pill pill--{{ expense.category_tone }}">{{ expense.get_category_display }}</span></td>
+                    <td data-label="Date"><span class="cell__main">{{ expense.spent_on|date:"j M Y" }}</span></td>
+                    <td data-label="Amount" class="is-end"><span class="num">{{ expense.amount|money }}</span></td>
+                    {% if can_write %}
+                      <td class="table__end">
+                        <form method="post" action="{% url 'panel:event_remove_expense' event.pk expense.pk %}" data-once>
+                          {% csrf_token %}
+                          <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit" title="Remove"
+                                  data-confirm="Remove the expense “{{ expense.name }}”?">
+                            <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                          </button>
+                        </form>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="card__note">No expenses yet — transport, venue, crew, fuel and the like go here.</p>
+        {% endif %}
+
+        {% if can_write %}
+          <details class="drawer"{% if open_panel == 'expense' %} open{% endif %}>
+            <summary class="drawer__head">
+              <span class="drawer__icon drawer__icon--red" aria-hidden="true"><svg class="icon"><use href="#p-receipt"></use></svg></span>
+              <span class="drawer__text">
+                <strong>Add an expense</strong>
+                <span>It counts towards this event's total cost.</span>
+              </span>
+              <svg class="icon drawer__chev" aria-hidden="true"><use href="#p-chevron-down"></use></svg>
+            </summary>
+            <form class="drawer__body" method="post" action="{% url 'panel:event_add_expense' event.pk %}" novalidate data-once>
+              {% csrf_token %}
+              <div class="grid grid--pair">
+                {% field expense_form.name %}
+                {% field expense_form.category %}
+                {% field expense_form.amount %}
+                {% field expense_form.spent_on %}
+              </div>
+              {% field expense_form.notes %}
+              <div class="row-actions">
+                <button class="btn btn--primary" type="submit">
+                  <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Add expense
+                </button>
+              </div>
+            </form>
+          </details>
+        {% endif %}
+      </section>
+
+      {# ------------------------------------------------------------ payments #}
+      <section class="card anchor" id="payments">
+        <div class="card__head">
+          <h2 class="card__title">Payments</h2>
+          <span class="pill pill--{{ event.payment_tone }}">{{ event.payment_label }}</span>
+        </div>
+
+        <div class="paysum">
+          <dl class="paysum__nums">
+            <div><dt>Revenue</dt><dd class="num">{{ event.revenue|money }}</dd></div>
+            <div><dt>Paid</dt><dd class="num">{{ event.paid|money }}</dd></div>
+            <div class="paysum__due"><dt>Remaining</dt><dd class="num">{% if event.is_cancelled %}—{% else %}{{ event.remaining|money }}{% endif %}</dd></div>
+          </dl>
+          <span class="meter" role="img" aria-label="{{ event.paid_percent }}% paid">
+            <span class="meter__fill meter__fill--{{ event.payment_tone }}" style="width: {{ event.paid_percent }}%"></span>
+          </span>
+          <p class="card__note">{{ event.paid_percent }}% collected</p>
+        </div>
+
+        {% if payments %}
+          <div class="tablewrap">
+            <table class="table table--stack table--plain">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Method</th>
+                  <th>Reference</th>
+                  <th class="is-end">Amount</th>
+                  {% if can_write %}<th class="table__end"><span class="sr-only">Actions</span></th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for payment in payments %}
+                  <tr>
+                    <td data-label="Date">
+                      <span class="cell__main">{{ payment.paid_on|date:"j M Y" }}</span>
+                      {% if payment.received_by %}<span class="cell__hint">by {{ payment.received_by.get_full_name|default:payment.received_by.username }}</span>{% endif %}
+                    </td>
+                    <td data-label="Method"><span class="pill pill--grey">{{ payment.get_method_display }}</span></td>
+                    <td data-label="Reference">
+                      <span class="cell__main">{{ payment.reference|default:"—" }}</span>
+                      {% if payment.notes %}<span class="cell__hint">{{ payment.notes }}</span>{% endif %}
+                    </td>
+                    <td data-label="Amount" class="is-end"><span class="num">{{ payment.amount|money }}</span></td>
+                    {% if can_write %}
+                      <td class="table__end">
+                        <form method="post" action="{% url 'panel:event_remove_payment' event.pk payment.pk %}" data-once>
+                          {% csrf_token %}
+                          <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit" title="Remove"
+                                  data-confirm="Remove this payment of {{ payment.amount|money }}?">
+                            <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>
+                          </button>
+                        </form>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="card__note">No payments recorded yet.</p>
+        {% endif %}
+
+        {% if can_write and event.can_take_money %}
+          {% if event.remaining > 0 %}
+            <details class="drawer"{% if open_panel == 'payment' %} open{% endif %}>
+              <summary class="drawer__head">
+                <span class="drawer__icon drawer__icon--green" aria-hidden="true"><svg class="icon"><use href="#p-plus-circle"></use></svg></span>
+                <span class="drawer__text">
+                  <strong>Record a payment</strong>
+                  <span>{{ event.remaining|money }} still owed.</span>
+                </span>
+                <svg class="icon drawer__chev" aria-hidden="true"><use href="#p-chevron-down"></use></svg>
+              </summary>
+              <form class="drawer__body" method="post" action="{% url 'panel:event_add_payment' event.pk %}" novalidate data-once>
+                {% csrf_token %}
+                <div class="grid grid--pair">
+                  {% field payment_form.amount %}
+                  {% field payment_form.paid_on %}
+                </div>
+                {% field payment_form.method %}
+                <div class="grid grid--pair">
+                  {% field payment_form.reference %}
+                  {% field payment_form.notes %}
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn--primary" type="submit">
+                    <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Record payment
+                  </button>
+                </div>
+              </form>
+            </details>
+          {% elif event.revenue %}
+            <p class="notice notice--green">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>
+              <span>Paid in full. Raise the revenue on the event if the customer owes more.</span>
+            </p>
+          {% endif %}
+        {% endif %}
+      </section>
+
+      {# -------------------------------------------------------------- history #}
+      <section class="card anchor" id="history">
+        <div class="card__head">
+          <h2 class="card__title">Stock history</h2>
+          <p class="card__note">Every reservation, return and write-off this event made.</p>
+        </div>
+        {% if movements %}
+          <ul class="feed">
+            {% for move in movements %}
+              <li>
+                <span class="pill pill--{{ move.kind_tone }}">{{ move.get_kind_display }}</span>
+                <span class="feed__text">
+                  <strong>{{ move.note|default:move.item.name }}</strong>
+                  <span>
+                    <span class="delta delta--{{ move.delta_state }}">{{ move.signed_label }}</span>
+                    · {{ move.balance_label }} on the shelf · {{ move.by_label }}
+                  </span>
+                </span>
+                <time>{{ move.created_at|date:"j M, H:i" }}</time>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="card__note">Nothing yet. Reserving stock writes the first line here.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    {# ---------------------------------------------------------------- summary #}
+    <aside class="form__side">
+      <div class="card card--sticky">
+        <h2 class="card__title">Financial summary</h2>
+        <dl class="tally tally--summary">
+          <dt>Revenue</dt><dd class="num">{{ event.revenue|money }}</dd>
+          <dt class="tally__sub">External items</dt><dd class="num tally__sub">{{ event.external_cost|money }}</dd>
+          <dt class="tally__sub">Stock used or written off</dt><dd class="num tally__sub">{{ event.inventory_cost|money }}</dd>
+          <dt class="tally__sub">Expenses</dt><dd class="num tally__sub">{{ event.expenses_total|money }}</dd>
+          <dt>Total cost</dt><dd class="num">{{ event.total_cost|money }}</dd>
+          <dt class="tally__grand">Profit</dt>
+          <dd class="num tally__grand {% if event.profit < 0 and not event.is_cancelled %}is-loss{% endif %}">{% if event.is_cancelled %}—{% else %}{{ event.profit|money }}{% endif %}</dd>
+        </dl>
+        <dl class="meta">
+          <dt>Paid</dt><dd>{{ event.paid|money }}</dd>
+          <dt>Remaining</dt><dd>{% if event.is_cancelled %}—{% else %}{{ event.remaining|money }}{% endif %}</dd>
+          <dt>Margin</dt><dd>{% if event.revenue and not event.is_cancelled %}{{ event.margin_percent }}%{% else %}—{% endif %}</dd>
+        </dl>
+        <p class="card__note">
+          Profit = revenue − total cost. Reusable stock only costs what was damaged or
+          lost; consumable stock costs what was used.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2 class="card__title">What happens next</h2>
+        <ol class="guide">
+          <li class="{% if event.status != 'draft' %}is-done{% endif %}"><strong>Confirm</strong> once the customer says yes.</li>
+          <li class="{% if event.status == 'in_progress' or event.status == 'completed' %}is-done{% endif %}"><strong>Reserve inventory</strong> and <strong>start</strong> on the day.</li>
+          <li class="{% if event.status == 'completed' %}is-done{% endif %}"><strong>Complete</strong> it when the crew is back.</li>
+          <li class="{% if event.status == 'completed' and not event.has_outstanding %}is-done{% endif %}"><strong>Record returns</strong>, damage and losses, then finalise.</li>
+        </ol>
+      </div>
+
+      {% if can_delete %}
+        <form class="card card--danger" method="post" action="{% url 'panel:event_delete' event.pk %}" data-once>
+          {% csrf_token %}
+          <h2 class="card__title">Delete</h2>
+          <p class="card__note">
+            Removes the event with its items, expenses and payments. Its stock history
+            stays in the ledger. This cannot be undone.
+          </p>
+          <button class="btn btn--danger btn--block" type="submit"
+                  data-confirm="Delete {{ event.number }} for good?">
+            <svg class="icon" aria-hidden="true"><use href="#p-trash"></use></svg>Delete this event
+          </button>
+        </form>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

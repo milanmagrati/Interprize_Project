@@ -12,7 +12,7 @@ new URL and two new templates.
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Q, Sum
 from django.urls import reverse
 
 from core import models as m
@@ -163,6 +163,9 @@ class PageLink:
 
 #: Pages pinned to the top of a group, before its resources.
 GROUP_PAGES = {
+    "Events": [
+        PageLink("events", "Events", "sparkles"),
+    ],
     "Inventory": [
         PageLink("counter", "Counter", "cart", permission="editor"),
         PageLink("stock", "Stock room", "trending-up"),
@@ -198,10 +201,15 @@ MOVEMENT_TONES = {
     "Counter sale": "blue",
     "Customer return": "violet",
     "Returned to supplier": "amber",
-    "Used on a booking": "violet",
-    "Damaged or lost": "red",
+    "Used on a booking or event": "violet",
+    "Damaged": "red",
+    "Lost": "red",
     "Stock count adjustment": "grey",
+    "Reserved for an event": "blue",
+    "Back from an event": "green",
+    "Reservation released": "grey",
 }
+USAGE_TONES = {"Reusable": "blue", "Consumable": "violet"}
 SALE_TONES = {"Completed": "green", "Refunded": "red"}
 STOCK_STATES = [
     ("attention", "Needs ordering"),
@@ -613,7 +621,9 @@ RESOURCES = [
             Column("image", "", "image"),
             Column("name", "Item", sortable="name", hint="sku"),
             Column("category", "Group", "tag", sortable="category__name", hint="shelf_label"),
+            Column("usage_label", "Kind", "badge", sortable="usage_type", badges=USAGE_TONES),
             Column("quantity_label", "On hand", "stock", sortable="quantity", hint="reorder_label"),
+            Column("available_label", "Free to use", sortable="free_total", hint="reserved_label"),
             Column("cost_price", "Cost", "money", sortable="cost_price"),
             Column("sale_price", "Sells for", "money", sortable="sale_price", hint="margin_label"),
             Column("stock_value", "Stock value", "money", sortable="value_total", align="end"),
@@ -628,16 +638,23 @@ RESOURCES = [
             Filter("group", "Group", [], lookup="category__slug"),
             Filter("supplier", "Supplier", [], lookup="supplier_id"),
             StockFilter("stock", "Stock", STOCK_STATES),
+            Filter("usage_type", "Kind", [
+                ("reusable", "Reusable"), ("consumable", "Consumable"),
+            ]),
             Filter("unit", "Counted in", m.InventoryItem.UNIT_CHOICES),
             Filter("is_sellable", "At the counter", YES_NO),
             Filter("is_active", "Active", YES_NO),
         ],
         select_related=["category", "supplier"],
-        annotate=lambda qs: qs.annotate(
+        annotate=lambda qs: qs.with_reserved().annotate(
             value_total=ExpressionWrapper(
                 F("quantity") * F("cost_price"),
                 output_field=DecimalField(max_digits=16, decimal_places=2),
-            )
+            ),
+            free_total=ExpressionWrapper(
+                F("quantity") - F("reserved_total"),
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            ),
         ),
         ordering="name",
     ),
@@ -719,13 +736,14 @@ RESOURCES = [
         ],
         search_fields=[
             "item__name", "item__sku", "reference", "note", "supplier__name",
+            "event__number",
         ],
         filters=[
             Filter("kind", "Reason", m.StockMovement.KIND_CHOICES),
             Filter("group", "Group", [], lookup="item__category__slug"),
             Filter("supplier", "Supplier", [], lookup="supplier_id"),
         ],
-        select_related=["item", "supplier", "sale", "booking", "created_by"],
+        select_related=["item", "supplier", "sale", "booking", "event", "created_by"],
         ordering="-created_at,-id",
     ),
     Resource(
@@ -764,6 +782,34 @@ RESOURCES = [
         select_related=["served_by", "cashier"],
         prefetch_related=["lines"],
         ordering="-sold_at,-id",
+    ),
+    # ----------------------------------------------------------------- events
+    Resource(
+        slug="customers",
+        model=m.Customer,
+        form_class=f.CustomerForm,
+        label="Customer",
+        plural="Customers",
+        icon="user",
+        group="Events",
+        blurb=(
+            "Who you run events for. Every event points at one, so a repeat "
+            "customer's history and spend live in one place."
+        ),
+        add_label="New customer",
+        columns=[
+            Column("name", "Customer", sortable="name", hint="contact_line"),
+            Column("email", "Email"),
+            Column("event_total", "Events", "chip", sortable="event_count"),
+            Column("revenue_total", "Event revenue", "money", sortable="billed", align="end"),
+            Column("created_at", "Added", "date", sortable="created_at"),
+        ],
+        search_fields=["name", "phone", "email", "address", "notes"],
+        annotate=lambda qs: qs.annotate(
+            event_count=Count("events", distinct=True),
+            billed=Sum("events__revenue", filter=~Q(events__status="cancelled")),
+        ),
+        ordering="name",
     ),
     # ------------------------------------------------------------------- site
     Resource(
@@ -825,9 +871,10 @@ RESOURCES = [
 BY_SLUG = {resource.slug: resource for resource in RESOURCES}
 
 # Sidebar order. Groups not listed here fall to the end.
-GROUP_ORDER = ["Operations", "Inventory", "Catalogue", "Homepage", "Site"]
+GROUP_ORDER = ["Operations", "Events", "Inventory", "Catalogue", "Homepage", "Site"]
 GROUP_ICONS = {
     "Operations": "activity",
+    "Events": "sparkles",
     "Inventory": "package",
     "Catalogue": "box",
     "Homepage": "home",

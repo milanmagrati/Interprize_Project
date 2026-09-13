@@ -1,0 +1,84 @@
+{% extends "panel/base.html" %}
+{% load panel_tags %}
+
+{% comment %}
+Create and edit an event. Status is not a field: it moves only through the
+buttons on the event page, because each step does something to stock.
+{% endcomment %}
+
+{% block heading %}{{ title }}{% endblock %}
+{% block subheading %}
+  <p class="topbar__sub">
+    <a href="{% url 'panel:events' %}">Events</a>
+    {% if event %}<span aria-hidden="true">/</span> <a href="{{ event.get_absolute_url }}">{{ event.number }}</a>{% endif %}
+  </p>
+{% endblock %}
+
+{% block content %}
+<div class="page page--form">
+  <form class="form" method="post" novalidate data-dirty-guard>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="notice notice--red">
+        <svg class="icon" aria-hidden="true"><use href="#p-alert"></use></svg>
+        <div>{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+      </div>
+    {% endif %}
+
+    <div class="form__body">
+      <div class="form__main">
+        {% for section_title, fields in form.sections %}
+          <section class="card">
+            <h2 class="card__title">{{ section_title }}</h2>
+            <div class="grid">
+              {% for bound in fields %}{% field bound %}{% endfor %}
+            </div>
+            {% if section_title == "Customer" %}
+              <p class="card__note">
+                Not on the list? Type their name under “…or a new customer” and they are added
+                when you save. <a href="{% url 'panel:resource_list' 'customers' %}">Manage customers</a>.
+              </p>
+            {% endif %}
+          </section>
+        {% endfor %}
+      </div>
+
+      <aside class="form__side">
+        <div class="card card--sticky">
+          <h2 class="card__title">{% if event %}Save{% else %}Create{% endif %}</h2>
+          <div class="stack">
+            <button class="btn btn--primary btn--block" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>
+              {% if event %}Save changes{% else %}Create event{% endif %}
+            </button>
+            <a class="btn btn--quiet btn--block" href="{% if event %}{{ event.get_absolute_url }}{% else %}{% url 'panel:events' %}{% endif %}">Cancel</a>
+          </div>
+        </div>
+
+        {% if event %}
+          <div class="card">
+            <h2 class="card__title">This event</h2>
+            <dl class="meta">
+              <dt>Number</dt><dd>{{ event.number }}</dd>
+              <dt>Status</dt><dd><span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span></dd>
+              <dt>Created</dt><dd>{{ event.created_at|date:"j M Y, H:i" }}</dd>
+            </dl>
+          </div>
+        {% else %}
+          <div class="card">
+            <h2 class="card__title">How an event runs</h2>
+            <ol class="guide">
+              <li><strong>Draft</strong> — add what it needs, from stock or outside.</li>
+              <li><strong>Confirmed</strong> — reserve the stock so nothing else takes it.</li>
+              <li><strong>In progress</strong> — log expenses and payments as they happen.</li>
+              <li><strong>Completed</strong> — record returns, damage and losses.</li>
+            </ol>
+            <p class="card__note">The event number (EVT-00001 and so on) is given when you save.</p>
+          </div>
+        {% endif %}
+      </aside>
+    </div>
+  </form>
+</div>
+{% endblock %}

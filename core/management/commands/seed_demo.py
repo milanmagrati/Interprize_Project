@@ -12,6 +12,7 @@ copied, so the panel's dashboard has a plausible few months of history to show.
 import random
 from datetime import timedelta
 
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -25,7 +26,12 @@ from core.models import (
     CounterSale,
     CounterSaleLine,
     Coupon,
+    Customer,
     Enquiry,
+    Event,
+    EventExpense,
+    EventItem,
+    EventPayment,
     FAQ,
     Feature,
     HeroSlide,
@@ -46,7 +52,11 @@ from core.models import (
 )
 
 CONTENT_MODELS = [
-    # Inventory first: sales and ledger rows hang off the items above them.
+    # Events first: their lines hold on to stock items, which refuse to go
+    # while anything points at them.
+    Event,
+    Customer,
+    # Then inventory: sales and ledger rows hang off the items above them.
     CounterSale,
     StockMovement,
     InventoryItem,
@@ -114,6 +124,13 @@ STOCK_ITEMS = [
     ("Cutlery set of 12", 4, 2, "set", 380, 700, 4, 3),
 ]
 
+#: Stock that goes out to an event and comes back. Everything else is used up.
+REUSABLE_STOCK = {
+    "Balloon arch kit", "Helium canister", "Backdrop cloth, 3m", "Chair cover",
+    "Table runner", "Fairy light string, 10m", "Warm uplighter",
+    "Dinner plate set of 12", "Cutlery set of 12",
+}
+
 DECORATOR_NAMES = [
     "Lakshmi Crew", "Studio Marigold", "The Balloon Room", "Anand Events",
     "Petal & Post", "Northside Decor", "Bright Hall Team",
@@ -158,6 +175,7 @@ class Command(BaseCommand):
         self.seed_enquiries(categories)
         self.seed_coupons()
         self.seed_inventory(decorators)
+        self.seed_events()
 
         self.stdout.write(self.style.SUCCESS("\nSeeded. Sign in at /manage/ to edit any of it."))
 
@@ -483,6 +501,7 @@ class Command(BaseCommand):
                 cost_price=cost,
                 sale_price=price,
                 reorder_level=reorder,
+                usage_type="reusable" if name in REUSABLE_STOCK else "consumable",
                 location=f"Rack {group_index + 1}-{len(items) % 4 + 1}",
             )
             item.record_movement(
@@ -534,6 +553,115 @@ class Command(BaseCommand):
 
         sold = CounterSale.objects.count()
         self.stdout.write(f"  {sold} counter sales, {StockMovement.objects.count()} ledger rows")
+
+    def seed_events(self):
+        """
+        A handful of events in every state, built through the same model methods
+        the panel calls, so each reservation and return lands in the ledger.
+        """
+        if Event.objects.exists() or not InventoryItem.objects.exists():
+            return
+
+        today = timezone.localdate()
+        customers = [
+            Customer.objects.create(
+                name=f"{first} {last}",
+                phone=f"+9198{random.randint(10000000, 99999999)}",
+                email=f"{first.lower()}.{last.lower()}@example.com",
+            )
+            for first, last in [
+                ("Ananya", "Iyer"), ("Vikram", "Malhotra"), ("Fatima", "Sheikh"),
+                ("Rohan", "Nair"), ("Priya", "Kapoor"),
+            ]
+        ]
+
+        #: (name, customer, days from today, guests, revenue, final status,
+        #:  [(stock item, qty)], [(external, qty, unit cost)], [(expense, category, amount)],
+        #:  share of revenue paid)
+        plans = [
+            ("Iyer wedding reception", 0, 12, 250, 185000, "confirmed",
+             [("Chair cover", 40), ("Table runner", 8), ("Rose bunch (20 stems)", 6)],
+             [("Mandap flower wall", 1, 42000)],
+             [("Venue deposit", "venue", 25000)], 0.4),
+            ("Malhotra 50th anniversary", 1, 3, 80, 64000, "in_progress",
+             [("Chair cover", 30), ("Fairy light string, 10m", 3), ("Latex balloon pack of 50", 4)],
+             [("Live violinist", 1, 9000)],
+             [("Tempo hire", "transport", 2200), ("Crew meals", "food", 1800)], 0.5),
+            ("Sheikh baby shower", 2, -6, 40, 38000, "completed",
+             [("Table runner", 6), ("Backdrop cloth, 3m", 9), ("Foil number balloon", 6)],
+             [("Custom welcome banner", 1, 1800)],
+             [("Fuel", "fuel", 900), ("Decor helper", "staff", 1500)], 1.0),
+            ("Nair corporate launch", 3, 21, 120, 96000, "draft",
+             [("Backdrop cloth, 3m", 12), ("Dinner plate set of 12", 3)],
+             [("Rented sound system", 1, 14000)], [], 0),
+            ("Kapoor engagement", 4, 9, 150, 72000, "cancelled",
+             [("Chair cover", 30)], [], [], 0),
+        ]
+
+        for (name, who, days, guests, revenue, status, stock_lines, externals,
+             expenses, share) in plans:
+            event = Event.objects.create(
+                name=name, customer=customers[who], guests=guests, revenue=revenue,
+                event_date=today + timedelta(days=days),
+                location=random.choice([
+                    "Palace Grounds, Bellary Road", "The Leela, Old Airport Road",
+                    "Rooftop, Indiranagar", "Community hall, Jayanagar 4th Block",
+                ]),
+            )
+            for item_name, quantity in stock_lines:
+                item = InventoryItem.objects.filter(name=item_name).first()
+                if item is None:
+                    continue
+                # The demo counter sales may have run the shelf short; take
+                # what is free rather than fail.
+                quantity = min(quantity, int(item.available_quantity))
+                if quantity > 0:
+                    event.add_inventory_item(item, quantity)
+            for item_name, quantity, cost in externals:
+                EventItem.objects.create(
+                    event=event, item_type="external", name=item_name,
+                    quantity=quantity, unit_cost=cost, vendor="Local vendor",
+                )
+            for label, category, amount in expenses:
+                EventExpense.objects.create(
+                    event=event, name=label, category=category, amount=amount,
+                    spent_on=min(today, event.event_date),
+                )
+            if share:
+                EventPayment.objects.create(
+                    event=event, amount=int(revenue * share), method="upi",
+                    paid_on=min(today, event.event_date), reference="Advance",
+                )
+
+            if status == "draft":
+                continue
+            try:
+                self.advance(event, status)
+            except ValidationError:
+                pass  # not enough free stock to go further; it stays where it got to
+
+        self.stdout.write(f"  {Event.objects.count()} events for {Customer.objects.count()} customers")
+
+    @staticmethod
+    def advance(event, status):
+        event.confirm()
+        if status == "cancelled":
+            event.cancel()
+            return
+        event.allocate()
+        if status == "confirmed":
+            return
+        event.start()
+        if status == "in_progress":
+            return
+        for line in event.items.filter(item_type="inventory"):
+            if line.usage_type == "reusable":
+                # One of everything reusable comes back broken, so the demo
+                # shows a write-off.
+                line.record_usage(returned=line.outstanding - 1, damaged=1)
+            else:
+                line.record_usage(consumed=line.outstanding)
+        event.complete()
 
     def seed_coupons(self):
         rows = [
