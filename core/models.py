@@ -548,8 +548,9 @@ class Package(Positioned, PictureMixin, Timestamped):
     @property
     def gallery(self):
         """
-        Detail-page photos. Falls back to five placeholders so a new package
-        still has a working gallery before anyone uploads to it.
+        Detail-page photos: the extra gallery photos if any were uploaded,
+        else the product's own picture, else five placeholders so a brand
+        new package still has a working gallery before anyone uploads to it.
         """
         shots = [
             Shot(url=img.url, thumb=img.thumb, alt=img.alt or self.alt)
@@ -557,6 +558,8 @@ class Package(Positioned, PictureMixin, Timestamped):
         ]
         if shots:
             return shots
+        if self.has_own_image:
+            return [Shot(url=self.image, thumb=self.image, alt=self.alt)]
         seed = self.slug or "package"
         return [
             Shot(
