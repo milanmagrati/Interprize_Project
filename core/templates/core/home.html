@@ -36,7 +36,8 @@
       </p>
 
       {# GET search: no CSRF token by design, it would leak the token into the URL. #}
-      <form class="searchbar" method="get" action="{% url 'core:categories' %}" novalidate>
+      {# Opens the booking page with these three already filled in. #}
+      <form class="searchbar" method="get" action="{% url 'core:book' %}" novalidate>
         <div class="searchbar__field">
           <label class="searchbar__label" for="hero-city">City</label>
           <div class="searchbar__control">
@@ -66,13 +67,13 @@
           <label class="searchbar__label" for="hero-date">Date</label>
           <div class="searchbar__control">
             <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
-            <input id="hero-date" type="date" name="date">
+            <input id="hero-date" type="date" name="date" min="{% now 'Y-m-d' %}">
           </div>
         </div>
 
         <button class="btn btn--accent searchbar__submit" type="submit">
-          <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
-          <span>Find setups</span>
+          <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
+          <span>Plan my event</span>
         </button>
       </form>
     </div>
@@ -93,7 +94,7 @@
   <div class="wrap">
     <div class="scroller__head">
       <h2 class="scroller__title" id="occasions-title">Browse by occasion</h2>
-      <a class="link-arrow" href="{% url 'core:categories' %}">All categories <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg></a>
+      <a class="link-arrow" href="{% url 'core:categories' %}">All occasions <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg></a>
     </div>
   </div>
   <div class="scroller" data-scroller>
@@ -317,7 +318,7 @@ button under the grid carries on to the full products page.
     </div>
 
     <div class="enquiry__form card">
-      {% include "core/partials/_inquiry_form.html" %}
+      {% include "core/partials/_inquiry_form.html" with no_anchor=1 %}
     </div>
   </div>
 </section>

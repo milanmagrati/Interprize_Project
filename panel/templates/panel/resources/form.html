@@ -261,6 +261,37 @@ grouped cards; anything else falls back to a single column of fields.
           </div>
         {% endif %}
 
+        {% if resource.slug == "enquiries" and instance %}
+          <div class="card enqturn">
+            <h2 class="card__title">Turn it into an event</h2>
+            {% if instance.event %}
+              <p class="card__note">
+                This enquiry became <strong>{{ instance.event.number }}</strong> ·
+                {{ instance.event.get_status_display|lower }}, {{ instance.event.event_date|date:"j M Y" }}.
+              </p>
+              <a class="btn btn--ghost btn--block" href="{% url 'panel:event_detail' instance.event.pk %}">
+                <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>Open {{ instance.event.number }}
+              </a>
+            {% else %}
+              <p class="card__note">
+                Customer ready to go ahead? Start an event with their details, the occasion
+                {% if instance.package %}and {{ instance.package.title }}{% endif %} already filled in.
+                You check it before it is saved.
+              </p>
+              {% if can_write %}
+                <a class="btn btn--primary btn--block" href="{% url 'panel:event_create' %}?enquiry={{ instance.pk }}">
+                  <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>Create event
+                </a>
+              {% endif %}
+            {% endif %}
+            {% if instance.phone %}
+              <a class="btn btn--quiet btn--block" href="tel:{{ instance.phone }}">
+                <svg class="icon" aria-hidden="true"><use href="#p-phone"></use></svg>Call {{ instance.phone }}
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+
         {% if sale %}
           <div class="card">
             <h2 class="card__title">This sale</h2>

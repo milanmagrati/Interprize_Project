@@ -38,14 +38,6 @@ class HeroSlideAdmin(admin.ModelAdmin):
     list_filter = ("media_type", "is_active")
 
 
-@admin.register(models.Booking)
-class BookingAdmin(admin.ModelAdmin):
-    list_display = ("reference", "customer_name", "event_date", "status", "amount")
-    list_filter = ("status", "payment_status", "city")
-    search_fields = ("reference", "customer_name", "phone", "email")
-    date_hierarchy = "event_date"
-
-
 @admin.register(models.Enquiry)
 class EnquiryAdmin(admin.ModelAdmin):
     list_display = ("name", "occasion", "status", "created_at")

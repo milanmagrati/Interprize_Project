@@ -3,6 +3,7 @@ The Events pages, driven the way a person would: through the panel's URLs,
 signed in with a real role.
 """
 
+import re
 import shutil
 import tempfile
 from datetime import timedelta
@@ -351,6 +352,112 @@ class WorkflowTests(EventPanelTestCase):
         bare = EventItem.objects.create(event=self.event, item_type="external", name="Tent", quantity=1)
         self.assertEqual(bare.picture, "")
 
+    def test_status_changes_from_the_list_come_straight_back_to_it(self):
+        self.event.add_inventory_item(self.chair, 10)
+        list_url = self.url("events") + "?status=draft"
+        page = self.client.get(list_url)
+        self.assertContains(page, 'name="action" value="confirm"')
+        self.assertContains(page, "Next: confirm event")
+
+        response = self.client.post(self.url("event_action", self.event.pk), {
+            "action": "confirm", "next": list_url,
+        })
+        self.assertRedirects(response, f"{list_url}#event-{self.event.pk}", fetch_redirect_response=False)
+        self.assertEqual(self.reload().status, "confirmed")
+
+        # The list now offers the next step, and shows the new status at once.
+        page = self.client.get(self.url("events"))
+        self.assertContains(page, f"{self.event.number} confirmed.")
+        self.assertContains(page, 'name="action" value="allocate"')
+        self.client.post(self.url("event_action", self.event.pk), {"action": "allocate", "next": list_url})
+        page = self.client.get(self.url("events"))
+        self.assertContains(page, 'name="action" value="start"')
+        self.assertContains(page, f"{self.event.number}: reserved stock on 1 line.")
+
+    def steps_of(self, response):
+        """The progress track's step classes, in order."""
+        html = response.content.decode()
+        track = html[html.index('<ol class="steps'):html.index("</ol>", html.index('<ol class="steps'))]
+        return re.findall(r'class="steps__one ([^"]*)"', track)
+
+    def test_progress_track_walks_through_every_status(self):
+        self.event.add_inventory_item(self.chair, 10)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual(
+            self.steps_of(page), ["is-current", "is-todo has-action", "is-todo", "is-todo"],
+        )
+        self.assertContains(page, "When the customer says yes")
+
+        self.act("confirm")
+        page = self.client.get(self.event.get_absolute_url())
+        steps = self.steps_of(page)
+        self.assertEqual(steps[:2], ["is-done", "is-current is-arrived"])
+        # Starting waits on the stock, and says so instead of offering a button.
+        self.assertEqual(steps[2], "is-todo")
+        self.assertContains(page, "Reserve the stock first")
+        self.assertEqual(self.reload().confirmed_at is not None, True)
+        # The celebration plays once, not on every visit.
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertNotIn("is-arrived", " ".join(self.steps_of(page)))
+
+        self.act("allocate")
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual(self.steps_of(page)[2], "is-todo has-action")
+
+        self.act("start")
+        self.act("complete")
+        page = self.client.get(self.event.get_absolute_url())
+        # The last step is finished, but stock is still out.
+        self.assertEqual(self.steps_of(page), ["is-done", "is-done", "is-done", "is-warn is-arrived"])
+        self.assertContains(page, "Stock still out")
+
+        self.act("finalize")
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual(self.steps_of(page), ["is-done", "is-done", "is-done", "is-done is-arrived"])
+        self.assertContains(page, "All stock settled")
+        self.assertContains(page, "is-settled")
+        event = self.reload()
+        self.assertTrue(event.started_at and event.completed_at)
+        self.assertContains(page, "by editor")
+
+    def test_cancelled_track_shows_how_far_it_got(self):
+        self.act("confirm")
+        self.act("cancel")
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertEqual(self.steps_of(page), ["is-done", "is-done", "is-cancelled is-arrived"])
+        self.assertContains(page, "steps--cancelled")
+        self.assertContains(page, "Stock released")
+        self.assertEqual(self.reload().reached, "confirmed")
+
+    def test_viewer_gets_no_buttons_on_the_track(self):
+        self.client.force_login(self.viewer)
+        page = self.client.get(self.event.get_absolute_url())
+        self.assertNotIn("has-action", " ".join(self.steps_of(page)))
+
+    def test_list_action_ignores_an_outside_next(self):
+        response = self.client.post(self.url("event_action", self.event.pk), {
+            "action": "confirm", "next": "https://evil.example/manage/events/",
+        })
+        self.assertRedirects(response, self.event.get_absolute_url(), fetch_redirect_response=False)
+
+    def test_a_stale_button_says_what_happened(self):
+        self.act("cancel")
+        response = self.client.post(self.url("event_action", self.event.pk), {
+            "action": "confirm", "next": self.url("events"),
+        }, follow=True)
+        self.assertContains(response, f"{self.event.number} is cancelled now")
+        self.assertEqual(self.reload().status, "cancelled")
+
+    def test_panel_pages_are_never_served_from_the_browser_cache(self):
+        for url in (self.url("events"), self.event.get_absolute_url()):
+            response = self.client.get(url)
+            self.assertIn("no-store", response["Cache-Control"])
+
+    def test_viewer_sees_no_status_buttons_on_the_list(self):
+        self.client.force_login(self.viewer)
+        page = self.client.get(self.url("events"))
+        self.assertNotContains(page, 'name="action"')
+
     def test_cancelled_event_shows_no_profit_or_amount_due(self):
         self.act("cancel")
         response = self.client.get(self.event.get_absolute_url())
@@ -509,3 +616,70 @@ class InventoryIntegrationTests(EventPanelTestCase):
         response = self.client.get(self.url("resource_edit", "stock-items", self.chair.pk))
         self.assertContains(response, "Booked on events")
         self.assertContains(response, self.event.number)
+
+
+class DashboardAndScheduleTests(EventPanelTestCase):
+    """The dashboard, schedule and staff numbers all read events now."""
+
+    def setUp(self):
+        super().setUp()
+        from core.models import StaffCategory, StaffMember
+
+        self.decorators = StaffCategory.objects.get_or_create(name="Decorator", defaults={"slug": "decorator"})[0]
+        self.crew = StaffMember.objects.create(name="Studio Marigold", category=self.decorators)
+        self.today = timezone.localdate()
+        # One this month, one overdue and still open, one cancelled.
+        self.event.event_date = self.today
+        self.event.time_slot = "4 PM – 6 PM"
+        self.event.save()
+        self.event.crew.add(self.crew)
+        self.late = Event.objects.create(
+            name="Late launch", customer=self.customer, revenue=10000,
+            event_date=self.today - timedelta(days=3),
+        )
+        self.gone = Event.objects.create(
+            name="Called off", customer=self.customer, revenue=99999, event_date=self.today,
+        )
+        self.gone.cancel()
+
+    def test_dashboard_counts_events(self):
+        response = self.client.get(self.url("dashboard"))
+        self.assertContains(response, "Events this month")
+        self.assertContains(response, "Open events")
+        self.assertContains(response, "1 past their date")
+        self.assertContains(response, self.late.number)
+        self.assertContains(response, "₹250,000")            # on the upcoming list
+        self.assertNotContains(response, "99,999")          # cancelled events earn nothing
+        self.assertContains(response, "Studio Marigold")     # the crew on the upcoming list
+        self.assertNotContains(response, "/manage/bookings/")
+
+    def test_schedule_places_events_on_their_day(self):
+        response = self.client.get(self.url("schedule"))
+        self.assertContains(response, self.url("event_detail", self.event.pk))
+        self.assertContains(response, "crew: Studio Marigold")
+        self.assertContains(response, "New event")
+        self.assertContains(response, "In progress")         # the legend is the event statuses
+
+    def test_crew_is_picked_on_the_form_and_counts_as_open_jobs(self):
+        form = self.client.get(self.url("event_edit", self.event.pk))
+        self.assertContains(form, "Studio Marigold · Decorator")
+        response = self.client.post(self.url("event_create"), {
+            "name": "Crewed party", "customer": self.customer.pk,
+            "event_date": (self.today + timedelta(days=4)).isoformat(),
+            "guests": 10, "revenue": 5000, "crew": [self.crew.pk],
+        })
+        created = Event.objects.get(name="Crewed party")
+        self.assertRedirects(response, self.url("event_detail", created.pk) + "#items", fetch_redirect_response=False)
+        self.assertEqual(list(created.crew.all()), [self.crew])
+        self.assertEqual(self.crew.open_jobs, 2)
+        self.assertEqual(self.decorators.open_jobs, 2)
+        self.assertContains(self.client.get(self.url("event_detail", created.pk)), "Studio Marigold")
+        self.client.force_login(self.admin)
+        staff_list = self.client.get(self.url("resource_list", "staffs") + "?sort=-job_total")
+        self.assertEqual(staff_list.status_code, 200)
+
+    def test_old_bookings_are_gone(self):
+        self.assertEqual(self.client.get("/manage/bookings/").status_code, 404)
+        search = self.client.get(self.url("search") + "?q=Rao").json()["results"]
+        self.assertIn("Events", {row["group"] for row in search})
+        self.assertNotIn("Bookings", {row["group"] for row in search})

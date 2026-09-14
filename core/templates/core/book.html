@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Book an event &mdash; {{ brand.name }}{% endblock %}
+
+{% comment %}
+The booking page. One ordinary form in five steps: it works top to bottom
+without JavaScript, and main.js (section 18) adds the live summary, filters the
+setups to the chosen occasion and marks each step done as it is filled.
+It posts to `core:book`, which turns it into a draft event in the panel.
+{% endcomment %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="bookpage">
+  <div class="wrap">
+    <header class="bookpage__head">
+      <p class="eyebrow">
+        <svg class="eyebrow__garland" viewBox="0 0 34 14" aria-hidden="true" focusable="false">
+          <path d="M2 12C2 5.9 5 2 9 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M32 12c0-6.1-3-10-7-10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          <circle cx="11.5" cy="4" r="2.2"/><circle cx="17" cy="6.6" r="2.6"/><circle cx="22.5" cy="4" r="2.2"/>
+        </svg>
+        Book an event
+      </p>
+      <h1 class="bookpage__title">Let&rsquo;s plan your celebration</h1>
+      <p class="bookpage__lead">
+        Tell us the occasion, the day and the place. A planner calls you to go over it and confirm —
+        you can follow every step on your booking page.
+      </p>
+      <ul class="bookpage__promises">
+        <li><svg class="icon" aria-hidden="true"><use href="#i-credit-card"></use></svg>Nothing to pay now</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg>A call within the hour</li>
+        <li><svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>Change anything until it is confirmed</li>
+      </ul>
+    </header>
+
+    <form class="bookflow" method="post" action="{% url 'core:book' %}" novalidate data-bookflow data-once>
+      {% csrf_token %}
+      <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+
+      <div class="bookflow__main">
+        {% if errors %}
+          <div class="bookflow__errors" role="alert" tabindex="-1" data-bookflow-errors>
+            <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"></use></svg>
+            <div>
+              <strong>A few details need another look</strong>
+              <ul>
+                {% for field, field_errors in errors.items %}
+                  {% for message in field_errors %}
+                    <li>{% if field != "__all__" %}<a href="#field-{{ field }}">{{ message }}</a>{% else %}{{ message }}{% endif %}</li>
+                  {% endfor %}
+                {% endfor %}
+              </ul>
+            </div>
+          </div>
+        {% endif %}
+
+        {# ------------------------------------------------------- 1. occasion #}
+        <fieldset class="bookstep{% if errors.occasion %} has-error{% endif %}" id="field-occasion" data-bookstep="occasion">
+          <legend class="bookstep__head">
+            <span class="bookstep__num" aria-hidden="true"><span>1</span><svg class="icon"><use href="#i-check"></use></svg></span>
+            <span class="bookstep__text">
+              <strong>What are you celebrating?</strong>
+              <small>Pick one — it decides the setups we show you next.</small>
+            </span>
+          </legend>
+          {% if errors.occasion %}<p class="field__error">{{ errors.occasion|first }}</p>{% endif %}
+          <div class="occasions">
+            {% for occasion in occasions %}
+              <label class="occasion-tile">
+                <input type="radio" name="occasion" value="{{ occasion.slug }}" data-name="{{ occasion.name }}"
+                       {% if values.occasion == occasion.slug %}checked{% endif %}>
+                <span class="occasion-tile__body">
+                  <span class="occasion-tile__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ occasion.icon }}"></use></svg></span>
+                  <span class="occasion-tile__name">{{ occasion.name }}</span>
+                  <span class="occasion-tile__from">from &#8377;{{ occasion.price_from|intcomma }}</span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        {# ---------------------------------------------------------- 2. setup #}
+        <fieldset class="bookstep{% if errors.package %} has-error{% endif %}" id="field-package" data-bookstep="package">
+          <legend class="bookstep__head">
+            <span class="bookstep__num" aria-hidden="true"><span>2</span><svg class="icon"><use href="#i-check"></use></svg></span>
+            <span class="bookstep__text">
+              <strong>Pick a setup</strong>
+              <small>A ready-made design at a fixed price — or leave it to us and we design one together.</small>
+            </span>
+          </legend>
+          {% if errors.package %}<p class="field__error">{{ errors.package|first }}</p>{% endif %}
+          <div class="setups" data-setups>
+            <label class="setup-card setup-card--custom">
+              <input type="radio" name="package" value="" data-price="0" data-title="We plan it together"
+                     {% if not values.package %}checked{% endif %}>
+              <span class="setup-card__media setup-card__media--custom">
+                <svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>
+              </span>
+              <span class="setup-card__body">
+                <span class="setup-card__title">Plan it with us</span>
+                <span class="setup-card__meta">A planner designs the setup and quotes it on the call</span>
+                <span class="setup-card__price">Quote on the call</span>
+              </span>
+              <span class="setup-card__tick" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
+            </label>
+            {% for package in packages %}
+              <label class="setup-card" data-occasion="{{ package.category.slug }}">
+                <input type="radio" name="package" value="{{ package.slug }}" data-price="{{ package.price }}" data-title="{{ package.title }}"
+                       {% if values.package == package.slug %}checked{% endif %}>
+                <span class="setup-card__media">
+                  <img src="{{ package.image }}" alt="" width="320" height="240" loading="lazy" decoding="async">
+                  {% if package.discount_percent %}<span class="setup-card__off">{{ package.discount_percent }}% off</span>{% endif %}
+                </span>
+                <span class="setup-card__body">
+                  <span class="setup-card__title">{{ package.title }}</span>
+                  <span class="setup-card__meta">{{ package.category.name }}{% if package.duration %} · {{ package.duration }}{% endif %}</span>
+                  <span class="setup-card__price">&#8377;{{ package.price|intcomma }}{% if package.saving %} <s>&#8377;{{ package.original_price|intcomma }}</s>{% endif %}</span>
+                </span>
+                <span class="setup-card__tick" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
+              </label>
+            {% endfor %}
+          </div>
+          <p class="setups__note" data-setups-note hidden></p>
+        </fieldset>
+
+        {# ------------------------------------------------- 3. when and where #}
+        <fieldset class="bookstep{% if errors.event_date or errors.time_slot or errors.address or errors.guests %} has-error{% endif %}" data-bookstep="when">
+          <legend class="bookstep__head">
+            <span class="bookstep__num" aria-hidden="true"><span>3</span><svg class="icon"><use href="#i-check"></use></svg></span>
+            <span class="bookstep__text">
+              <strong>When and where</strong>
+              <small>The date, a window for the crew to arrive, and the venue.</small>
+            </span>
+          </legend>
+
+          <div class="bookgrid">
+            <label class="field{% if errors.event_date %} has-error{% endif %}" id="field-event_date">
+              <span class="field__label">Event date</span>
+              <input type="date" name="event_date" value="{{ values.event_date }}" min="{{ min_date }}" max="{{ max_date }}" required>
+              {% if errors.event_date %}<span class="field__error">{{ errors.event_date|first }}</span>{% endif %}
+            </label>
+
+            <label class="field{% if errors.guests %} has-error{% endif %}" id="field-guests">
+              <span class="field__label">Guests <em>roughly</em></span>
+              <input type="number" name="guests" value="{{ values.guests }}" min="0" max="100000" inputmode="numeric" placeholder="40">
+              {% if errors.guests %}<span class="field__error">{{ errors.guests|first }}</span>{% endif %}
+            </label>
+          </div>
+
+          <div class="booking__slots{% if errors.time_slot %} has-error{% endif %}" id="field-time_slot" role="group" aria-labelledby="slots-label">
+            <span class="field__label" id="slots-label">Arrival window <em>optional</em></span>
+            <div class="slots">
+              {% for slot in slots %}
+                <label class="slot{% if not slot.available %} slot--gone{% endif %}">
+                  <input type="radio" name="time_slot" value="{{ slot.value }}" data-label="{{ slot.label }}"
+                         {% if not slot.available %}disabled{% elif values.time_slot == slot.value %}checked{% endif %}>
+                  <span>{{ slot.label }}{% if not slot.available %} <em>full</em>{% endif %}</span>
+                </label>
+              {% endfor %}
+            </div>
+            {% if errors.time_slot %}<span class="field__error">{{ errors.time_slot|first }}</span>{% endif %}
+          </div>
+
+          <div class="bookgrid">
+            <label class="field" id="field-city">
+              <span class="field__label">City</span>
+              <span class="select">
+                <select name="city">
+                  <option value="">Choose a city</option>
+                  {% for city in cities %}
+                    <option value="{{ city.slug }}"{% if values.city == city.slug or values.city == city.name %} selected{% endif %}>{{ city.name }}</option>
+                  {% endfor %}
+                </select>
+                <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+              </span>
+            </label>
+
+            <label class="field field--span{% if errors.address %} has-error{% endif %}" id="field-address">
+              <span class="field__label">Venue and address</span>
+              <input type="text" name="address" value="{{ values.address }}" maxlength="200" autocomplete="street-address"
+                     placeholder="Flat 4B, Palm Grove Apartments, Indiranagar" required>
+              {% if errors.address %}<span class="field__error">{{ errors.address|first }}</span>{% endif %}
+            </label>
+          </div>
+        </fieldset>
+
+        {# --------------------------------------------------------- 4. extras #}
+        {% if extras %}
+          <fieldset class="bookstep" data-bookstep="extras" data-optional>
+            <legend class="bookstep__head">
+              <span class="bookstep__num" aria-hidden="true"><span>4</span><svg class="icon"><use href="#i-check"></use></svg></span>
+              <span class="bookstep__text">
+                <strong>Any extras?</strong>
+                <small>Optional. Added to the estimate as you tick them.</small>
+              </span>
+            </legend>
+            <div class="extras">
+              {% for extra in extras %}
+                <label class="extra">
+                  <input type="checkbox" name="add_ons" value="{{ extra.pk }}" data-price="{{ extra.price }}" data-name="{{ extra.name }}"
+                         {% if extra.pk|stringformat:"s" in picked_extras %}checked{% endif %}>
+                  <span class="extra__box" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
+                  <span class="extra__name">{{ extra.name }}</span>
+                  <span class="extra__price">+&#8377;{{ extra.price|intcomma }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endif %}
+
+        {# ---------------------------------------------------------- 5. you #}
+        <fieldset class="bookstep{% if errors.name or errors.phone or errors.email %} has-error{% endif %}" data-bookstep="you">
+          <legend class="bookstep__head">
+            <span class="bookstep__num" aria-hidden="true"><span>{% if extras %}5{% else %}4{% endif %}</span><svg class="icon"><use href="#i-check"></use></svg></span>
+            <span class="bookstep__text">
+              <strong>Your details</strong>
+              <small>So we can call to confirm. We never share them.</small>
+            </span>
+          </legend>
+
+          <div class="bookgrid">
+            <label class="field{% if errors.name %} has-error{% endif %}" id="field-name">
+              <span class="field__label">Your name</span>
+              <input type="text" name="name" value="{{ values.name }}" autocomplete="name" maxlength="120" placeholder="Ananya Raghavan" required>
+              {% if errors.name %}<span class="field__error">{{ errors.name|first }}</span>{% endif %}
+            </label>
+
+            <label class="field{% if errors.phone %} has-error{% endif %}" id="field-phone">
+              <span class="field__label">Phone</span>
+              <input type="tel" name="phone" value="{{ values.phone }}" autocomplete="tel" maxlength="40" placeholder="98765 43210" required>
+              {% if errors.phone %}<span class="field__error">{{ errors.phone|first }}</span>{% endif %}
+            </label>
+
+            <label class="field field--span{% if errors.email %} has-error{% endif %}" id="field-email">
+              <span class="field__label">Email <em>optional</em></span>
+              <input type="email" name="email" value="{{ values.email }}" autocomplete="email" placeholder="you@example.com">
+              {% if errors.email %}<span class="field__error">{{ errors.email|first }}</span>{% endif %}
+            </label>
+
+            <label class="field field--span" id="field-notes">
+              <span class="field__label">Anything we should know? <em>optional</em></span>
+              <textarea name="notes" rows="3" maxlength="2000" placeholder="Colours you love, a surprise to keep, lift access, parking for the van…">{{ values.notes }}</textarea>
+            </label>
+          </div>
+        </fieldset>
+      </div>
+
+      {# ----------------------------------------------------------- summary #}
+      <aside class="bookflow__side">
+        <div class="booksum" data-booksum>
+          <p class="booksum__eyebrow">Your booking</p>
+          <dl class="booksum__rows">
+            <div><dt>Occasion</dt><dd data-sum="occasion">Not chosen yet</dd></div>
+            <div><dt>Setup</dt><dd data-sum="package">We plan it together</dd></div>
+            <div><dt>Date</dt><dd data-sum="date">Not chosen yet</dd></div>
+            <div data-sum-row="slot" hidden><dt>Arrival</dt><dd data-sum="slot"></dd></div>
+          </dl>
+          <ul class="booksum__extras" data-sum="extras" hidden></ul>
+          <div class="booksum__total">
+            <span>Estimated total</span>
+            <strong data-sum="total">Quote on the call</strong>
+          </div>
+          <div class="booksum__progress" aria-hidden="true"><span data-sum="progress"></span></div>
+          <button class="btn btn--accent btn--lg btn--block booksum__submit" type="submit">
+            Send booking request <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+          </button>
+          <p class="booksum__note">
+            <svg class="icon" aria-hidden="true"><use href="#i-shield"></use></svg>
+            No payment now. After we confirm, a 30% advance holds the date.
+          </p>
+          <p class="booksum__ask">
+            Just exploring? <a href="{% url 'core:enquire' %}">Ask a question</a> instead.
+          </p>
+        </div>
+      </aside>
+    </form>
+  </div>
+</section>
+{% endblock %}

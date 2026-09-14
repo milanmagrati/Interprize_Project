@@ -5,7 +5,7 @@ of whatever is already stored, everything else is a labelled control.
 <div class="field{% if wide %} field--wide{% endif %}{% if field.errors %} field--error{% endif %}"
      data-field="{{ field.name }}">
 
-  {% if field.field.widget.input_type == "checkbox" %}
+  {% if field.field.widget.input_type == "checkbox" and not field.field.widget.allow_multiple_selected %}
     <label class="switch-row">
       {{ field }}
       <span class="switch__track" aria-hidden="true"><span class="switch__dot"></span></span>

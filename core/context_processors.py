@@ -15,7 +15,9 @@ def site_chrome(request):
         "cities": cities,
         "popular_cities": queries.popular_cities(),
         "categories": queries.categories(),
-        "cart_count": queries.cart_count(),
+        # Bookings made or looked up in this browser, still to come.
+        # No query at all for a browser that has not booked anything.
+        "booking_count": queries.open_booking_count(request.session.get("my_bookings", [])),
         "active_city": request.GET.get("city") or default_city,
         # Read by the header's Products drop-down. Lazy, so a menu without a
         # Products link never runs the query.

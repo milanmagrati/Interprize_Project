@@ -17,16 +17,22 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Count, F, Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.models import (
+    ActivityLog,
+    Customer,
+    Enquiry,
     Event,
     EventExpense,
     EventItem,
     EventPayment,
     InventoryItem,
+    StaffMember,
     normalise_quantity,
 )
 
@@ -91,12 +97,40 @@ ACTIONS = {
         "done": "released its reservations", "method": "release_reservations",
     },
 }
+#: Short names for the one-click buttons on the list.
+SHORT_LABELS = {
+    "confirm": "Confirm", "allocate": "Reserve", "start": "Start",
+    "complete": "Complete", "finalize": "Finalise", "cancel": "Cancel",
+    "release": "Release",
+}
 STEPS = [
     ("draft", "Draft"),
     ("confirmed", "Confirmed"),
     ("in_progress", "In progress"),
     ("completed", "Completed"),
 ]
+#: The button that takes an event onto each step.
+STEP_ACTIONS = {"confirmed": "confirm", "in_progress": "start", "completed": "complete"}
+#: What the activity log says when a step is reached, and back again.
+LOG_WORDS = {
+    "confirmed": "confirmed", "in_progress": "started",
+    "completed": "completed", "cancelled": "cancelled",
+}
+LOG_STEPS = {word: step for step, word in LOG_WORDS.items()}
+CURRENT_HINTS = {
+    "draft": "Planning — add what it needs",
+    "confirmed": "Booked — getting ready",
+    "in_progress": "Happening now",
+}
+NEXT_HINTS = {
+    "confirmed": "When the customer says yes",
+    "completed": "When the crew is back",
+}
+#: Buttons that move an event onto a step, and the step they land on.
+ARRIVES_AT = {
+    "confirm": "confirmed", "start": "in_progress", "complete": "completed",
+    "cancel": "cancelled", "finalize": "finalized",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +163,32 @@ def _back(event, anchor=""):
     return redirect(f"{url}#{anchor}" if anchor else url)
 
 
+def _after_action(request, event, anchor=""):
+    """Back where the button was pressed: the list, if it came from there."""
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ) and target.startswith(reverse("panel:events")):
+        return redirect(f"{target.split('#')[0]}#event-{event.pk}")
+    return _back(event, anchor)
+
+
+def available_actions(event):
+    """The status buttons an event offers right now, most useful first."""
+    actions = []
+    for key in STATUS_ACTIONS.get(event.status, []):
+        # Buttons with nothing to do stay off the page rather than failing.
+        if key == "allocate" and not event.needs_allocation:
+            continue
+        # Starting is refused until the stock is reserved, so do not offer it.
+        if key == "start" and event.needs_allocation:
+            continue
+        if key in ("finalize", "release") and not event.has_outstanding:
+            continue
+        actions.append(dict(ACTIONS[key], key=key, short=SHORT_LABELS[key]))
+    return actions
+
+
 def _date(raw):
     try:
         return parse_date(raw or "")
@@ -138,13 +198,16 @@ def _date(raw):
 
 def _event_or_404(pk):
     return get_object_or_404(
-        Event.objects.select_related("customer", "created_by").prefetch_related(
+        Event.objects.select_related(
+            "customer", "created_by", "occasion", "package", "package__category",
+        ).prefetch_related(
             Prefetch(
                 "items",
                 queryset=EventItem.objects.select_related("inventory_item", "supplier"),
             ),
             Prefetch("expenses", queryset=EventExpense.objects.select_related("created_by")),
             Prefetch("payments", queryset=EventPayment.objects.select_related("received_by")),
+            Prefetch("crew", queryset=StaffMember.objects.select_related("category")),
         ),
         pk=pk,
     )
@@ -162,7 +225,7 @@ def _filter_events(queryset, request, today):
         queryset = queryset.filter(
             Q(number__icontains=term) | Q(name__icontains=term)
             | Q(customer__name__icontains=term) | Q(customer__phone__icontains=term)
-            | Q(location__icontains=term)
+            | Q(location__icontains=term) | Q(occasion__name__icontains=term)
         )
 
     when = request.GET.get("when", "")
@@ -189,7 +252,7 @@ def event_list(request):
     today = timezone.localdate()
 
     events, term, when, date_from, date_to = _filter_events(
-        Event.objects.select_related("customer").with_paid(), request, today
+        Event.objects.select_related("customer", "occasion").with_paid(), request, today
     )
 
     # The tabs count what each would show with the other filters kept.
@@ -209,6 +272,15 @@ def event_list(request):
     else:
         status = ""
 
+    source = request.GET.get("source", "")
+    if source in dict(Event.SOURCE_CHOICES):
+        events = events.filter(source=source)
+    else:
+        source = ""
+    only_new = request.GET.get("new") == "1"
+    if only_new:
+        events = events.filter(is_new=True)
+
     payment = request.GET.get("payment", "")
     if payment == "unpaid":
         events = events.filter(paid_total=0)
@@ -224,6 +296,8 @@ def event_list(request):
         events = events.order_by(sort, "-id")
     else:
         sort = ""
+        # Unopened website bookings first, so nobody has to go looking.
+        events = events.order_by("-is_new", "-event_date", "-id")
 
     # Money across everything the filters matched, cancellations left out.
     live = events.exclude(status="cancelled")
@@ -265,8 +339,14 @@ def event_list(request):
         page_obj = paginator.page(1)
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
+    page_obj.object_list = list(page_obj.object_list)
+    for event in page_obj.object_list:
+        actions = available_actions(event)
+        # One button moves the event on; cancelling sits apart, behind a prompt.
+        event.next_action = next((a for a in actions if a["key"] != "cancel"), None)
+        event.cancel_action = next((a for a in actions if a["key"] == "cancel"), None)
 
-    is_filtered = bool(term or when or date_from or date_to or status or payment)
+    is_filtered = bool(term or when or date_from or date_to or status or payment or source or only_new)
     return render(request, "panel/events/list.html", panel_context(
         request,
         title="Events",
@@ -277,6 +357,10 @@ def event_list(request):
         page_obj=page_obj,
         q=term,
         status=status,
+        source=source,
+        only_new=only_new,
+        new_count=Event.objects.filter(is_new=True).count(),
+        source_choices=Event.SOURCE_CHOICES,
         payment=payment,
         when=when,
         date_from=date_from.isoformat() if date_from else "",
@@ -294,12 +378,45 @@ def event_list(request):
 # ---------------------------------------------------------------------------
 
 
+def _from_enquiry(enquiry):
+    """A new event's form, filled in from what the enquiry already says."""
+    occasion = enquiry.occasion_match
+    title = enquiry.package.title if enquiry.package_id else (
+        f"{occasion.name} celebration" if occasion else (enquiry.occasion or "Event")
+    )
+    initial = {
+        "name": f"{title} — {enquiry.name.split()[0] if enquiry.name else ''}".strip(" —"),
+        "occasion": occasion.pk if occasion else None,
+        "package": enquiry.package_id,
+        "event_date": enquiry.event_date,
+        "guests": enquiry.guests or None,
+        "location": enquiry.city,
+        "revenue": enquiry.package.price if enquiry.package_id else None,
+        "notes": f"From an enquiry on {enquiry.created_at:%d %b %Y}:\n{enquiry.message}".strip(),
+    }
+    customer = Customer.find_by_phone(enquiry.phone)
+    if customer:
+        initial["customer"] = customer.pk
+    else:
+        initial["new_customer_name"] = enquiry.name
+        initial["new_customer_phone"] = enquiry.phone
+    return initial
+
+
 @panel_login_required
 def event_create(request):
     if not _can_write(request):
         return _denied(request)
 
-    initial = {}
+    enquiry = None
+    raw = request.POST.get("enquiry") or request.GET.get("enquiry", "")
+    if raw.isdigit():
+        enquiry = Enquiry.objects.select_related("package", "package__category", "event").filter(pk=raw).first()
+    if enquiry and enquiry.event_id and request.method == "GET":
+        messages.info(request, f"That enquiry is already {enquiry.event.number}.")
+        return _back(enquiry.event)
+
+    initial = _from_enquiry(enquiry) if enquiry else {}
     if request.GET.get("customer", "").isdigit():
         initial["customer"] = request.GET["customer"]
     form = f.EventForm(request.POST or None, initial=initial)
@@ -307,8 +424,16 @@ def event_create(request):
         if form.is_valid():
             event = form.save(commit=False)
             event.created_by = request.user
+            if enquiry and not enquiry.event_id:
+                event.source = "enquiry"
             event.save()
+            form.save_m2m()
             log(request, "create", obj=event, model_label="Event")
+            if enquiry and not enquiry.event_id:
+                enquiry.event = event
+                if enquiry.status == "new":
+                    enquiry.status = "read"
+                enquiry.save(update_fields=["event", "status"])
             messages.success(
                 request, f"{event.number} created as a draft. Add what it needs next."
             )
@@ -316,7 +441,7 @@ def event_create(request):
         messages.error(request, "Some fields need another look.")
 
     return render(request, "panel/events/form.html", panel_context(
-        request, title="New event", nav_key="events", form=form, event=None,
+        request, title="New event", nav_key="events", form=form, event=None, enquiry=enquiry,
     ))
 
 
@@ -368,6 +493,100 @@ def event_delete(request, pk):
 # ---------------------------------------------------------------------------
 
 
+def _timeline(event, actions, arrived=""):
+    """
+    The progress track at the top of an event: every step with when it was
+    reached and by whom, what is happening now, and — for the step after the
+    current one — the button that gets there, or what is holding it up.
+
+    Returns (steps, progress), progress being how far along the line to fill,
+    from 0 to 1.
+    """
+    order = [key for key, _label in STEPS]
+    at = order.index(event.reached)
+    offered = {action["key"]: action for action in actions}
+
+    # Who pressed each button, from the activity log the actions write.
+    logged = {}
+    if event.number:
+        for entry in (
+            ActivityLog.objects.filter(
+                model_label="Event",
+                object_label__startswith=f"{event.number} ·",
+                detail__in=list(LOG_WORDS.values()),
+            ).select_related("user").order_by("created_at")
+        ):
+            logged.setdefault(LOG_STEPS[entry.detail], entry)
+
+    def person(user):
+        return (user.get_full_name() or user.username) if user else ""
+
+    def moment(key):
+        if key == "draft":
+            if event.created_by_id is None and event.from_website:
+                return event.created_at, "the customer, online"
+            return event.created_at, person(event.created_by)
+        entry = logged.get(key)
+        when = getattr(event, Event.STAMPS[key]) or (entry.created_at if entry else None)
+        if entry and entry.user_id is None and event.source != "panel":
+            # Only the website acts without a panel account.
+            return when, "the customer, online"
+        return when, person(entry.user) if entry else ""
+
+    steps = []
+    for index, (key, label) in enumerate(STEPS):
+        if event.is_cancelled and index > at:
+            break
+        when, by = moment(key)
+        step = {
+            "key": key, "label": label, "when": when, "by": by,
+            "state": "todo", "hint": "", "action": None, "arrived": arrived == key,
+        }
+        if index < at or (index == at and event.is_cancelled):
+            step["state"] = "done"
+        elif index == at and key == "completed":
+            # The last step is finished — unless stock is still out there.
+            if event.has_outstanding:
+                step.update(state="warn", hint="Stock still out — record returns, then finalise")
+            else:
+                step.update(state="done", hint="All stock settled")
+                step["arrived"] = arrived in ("completed", "finalized")
+        elif index == at:
+            step.update(state="current", hint=CURRENT_HINTS.get(key, ""))
+        elif index == at + 1:
+            wanted = STEP_ACTIONS[key]
+            if wanted in offered:
+                step["action"] = offered[wanted]
+            if key == "in_progress" and "allocate" in offered:
+                step["hint"] = "Reserve the stock first"
+            elif key == "in_progress":
+                days = (event.event_date - timezone.localdate()).days
+                day = f"{event.event_date.day} {event.event_date:%b}"
+                step["hint"] = (
+                    "The event is today" if days == 0
+                    else f"Was due on {day}" if days < 0
+                    else f"On the day · {day}"
+                )
+            else:
+                step["hint"] = NEXT_HINTS.get(key, "")
+        steps.append(step)
+
+    if event.is_cancelled:
+        when, by = moment("cancelled")
+        steps.append({
+            "key": "cancelled", "label": "Cancelled", "when": when, "by": by,
+            "state": "cancelled", "arrived": arrived == "cancelled",
+            "hint": "Stock still held — release it" if event.has_outstanding else "Stock released",
+            "action": None,
+        })
+
+    last = len(steps) - 1
+    filled = last if event.is_cancelled else at
+    # A string, so a locale's decimal comma never ends up in the CSS.
+    progress = f"{filled / last if last > 0 else 1:.4f}"
+    return steps, progress
+
+
 def _render_detail(request, event, status=200, **forms):
     writable = _can_write(request)
     stock_pick = forms.get("stock_pick") or f.EventStockPickForm(event=event)
@@ -375,28 +594,10 @@ def _render_detail(request, event, status=200, **forms):
     expense_form = forms.get("expense_form") or f.EventExpenseForm()
     payment_form = forms.get("payment_form") or f.EventPaymentForm(event=event)
 
-    if event.is_cancelled:
-        steps = []
-    else:
-        order = [key for key, _label in STEPS]
-        current = order.index(event.status)
-        steps = [
-            {
-                "label": label,
-                "state": "done" if index < current else "current" if index == current else "todo",
-            }
-            for index, (key, label) in enumerate(STEPS)
-        ]
-
-    actions = []
-    for key in STATUS_ACTIONS.get(event.status, []):
-        spec = dict(ACTIONS[key], key=key)
-        # Buttons with nothing to do stay off the page rather than failing.
-        if key == "allocate" and not event.needs_allocation:
-            continue
-        if key in ("finalize", "release") and not event.has_outstanding:
-            continue
-        actions.append(spec)
+    actions = available_actions(event)
+    arrived = request.session.pop("event_arrived", None)
+    arrived = arrived[1] if arrived and arrived[0] == event.pk else ""
+    steps, progress = _timeline(event, actions if writable else [], arrived)
 
     inventory_lines = event.inventory_lines
     stock_ids = [line.inventory_item_id for line in inventory_lines]
@@ -421,6 +622,7 @@ def _render_detail(request, event, status=200, **forms):
         nav_key="events",
         event=event,
         steps=steps,
+        progress=progress,
         actions=actions,
         inventory_lines=inventory_lines,
         external_lines=event.external_lines,
@@ -430,6 +632,7 @@ def _render_detail(request, event, status=200, **forms):
             expenses_by_category.values(), key=lambda row: row["total"], reverse=True
         ),
         payments=list(event.payments.all()),
+        enquiries=list(event.enquiries.order_by("-created_at")),
         movements=event.stock_movements.select_related("item", "created_by").order_by(
             "-created_at", "-id"
         )[:40],
@@ -445,7 +648,13 @@ def _render_detail(request, event, status=200, **forms):
 
 @panel_login_required
 def event_detail(request, pk):
-    return _render_detail(request, _event_or_404(pk))
+    event = _event_or_404(pk)
+    if event.is_new:
+        # Opening it is what "new" was waiting for. The page still says where
+        # it came from; only the badge in the sidebar and the list goes.
+        Event.objects.filter(pk=event.pk).update(is_new=False)
+        event.was_new = True
+    return _render_detail(request, event)
 
 
 @panel_login_required
@@ -459,21 +668,28 @@ def event_action(request, pk):
     if key not in STATUS_ACTIONS.get(event.status, []):
         messages.error(
             request,
-            f"That is not something a {event.get_status_display().lower()} event can do.",
+            f"{event.number} is {event.get_status_display().lower()} now, so that "
+            "button no longer applies.",
         )
-        return _back(event)
+        return _after_action(request, event)
 
     spec = ACTIONS[key]
     try:
         result = getattr(event, spec["method"])(user=request.user)
     except ValidationError as error:
         _refused(request, error)
-        return _back(event, "inventory" if key in ("allocate", "start", "finalize") else "")
+        return _after_action(
+            request, event, "inventory" if key in ("allocate", "start", "finalize") else ""
+        )
 
     log(request, "update", obj=event, model_label="Event", detail=spec["done"])
+    if key in ARRIVES_AT:
+        # The event page celebrates the step it lands on, once.
+        request.session["event_arrived"] = [event.pk, ARRIVES_AT[key]]
     if key == "allocate":
         messages.success(
-            request, f"Reserved stock on {result} line{'s' if result != 1 else ''}."
+            request,
+            f"{event.number}: reserved stock on {result} line{'s' if result != 1 else ''}.",
         )
     elif key in ("cancel", "release"):
         tail = (
@@ -483,11 +699,12 @@ def event_action(request, pk):
         messages.success(request, f"{event.number} {spec['done']}{tail}.")
     elif key == "finalize":
         messages.success(
-            request, f"Inventory finalised — {result} line{'s' if result != 1 else ''} settled."
+            request,
+            f"{event.number}: inventory finalised — {result} line{'s' if result != 1 else ''} settled.",
         )
     else:
         messages.success(request, f"{event.number} {spec['done']}.")
-    return _back(event)
+    return _after_action(request, event)
 
 
 # ---------------------------------------------------------------------------

@@ -44,8 +44,7 @@ signup URL can stay public without the panel being public.
 
 `seed_demo` is optional but recommended; without it the site renders with empty
 sections until you add content through the panel. It takes `--reset` to wipe the
-content tables first, and `--bookings N` to change how much demo history it
-generates.
+content tables first.
 
 ## Pages
 
@@ -53,15 +52,21 @@ generates.
 | --- | --- | --- |
 | `/` | `core.views.home` | `core/home.html` |
 | `/products/` | `core.views.products` | `core/products.html` |
-| `/categories/` | `core.views.categories` | `core/categories.html` |
-| `/category/<slug>/` | `core.views.category_detail` | `core/category_detail.html` |
+| `/occasions/` | `core.views.categories` | `core/categories.html` |
+| `/occasions/<slug>/` | `core.views.category_detail` | `core/category_detail.html` |
 | `/package/<slug>/` | `core.views.package_detail` | `core/package_detail.html` |
+| `/book/` | `core.views.book` | `core/book.html` |
+| `/bookings/` | `core.views.track` | `core/track.html` |
+| `/bookings/<number>/` | `core.views.booking_status` | `core/booking_status.html` |
+| `/enquire/` | `core.views.enquire` | `core/enquire.html` |
 | `/how-it-works/` | `core.views.how_it_works` | `core/how_it_works.html` |
 | `/contact/` | `core.views.contact` | `core/contact.html` |
-| `/cart/` | `core.views.cart` | `core/cart.html` |
 | `/manage/…` | `panel.views` | `panel/…` |
 | `/admin/` | Django's own admin | — |
 | `/preview/404/` | `core.views.page_not_found` | `404.html` |
+
+The old `/categories/`, `/category/<slug>/` and `/cart/` addresses redirect to
+`/occasions/…` and `/book/`.
 
 `/preview/404/` exists because Django shows its own debug page for real 404s
 while `DEBUG = True`. Set `DEBUG = False` (and `ALLOWED_HOSTS`) to see the styled
@@ -152,16 +157,19 @@ panel/                          the staff control panel
 
 | Group | Sections |
 | --- | --- |
-| Operations | Bookings, Enquiries, Staffs, Staff types, Coupons |
+| Events | Events, Enquiries, Customers |
+| Operations | Staffs, Staff types, Coupons |
 | Inventory | Counter, Stock room, Stock items, Stock groups, Suppliers, Stock ledger, Counter sales |
 | Catalogue | Products, Occasions, Gallery photos, Add-ons, Pricing table |
 | Homepage | Hero slider, Reviews, Promises, How it works, FAQs, Trust badges |
 | Site | Cities, Time slots, Menu links |
 | System | Media, Activity, Staff & access, Site settings |
 
-Plus a **Dashboard** (revenue and booking trends, status mix, top-earning
-packages, overdue jobs, content alerts) and a **Schedule** — six weeks of
-calendar with every booking placed on its date.
+Plus a **Dashboard** (revenue and event trends, status mix, the occasions
+earning most, events past their date, content alerts) and a **Schedule** — six
+weeks of calendar with every event placed on its date. Both read events: there
+is one record of the work, whether it was booked on the site, from an enquiry or
+in the panel.
 
 ### Inventory and the counter
 
@@ -208,8 +216,8 @@ shelves and a bar pinned to the bottom carries the running total back to it.
 `/manage/events/` runs the events the company delivers, under the **Events**
 sidebar group next to **Customers**.
 
-- **Events** have a number (`EVT-00001`), a customer, date, location, guests,
-  revenue and notes, and move Draft → Confirmed → In progress → Completed (or
+- **Events** have a number (`EVT-00001`), a customer, occasion, date, arrival
+  window, location, guests, a crew of staff members, revenue and notes, and move Draft → Confirmed → In progress → Completed (or
   Cancelled) through buttons on the event page — never by editing a field.
 - **Items** are either *inventory* (an existing stock item, never copied) or
   *external* (rented, bought in or outsourced; it never enters stock).
@@ -235,6 +243,23 @@ sidebar group next to **Customers**.
   cancelled event. Logic lives on the models in `core/models.py`; the views are
   in `panel/event_views.py`; tests in `core/test_events.py` and
   `panel/test_events.py`.
+
+#### Booked from the website
+
+An **occasion** (Birthday, Wedding…) is the kind of event; an **event** is one
+booking of it. Visitors book at `/book/` — occasion, an optional ready-made
+setup, date, arrival window, venue, extras and their details — and that becomes
+a **draft event** marked *New* on the Events page (and counted in the sidebar),
+with the customer matched by phone number or added. Nothing is charged online:
+the team calls, presses *Confirm event*, and the customer's page at
+`/bookings/EVT-00012/` follows every step. The browser that booked can open it
+directly; anyone else needs the number and the phone. A request can be
+withdrawn online until it is confirmed.
+
+Visitors not ready to book use **Ask a question** (`/enquire/`, and the form on
+the home, contact, occasion and setup pages). Enquiries land under
+Operations → Enquiries, where *Create event* opens a new event already filled
+in from the enquiry and links the two. Tests: `core/test_booking.py`.
 
 ### How it is built
 
@@ -276,8 +301,8 @@ That is why every section behaves the same way:
 - **Bulk actions**: select rows (shift-click for a range) and turn a flag on or
   off across all of them, or delete them
 - **CSV export** of exactly what is on screen, filters and sort included
-- **Ctrl-K** anywhere opens a command palette that searches packages, bookings,
-  hero slides, enquiries and the sections themselves
+- **Ctrl-K** anywhere opens a command palette that searches events, customers,
+  packages, hero slides, enquiries and the sections themselves
 - Light and dark appearance, stored per account
 
 ### Roles
@@ -287,7 +312,7 @@ Four, ranked. Set under *Staff & access*; each one includes everything below it.
 | Role | Can |
 | --- | --- |
 | `viewer` | Read every section. Open records. Change nothing. |
-| `editor` | Content and bookings. |
+| `editor` | Content and events. |
 | `admin` | The above plus staff records and types, cities, coupons, time slots, site settings. |
 | `owner` | The above plus staff accounts and invite codes. |
 
@@ -372,9 +397,9 @@ database arrived.
 | `Testimonial` | Attach one to a package and it also shows on that package's page |
 | `FAQ` `Feature` `HowItWorksStep` `PricingRow` `TrustBadge` `NavLink` | Homepage copy blocks |
 | `City` `TimeSlot` `AddOn` | Booking options |
-| `Booking` | The operational record. `is_overdue` is what the dashboard shouts about |
-| `Enquiry` | Contact-form messages |
-| `StaffMember` `StaffCategory` | The people who work a booking, and the type of work each does |
+| `Customer` `Event` | The operational record: who, what, when, the crew, and the money. See *Events* above |
+| `Enquiry` | Questions from the site; can become an event |
+| `StaffMember` `StaffCategory` | The people on an event's crew, and the type of work each does |
 | `Coupon` | Discount codes |
 | `Supplier` `StockCategory` | Who stock is bought from, and how the store room is divided |
 | `InventoryItem` | One SKU on a shelf. `quantity` is read-only — the ledger writes it |
@@ -388,11 +413,6 @@ upload-or-URL pair and the `image` property).
 
 ### Still to wire up
 
-- **The cart** has no persistence. `queries.demo_cart_items()` builds two lines
-  from real packages so the page has something to lay out; a real cart needs a
-  session or a `Cart` model.
-- **The booking form** on the package page posts nowhere. Point it at a view
-  that creates a `Booking` and the panel picks it up with no other changes.
 - **Payments** are described in the copy but not implemented.
 - **Hero video URLs** seeded by `seed_demo` are Google's public sample files.
   Replace them with your own encodes — 1920×1080 H.264, no audio track, a few MB.
@@ -442,7 +462,8 @@ out if its markup is absent:
 - horizontal scroller arrows for the related-packages rail
 - scroll reveal via `IntersectionObserver`
 - package gallery with thumbnails and a keyboard-navigable lightbox
-- sticky mobile booking bar, listing filter drawer, budget slider, cart steppers
+- sticky mobile booking bar, listing filter drawer, budget slider
+- the booking form — live summary and estimate, setups filtered to the occasion
 - the header's Products drop-down — hover intent, keyboard focus, Escape to close
 - the products listing — live search, instant facets, a two-thumb budget slider,
   grid/list layout, and paging that swaps results in over `fetch` with history

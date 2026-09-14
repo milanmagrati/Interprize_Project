@@ -65,9 +65,13 @@
       </ul>
 
       {# ------------------------------------------------------ booking #}
-      <form class="booking card" method="post" action="">
-        {% csrf_token %}
-        <h2 class="booking__title">Choose your slot</h2>
+      {% comment %}
+        A GET form: it carries these choices to the booking page, which asks for
+        the rest (where, and who) and sends the request to the panel.
+      {% endcomment %}
+      <form class="booking card" method="get" action="{% url 'core:book' %}" data-price-form data-base-price="{{ package.price }}">
+        <input type="hidden" name="package" value="{{ package.slug }}">
+        <h2 class="booking__title">Choose your date</h2>
 
         <div class="booking__row">
           <label class="field">
@@ -84,7 +88,7 @@
 
           <label class="field">
             <span class="field__label">Date</span>
-            <input type="date" name="date">
+            <input type="date" name="date" min="{{ min_date }}" max="{{ max_date }}">
           </label>
         </div>
 
@@ -100,30 +104,35 @@
           </div>
         </fieldset>
 
-        <fieldset class="booking__addons">
-          <legend class="field__label">Add-ons</legend>
-          {% for add_on in add_ons %}
-            <label class="checkbox">
-              <input type="checkbox" name="add_ons" value="{{ forloop.counter }}">
-              <span>{{ add_on.name }}<b>+&#8377;{{ add_on.price|intcomma }}</b></span>
-            </label>
-          {% endfor %}
-        </fieldset>
+        {% if add_ons %}
+          <fieldset class="booking__addons">
+            <legend class="field__label">Add-ons</legend>
+            {% for add_on in add_ons %}
+              <label class="checkbox">
+                <input type="checkbox" name="add_ons" value="{{ add_on.pk }}" data-price="{{ add_on.price }}">
+                <span>{{ add_on.name }}<b>+&#8377;{{ add_on.price|intcomma }}</b></span>
+              </label>
+            {% endfor %}
+          </fieldset>
+        {% endif %}
 
         <div class="booking__foot">
           <div class="booking__total">
-            <span class="booking__total-label">Payable now (30%)</span>
-            <span class="booking__total-value">&#8377;{{ package.price|floatformat:0 }}<small> total</small></span>
+            <span class="booking__total-label">Estimated total</span>
+            <span class="booking__total-value" data-price-total>&#8377;{{ package.price|intcomma }}</span>
           </div>
           <button class="btn btn--accent btn--lg btn--block" type="submit">
-            <svg class="icon" aria-hidden="true"><use href="#i-shopping-bag"></use></svg>
-            Add to cart
+            <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
+            Continue to booking
           </button>
         </div>
 
         <p class="booking__note">
           <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
-          Free cancellation up to 24 hours before your window.
+          Nothing to pay now — we call to confirm first.
+        </p>
+        <p class="booking__ask">
+          Not sure yet? <a href="{% url 'core:enquire' %}?package={{ package.slug }}">Ask about this setup</a>
         </p>
       </form>
     </div>

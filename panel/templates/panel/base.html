@@ -61,10 +61,10 @@
               <li>
                 <a class="nav__link{% if nav_key == item.nav_key %} is-active{% endif %}" href="{{ item.url }}">
                   <svg class="icon" aria-hidden="true"><use href="#p-{{ item.icon }}"></use></svg>{{ item.plural }}
-                  {% if item.slug == 'bookings' and counts.bookings %}
-                    <span class="nav__count" title="{{ counts.bookings }} new">{{ counts.bookings }}</span>
-                  {% elif item.slug == 'enquiries' and counts.enquiries %}
+                  {% if item.slug == 'enquiries' and counts.enquiries %}
                     <span class="nav__count" title="{{ counts.enquiries }} unread">{{ counts.enquiries }}</span>
+                  {% elif item.nav_key == 'events' and counts.events %}
+                    <span class="nav__count nav__count--new" title="{{ counts.events }} new from the website">{{ counts.events }}</span>
                   {% elif item.slug == 'stock-items' and counts.low_stock %}
                     <span class="nav__count" title="{{ counts.low_stock }} need ordering">{{ counts.low_stock }}</span>
                   {% endif %}
@@ -195,10 +195,12 @@
   {% if messages %}
     <div class="toasts" role="status" aria-live="polite">
       {% for message in messages %}
-        <div class="toast toast--{{ message.tags|default:'info' }}" data-toast>
-          <svg class="icon" aria-hidden="true">
-            <use href="#p-{% if 'error' in message.tags %}alert{% elif 'warning' in message.tags %}alert{% else %}check{% endif %}"></use>
-          </svg>
+        <div class="toast{% for tag in message.tags.split %} toast--{{ tag }}{% endfor %}" data-toast style="--i: {{ forloop.counter0 }}">
+          <span class="toast__icon" aria-hidden="true">
+            <svg class="icon">
+              <use href="#p-{% if 'error' in message.tags %}alert{% elif 'warning' in message.tags %}alert{% elif 'live' in message.tags %}message{% else %}check{% endif %}"></use>
+            </svg>
+          </span>
           <p>{{ message }}</p>
           <button class="toast__x" type="button" data-toast-close aria-label="Dismiss">
             <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
@@ -214,7 +216,7 @@
     <div class="palette__box" role="dialog" aria-modal="true" aria-label="Search the panel">
       <div class="palette__field">
         <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
-        <input type="search" placeholder="Search products, bookings, sections…"
+        <input type="search" placeholder="Search events, customers, products, sections…"
                autocomplete="off" spellcheck="false" data-palette-input aria-label="Search">
         <kbd>Esc</kbd>
       </div>

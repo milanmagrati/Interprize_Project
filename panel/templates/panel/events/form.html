@@ -18,6 +18,17 @@ buttons on the event page, because each step does something to stock.
 <div class="page page--form">
   <form class="form" method="post" novalidate data-dirty-guard>
     {% csrf_token %}
+    {% if enquiry %}
+      <input type="hidden" name="enquiry" value="{{ enquiry.pk }}">
+      <div class="notice notice--blue">
+        <svg class="icon" aria-hidden="true"><use href="#p-message"></use></svg>
+        <span>
+          Filled in from <a href="{% url 'panel:resource_edit' 'enquiries' enquiry.pk %}">{{ enquiry.name }}’s enquiry</a>
+          of {{ enquiry.created_at|date:"j M" }}. Check the details{% if not enquiry.event_date %} and pick the date{% endif %}, then create it —
+          the enquiry is linked to the new event.
+        </span>
+      </div>
+    {% endif %}
 
     {% if form.non_field_errors %}
       <div class="notice notice--red">
@@ -32,7 +43,7 @@ buttons on the event page, because each step does something to stock.
           <section class="card">
             <h2 class="card__title">{{ section_title }}</h2>
             <div class="grid">
-              {% for bound in fields %}{% field bound %}{% endfor %}
+              {% for bound in fields %}{% if bound.name == "crew" %}{% field bound wide=True %}{% else %}{% field bound %}{% endif %}{% endfor %}
             </div>
             {% if section_title == "Customer" %}
               <p class="card__note">

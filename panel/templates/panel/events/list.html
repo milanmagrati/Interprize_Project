@@ -31,6 +31,9 @@ would show with the search and date filters kept, so the numbers never lie.
     </form>
 
     <div class="toolbar__actions">
+      <a class="btn btn--ghost" href="{% url 'core:book' %}" target="_blank" rel="noopener" title="The page customers book from">
+        <svg class="icon" aria-hidden="true"><use href="#p-external"></use></svg>Booking page
+      </a>
       <a class="btn btn--ghost" href="{% url 'panel:resource_list' 'customers' %}">
         <svg class="icon" aria-hidden="true"><use href="#p-user"></use></svg>Customers
       </a>
@@ -56,6 +59,23 @@ would show with the search and date filters kept, so the numbers never lie.
     {% endfor %}
   </ul>
 
+  {# ------------------------------------------------ new from the website #}
+  {% if new_count and not only_new %}
+    <a class="newbanner" href="{% url 'panel:events' %}?new=1">
+      <span class="newbanner__pulse" aria-hidden="true"><svg class="icon"><use href="#p-sparkles"></use></svg></span>
+      <span class="newbanner__text">
+        <strong>{{ new_count }} new from the website</strong>
+        <span>Booked or cancelled by a customer and not opened yet — call them to confirm.</span>
+      </span>
+      <span class="newbanner__cta">Review<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg></span>
+    </a>
+  {% elif only_new %}
+    <p class="notice notice--blue">
+      <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>
+      <span>Showing only website events nobody has opened. Opening one clears its “New” mark. <a href="{% url 'panel:events' %}">Show every event</a></span>
+    </p>
+  {% endif %}
+
   {# ----------------------------------------------------------- status tabs #}
   <nav class="tabs" aria-label="Filter by status">
     {% for tab in tabs %}
@@ -74,7 +94,17 @@ would show with the search and date filters kept, so the numbers never lie.
     {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
     {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
     {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if only_new %}<input type="hidden" name="new" value="1">{% endif %}
     <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+    <label class="filters__one">
+      <span class="sr-only">Came from</span>
+      <select name="source" data-submit>
+        <option value="">From anywhere</option>
+        {% for value, label in source_choices %}
+          <option value="{{ value }}"{% if source == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label class="filters__one">
       <span class="sr-only">When</span>
       <select name="when" data-submit>
@@ -126,13 +156,19 @@ would show with the search and date filters kept, so the numbers never lie.
         </thead>
         <tbody>
           {% for event in rows %}
-            <tr>
+            <tr id="event-{{ event.pk }}"{% if event.is_new %} class="is-new"{% endif %}>
               <td data-label="Event">
                 <a class="evlink" href="{% url 'panel:event_detail' event.pk %}">
-                  <span class="evlink__no">{{ event.number }}</span>
+                  <span class="evlink__no">
+                    {{ event.number }}
+                    {% if event.is_new %}<span class="newtag">New</span>{% endif %}
+                    {% if event.source != "panel" %}<span class="srctag srctag--{{ event.source }}" title="{{ event.get_source_display }}">{% if event.source == "website" %}Website{% else %}Enquiry{% endif %}</span>{% endif %}
+                  </span>
                   <span class="cell__main">{{ event.name }}</span>
                 </a>
-                {% if event.location %}<span class="cell__hint">{{ event.location|truncatechars:48 }}</span>{% endif %}
+                {% if event.occasion or event.location %}
+                  <span class="cell__hint">{% if event.occasion %}{{ event.occasion.name }}{% if event.location %} · {% endif %}{% endif %}{{ event.location|truncatechars:36 }}</span>
+                {% endif %}
               </td>
               <td data-label="Customer">
                 <span class="cell__main">{{ event.customer.name }}</span>
@@ -140,10 +176,11 @@ would show with the search and date filters kept, so the numbers never lie.
               </td>
               <td data-label="Date">
                 <span class="cell__main nowrap">{{ event.event_date|date:"j M Y" }}</span>
-                <span class="cell__hint">{{ event.event_date|date:"D" }}{% if event.is_open %} · {{ event.when_label }}{% endif %}{% if event.guests %} · {{ event.guests }} guests{% endif %}</span>
+                <span class="cell__hint">{{ event.event_date|date:"D" }}{% if event.time_slot %} · {{ event.time_slot }}{% elif event.is_open %} · {{ event.when_label }}{% endif %}{% if event.guests %} · {{ event.guests }} guests{% endif %}</span>
               </td>
               <td data-label="Status">
                 <span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span>
+                {% if event.next_action %}<span class="cell__hint">Next: {{ event.next_action.label|lower }}</span>{% endif %}
               </td>
               <td data-label="Revenue" class="is-end"><span class="num">{{ event.revenue|money }}</span></td>
               <td data-label="Cost" class="is-end"><span class="num">{{ event.total_cost|money }}</span></td>
@@ -169,7 +206,30 @@ would show with the search and date filters kept, so the numbers never lie.
                 {% endif %}
               </td>
               <td class="table__end">
-                <div class="rowacts">
+                <div class="rowacts rowacts--event">
+                  {% if can_write and event.next_action %}
+                    <form method="post" action="{% url 'panel:event_action' event.pk %}" data-once>
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="btn btn--sm {% if event.next_action.style == 'primary' %}btn--primary{% else %}btn--ghost{% endif %} statusbtn"
+                              type="submit" name="action" value="{{ event.next_action.key }}"
+                              title="{{ event.next_action.label }}"
+                              {% if event.next_action.confirm %}data-confirm="{{ event.number }}: {{ event.next_action.confirm }}"{% endif %}>
+                        <svg class="icon" aria-hidden="true"><use href="#p-{{ event.next_action.icon }}"></use></svg>{{ event.next_action.short }}
+                      </button>
+                    </form>
+                  {% endif %}
+                  {% if can_write and event.cancel_action %}
+                    <form method="post" action="{% url 'panel:event_action' event.pk %}" data-once>
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="icon-btn icon-btn--sm icon-btn--danger" type="submit" name="action" value="cancel"
+                              title="Cancel {{ event.number }}"
+                              data-confirm="Cancel {{ event.number }} · {{ event.name }}? Every reserved item goes back to stock.">
+                        <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+                      </button>
+                    </form>
+                  {% endif %}
                   <a class="icon-btn icon-btn--sm" href="{% url 'panel:event_detail' event.pk %}" title="Open">
                     <svg class="icon" aria-hidden="true"><use href="#p-eye"></use></svg>
                   </a>

@@ -4,7 +4,7 @@ Who may open the panel, and who may change things once inside.
 Four roles, ranked: viewer < editor < admin < owner.
 
     viewer   read everything, write nothing
-    editor   content and bookings
+    editor   content and events
     admin    the above plus site settings, coupons, decorators
     owner    the above plus staff accounts and invite codes
 
@@ -19,6 +19,7 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.cache import add_never_cache_headers
 
 from core.models import StaffProfile
 
@@ -72,7 +73,11 @@ def panel_login_required(view):
             profile.last_seen = now
 
         request.profile = profile
-        return view(request, *args, **kwargs)
+        response = view(request, *args, **kwargs)
+        # Panel pages show live numbers — a status, a stock count. Never let the
+        # browser hand back an old copy when someone presses Back.
+        add_never_cache_headers(response)
+        return response
 
     return wrapper
 

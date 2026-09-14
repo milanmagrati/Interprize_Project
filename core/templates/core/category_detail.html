@@ -17,6 +17,12 @@
         <li><svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg> Available in {{ active_city }}</li>
         <li><svg class="icon" aria-hidden="true"><use href="#i-zap"></use></svg> Same-day slots until 2 PM</li>
       </ul>
+      <p class="cat-banner__actions">
+        <a class="btn btn--primary" href="{% url 'core:book' %}?occasion={{ category.slug }}">
+          <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Book an event
+        </a>
+        <a class="btn btn--outline" href="{% url 'core:enquire' %}?occasion={{ category.slug }}">Ask a question</a>
+      </p>
     </div>
   </div>
 </section>
@@ -135,9 +141,15 @@
       {% else %}
         <div class="empty">
           <svg class="icon empty__icon" aria-hidden="true"><use href="#i-search"></use></svg>
-          <h3 class="empty__title">Nothing matches those filters</h3>
-          <p class="empty__text">Widen the budget or drop the rating filter to see the rest of the {{ category.name|lower }} setups.</p>
-          <a class="btn btn--primary" href="{% url 'core:category_detail' category.slug %}">Clear filters</a>
+          {% if total_count %}
+            <h3 class="empty__title">Nothing matches those filters</h3>
+            <p class="empty__text">Widen the budget or drop the rating filter to see the rest of the {{ category.name|lower }} setups.</p>
+            <a class="btn btn--primary" href="{% url 'core:category_detail' category.slug %}">Clear filters</a>
+          {% else %}
+            <h3 class="empty__title">No ready-made setups here yet</h3>
+            <p class="empty__text">We still decorate {{ category.name|lower }} events — book it and a planner designs the setup with you.</p>
+            <a class="btn btn--primary" href="{% url 'core:book' %}?occasion={{ category.slug }}">Book an event</a>
+          {% endif %}
         </div>
       {% endif %}
     </div>

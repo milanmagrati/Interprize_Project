@@ -6,50 +6,46 @@ Nothing here knows about the admin panel; the panel writes to the same models
 and these views simply read whatever is currently published.
 """
 
+from datetime import timedelta
+
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.http import Http404
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 
 from . import queries as q
-from .forms import EnquiryForm
+from .forms import BOOKING_HORIZON_DAYS, BookingRequestForm, EnquiryForm, TrackBookingForm
+from .models import ActivityLog, Event
 
 PAGE_SIZE = 6
 
+#: Session key holding the events this browser booked or looked up.
+MY_BOOKINGS = "my_bookings"
 
-def handle_enquiry(request):
-    """
-    Save a contact-form submission.
 
-    The enquiry form is included on more than one page, so this returns a
-    redirect on success (post/redirect/get, no resubmission on refresh) and
-    None otherwise, leaving the calling view to render its own page.
-    """
-    if request.method != "POST":
-        return None
+def _remember_booking(request, event):
+    """Let this browser open the booking again without typing anything."""
+    kept = [pk for pk in request.session.get(MY_BOOKINGS, []) if pk != event.pk]
+    request.session[MY_BOOKINGS] = [event.pk] + kept[:19]
 
-    form = EnquiryForm(request.POST)
-    if form.is_valid():
-        enquiry = form.save()
-        messages.success(
-            request,
-            f"Thanks {enquiry.name.split()[0]} — that's with the team. "
-            "Somebody replies within the hour, 9 AM to 11 PM.",
-        )
-        return redirect(f"{request.path}#enquiry")
 
-    for errors in form.errors.values():
-        for error in errors:
-            messages.error(request, error)
-    return None
+def _safe_next(request, fallback):
+    target = request.POST.get("next") or request.GET.get("next") or ""
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    return fallback
 
 
 def home(request):
-    saved = handle_enquiry(request)
-    if saved:
-        return saved
-
     context = {
         "page_id": "home",
         "meta_description": (
@@ -261,7 +257,7 @@ def categories(request):
         "page_id": "categories",
         "meta_description": "Every occasion Barahi Florist & Events decorates, from first birthdays to reception stages.",
         "category_rows": q.category_rows(),
-        "breadcrumbs": [{"label": "All categories", "url": None}],
+        "breadcrumbs": [{"label": "Occasions", "url": None}],
     }
     return render(request, "core/categories.html", context)
 
@@ -345,7 +341,7 @@ def category_detail(request, slug):
             {"value": "4.0", "label": "4.0 and above"},
         ],
         "breadcrumbs": [
-            {"label": "Categories", "url": "core:categories"},
+            {"label": "Occasions", "url": "core:categories"},
             {"label": category.name, "url": None},
         ],
     }
@@ -368,8 +364,10 @@ def package_detail(request, slug):
         "related": q.related_packages(package, limit=6),
         "reviews": q.reviews_for(package, limit=5),
         "faqs": q.faqs(limit=4),
+        "min_date": timezone.localdate().isoformat(),
+        "max_date": (timezone.localdate() + timedelta(days=BOOKING_HORIZON_DAYS)).isoformat(),
         "breadcrumbs": [
-            {"label": "Categories", "url": "core:categories"},
+            {"label": "Occasions", "url": "core:categories"},
             {"label": category.name, "url": "core:category_detail", "arg": category.slug},
             {"label": package.title, "url": None},
         ],
@@ -391,10 +389,6 @@ def how_it_works(request):
 
 
 def contact(request):
-    saved = handle_enquiry(request)
-    if saved:
-        return saved
-
     context = {
         "page_id": "contact",
         "meta_description": "Talk to the Barahi Florist & Events team about a booking, a custom setup or a corporate event.",
@@ -405,15 +399,204 @@ def contact(request):
     return render(request, "core/contact.html", context)
 
 
-def cart(request):
+# ---------------------------------------------------------------------------
+# Booking an event
+#
+# A booking from the site is a draft Event in the panel, flagged as new, with
+# the customer found by phone number or added. Nothing is charged here: the
+# team calls, confirms it in the panel, and the customer's page follows along.
+# ---------------------------------------------------------------------------
+
+BOOKING_FIELDS = [
+    "occasion", "package", "event_date", "time_slot", "city", "address", "guests",
+    "name", "phone", "email", "notes",
+]
+
+
+@never_cache
+def book(request):
+    source = request.POST if request.method == "POST" else request.GET
+    form = BookingRequestForm(request.POST or None)
+
+    if request.method == "POST":
+        if form.is_valid():
+            event = form.save()
+            _remember_booking(request, event)
+            ActivityLog.record(
+                None, "create", obj=event, model_label="Event", detail="booked on the website",
+            )
+            messages.success(
+                request,
+                f"Thank you, {event.customer.name.split()[0]} — your request is in. "
+                "We call you within the hour to confirm.",
+                extra_tags="booked",
+            )
+            return redirect(f"{reverse('core:booking_status', args=[event.number])}?new=1")
+        messages.error(request, "A few details need another look — they are marked below.")
+
+    values = {name: source.get(name, "") for name in BOOKING_FIELDS}
+    # The home page search and the setup page post a date as `date` and a slot
+    # as `slot`; the booking form calls them something longer.
+    values["event_date"] = values["event_date"] or source.get("date", "")
+    values["time_slot"] = values["time_slot"] or source.get("slot", "")
+    picked_extras = set(source.getlist("add_ons"))
+
+    packages = form.packages
+    chosen_package = next((p for p in packages if p.slug == values["package"]), None)
+    if chosen_package and not values["occasion"]:
+        values["occasion"] = chosen_package.category.slug
+    if not values["city"]:
+        values["city"] = request.GET.get("city", "") or getattr(q.site_settings(), "default_city", "")
+
+    today = timezone.localdate()
     context = {
-        "page_id": "cart",
-        "meta_description": "Your Barahi Florist & Events cart.",
-        "cart": q.cart_summary(),
-        "suggested": q.featured_packages(limit=4),
-        "breadcrumbs": [{"label": "Cart", "url": None}],
+        "page_id": "book",
+        "meta_description": "Book an event with Barahi Florist & Events: pick the occasion, a setup and a date, and we call to confirm.",
+        "form": form,
+        "errors": form.errors if request.method == "POST" else {},
+        "values": values,
+        "picked_extras": picked_extras,
+        "occasions": form.occasions,
+        "packages": packages,
+        "slots": form.slots,
+        "extras": form.extras,
+        "chosen_package": chosen_package,
+        "min_date": today.isoformat(),
+        "max_date": (today + timedelta(days=BOOKING_HORIZON_DAYS)).isoformat(),
+        "breadcrumbs": [{"label": "Book an event", "url": None}],
     }
-    return render(request, "core/cart.html", context)
+    return render(request, "core/book.html", context)
+
+
+def _my_booking(request, number):
+    event = get_object_or_404(
+        Event.objects.select_related("customer", "occasion", "package", "package__category"),
+        number=number,
+    )
+    if event.pk not in request.session.get(MY_BOOKINGS, []):
+        return None
+    return event
+
+
+@never_cache
+def booking_status(request, number):
+    event = _my_booking(request, number.upper())
+    if event is None:
+        # The number alone is not enough to see someone's booking.
+        return redirect(f"{reverse('core:track')}?number={number}")
+
+    return render(request, "core/booking_status.html", {
+        "page_id": "booking",
+        "meta_description": "Your booking with Barahi Florist & Events.",
+        "event": event,
+        "is_new": request.GET.get("new") == "1",
+        "extras": event.booked_extras or [],
+        "base_price": event.package.price if event.package_id else 0,
+        "breadcrumbs": [
+            {"label": "Your bookings", "url": "core:track"},
+            {"label": event.number, "url": None},
+        ],
+    })
+
+
+@require_POST
+def booking_cancel(request, number):
+    event = _my_booking(request, number.upper())
+    if event is None:
+        return redirect(f"{reverse('core:track')}?number={number}")
+    if not event.can_customer_cancel:
+        messages.error(
+            request,
+            "This booking is already confirmed, so it cannot be cancelled online — "
+            "call us and we will sort it out.",
+        )
+        return redirect("core:booking_status", number=event.number)
+    try:
+        event.cancel()
+    except ValidationError as error:
+        for message in error.messages:
+            messages.error(request, message)
+        return redirect("core:booking_status", number=event.number)
+    ActivityLog.record(None, "update", obj=event, model_label="Event", detail="cancelled")
+    Event.objects.filter(pk=event.pk).update(is_new=True)
+    messages.info(
+        request,
+        f"{event.number} is cancelled. We hope to celebrate with you another time.",
+        extra_tags="cancelled",
+    )
+    return redirect("core:booking_status", number=event.number)
+
+
+@never_cache
+def track(request):
+    form = TrackBookingForm(request.POST or None, initial={"number": request.GET.get("number", "")})
+    if request.method == "POST" and form.is_valid():
+        event = form.cleaned_data["event"]
+        _remember_booking(request, event)
+        return redirect("core:booking_status", number=event.number)
+
+    remembered = request.session.get(MY_BOOKINGS, [])
+    mine = {e.pk: e for e in Event.objects.filter(pk__in=remembered).select_related("occasion")}
+    return render(request, "core/track.html", {
+        "page_id": "track",
+        "meta_description": "Check on a booking with Barahi Florist & Events.",
+        "form": form,
+        "bookings": [mine[pk] for pk in remembered if pk in mine],
+        "breadcrumbs": [{"label": "Your bookings", "url": None}],
+    })
+
+
+def cart(request):
+    """There is no basket any more: an event is booked in one go."""
+    return redirect("core:book", permanent=True)
+
+
+# ---------------------------------------------------------------------------
+# Enquiries
+# ---------------------------------------------------------------------------
+
+
+@never_cache
+def enquire(request):
+    """
+    Where every enquiry form posts. A good one goes back to the page it came
+    from with a thank-you; a bad one is shown again here with what was typed.
+    """
+    form = EnquiryForm(request.POST or None)
+    if request.method == "POST":
+        if form.is_valid():
+            enquiry = form.save()
+            messages.success(
+                request,
+                f"Thanks {enquiry.name.split()[0]} — that's with the team. "
+                "Somebody replies within the hour, 9 AM to 11 PM.",
+                extra_tags="enquired",
+            )
+            back = _safe_next(request, reverse("core:enquire"))
+            return redirect(f"{back.split('#')[0]}#enquiry")
+        messages.error(request, "A few details need another look — they are marked below.")
+
+    source = request.POST if request.method == "POST" else request.GET
+    package = q.get_package(source.get("package", "")) if source.get("package") else None
+    values = {
+        name: source.get(name, "")
+        for name in ("name", "phone", "email", "city", "occasion", "event_date", "guests", "message")
+    }
+    if package and not values["occasion"]:
+        values["occasion"] = package.category.slug
+
+    return render(request, "core/enquire.html", {
+        "page_id": "enquire",
+        "meta_description": "Ask Barahi Florist & Events about an occasion, a setup or a custom event.",
+        "form": form,
+        "errors": form.errors if request.method == "POST" else {},
+        "values": values,
+        "package": package,
+        "occasions": q.categories(),
+        "next": _safe_next(request, ""),
+        "faqs": q.faqs(limit=4),
+        "breadcrumbs": [{"label": "Ask a question", "url": None}],
+    })
 
 
 def page_not_found(request, exception=None):

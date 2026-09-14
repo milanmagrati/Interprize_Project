@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Your bookings &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="page-head page-head--compact">
+  <div class="wrap">
+    <h1 class="page-head__title">Your bookings</h1>
+    <p class="page-head__lead">See where a booking is up to — confirmed, on its way, or done.</p>
+  </div>
+</section>
+
+<section class="section section--tight">
+  <div class="wrap track">
+    <div class="card card--pad track__find">
+      <h2 class="card__title">Find a booking</h2>
+      <p class="card__lead">Enter the booking number from your confirmation and the phone number you booked with.</p>
+
+      <form method="post" action="{% url 'core:track' %}" novalidate data-once>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <p class="flash flash--error" role="alert">
+            <svg class="icon" aria-hidden="true"><use href="#i-alert-circle"></use></svg>{{ form.non_field_errors|first }}
+          </p>
+        {% endif %}
+        <div class="form__grid">
+          <label class="field{% if form.number.errors %} has-error{% endif %}">
+            <span class="field__label">Booking number</span>
+            <input type="text" name="number" value="{{ form.number.value|default:'' }}" placeholder="EVT-00012"
+                   autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+            {% if form.number.errors %}<span class="field__error">{{ form.number.errors|first }}</span>{% endif %}
+          </label>
+          <label class="field{% if form.phone.errors %} has-error{% endif %}">
+            <span class="field__label">Phone</span>
+            <input type="tel" name="phone" value="{{ form.phone.value|default:'' }}" placeholder="98765 43210" autocomplete="tel" required>
+            {% if form.phone.errors %}<span class="field__error">{{ form.phone.errors|first }}</span>{% endif %}
+          </label>
+        </div>
+        <div class="form__foot">
+          <button class="btn btn--primary" type="submit">
+            Show my booking <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div class="track__mine">
+      <h2 class="track__heading">On this device</h2>
+      {% if bookings %}
+        <ul class="minebook">
+          {% for event in bookings %}
+            <li>
+              <a class="minebook__row" href="{% url 'core:booking_status' event.number %}">
+                <span class="minebook__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ event.occasion.icon|default:'calendar' }}"></use></svg></span>
+                <span class="minebook__text">
+                  <strong>{{ event.name }}</strong>
+                  <small>{{ event.number }} · {{ event.event_date|date:"D j M Y" }}</small>
+                </span>
+                <span class="status-pill status-pill--{{ event.public_tone }}">{{ event.public_label }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="minebook__empty">
+          <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
+          <p>Bookings you make here show up in this list, so you can check on them in one tap.</p>
+          <a class="btn btn--accent" href="{% url 'core:book' %}">Book an event</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

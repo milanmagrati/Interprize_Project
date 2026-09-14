@@ -15,12 +15,13 @@
      9.  Package gallery + lightbox
      10. Sticky mobile booking bar
      11. Listing filters drawer, range output, auto-submit sort
-     12. Cart steppers and removal
-     13. Add-to-cart toast
+     12. Submit-once forms and confirm prompts
+     13. Toast
      14. Auth modal (sign in / sign up) — OTP flow, simulated client-side
      15. Hero slider (images + autoplaying video)
      16. Products drop-down in the header
      17. Products listing: filters, live search, layout, paging
+     18. Booking: the /book/ form, the setup page estimate, a booking's page
    ========================================================================== */
 
 (function () {
@@ -51,6 +52,42 @@
     scrollLocks = Math.max(0, scrollLocks + (on ? 1 : -1));
     document.body.classList.toggle("is-locked", scrollLocks > 0);
   }
+
+  /* ------------------------------------------------------------- 1b. toasts */
+  (function toasts() {
+    var items = $$("[data-toast]");
+    if (!items.length) return;
+
+    items.forEach(function (toast) {
+      var remaining = parseInt(toast.getAttribute("data-duration"), 10) || 5200;
+      var close = $("[data-toast-close]", toast);
+      var timer = null;
+      var startedAt = 0;
+
+      function dismiss() {
+        toast.classList.add("is-going");
+        window.setTimeout(function () { toast.remove(); }, reducedMotion.matches ? 0 : 220);
+      }
+      function schedule() {
+        startedAt = Date.now();
+        timer = window.setTimeout(dismiss, remaining);
+      }
+
+      if (close) close.addEventListener("click", dismiss);
+      schedule();
+
+      // Hovering (or focusing the close button) holds it still while it is read.
+      toast.addEventListener("mouseenter", function () {
+        toast.classList.add("is-paused");
+        window.clearTimeout(timer);
+        remaining -= Date.now() - startedAt;
+      });
+      toast.addEventListener("mouseleave", function () {
+        toast.classList.remove("is-paused");
+        schedule();
+      });
+    });
+  })();
 
   /* ---------------------------------------------------------------- 2. */
   (function stickyHeader() {
@@ -567,80 +604,23 @@
   })();
 
   /* --------------------------------------------------------------- 12. */
-  (function cart() {
-    var lines = $$("[data-cart-line]");
-    if (!lines.length) return;
-
-    var FREE_DELIVERY_OVER = 3000;
-    var DELIVERY_FEE = 249;
-    var TAX_RATE = 0.18;
-
-    function recalc() {
-      var subtotal = 0;
-      var savings = 0;
-
-      $$("[data-cart-line]").forEach(function (line) {
-        var stepper = $("[data-stepper]", line);
-        var totalEl = $("[data-line-total]", line);
-        if (!stepper || !totalEl) return;
-
-        var qty = parseInt($("[data-stepper-input]", stepper).value, 10) || 1;
-        var unit = parseFloat(stepper.getAttribute("data-unit-price")) || 0;
-        var unitSaving = parseFloat(stepper.getAttribute("data-unit-saving")) || 0;
-
-        totalEl.textContent = money(unit * qty);
-        subtotal += unit * qty;
-        savings += unitSaving * qty;
-      });
-
-      var delivery = subtotal >= FREE_DELIVERY_OVER || subtotal === 0 ? 0 : DELIVERY_FEE;
-      var tax = Math.round(subtotal * TAX_RATE);
-
-      var write = function (key, value) {
-        var el = $('[data-summary="' + key + '"]');
-        if (el) el.textContent = value;
-      };
-      write("subtotal", money(subtotal));
-      write("savings", "− " + money(savings));
-      write("delivery", delivery ? money(delivery) : "Free");
-      write("tax", money(tax));
-      write("total", money(subtotal + delivery + tax));
+  // Forms that must not go twice, and buttons that ask first.
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest("[data-confirm]") : null;
+    if (button && !window.confirm(button.getAttribute("data-confirm"))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
     }
+  }, true);
 
-    $$("[data-stepper]").forEach(function (stepper) {
-      var input = $("[data-stepper-input]", stepper);
-      var down = $("[data-stepper-down]", stepper);
-      var up = $("[data-stepper-up]", stepper);
-      if (!input) return;
-
-      var nudge = function (delta) {
-        var min = parseInt(input.min, 10) || 1;
-        var max = parseInt(input.max, 10) || 99;
-        var next = (parseInt(input.value, 10) || min) + delta;
-        input.value = Math.max(min, Math.min(max, next));
-        recalc();
-      };
-
-      if (down) down.addEventListener("click", function () { nudge(-1); });
-      if (up) up.addEventListener("click", function () { nudge(1); });
-      input.addEventListener("change", recalc);
-    });
-
-    $$("[data-cart-remove]").forEach(function (button) {
-      button.addEventListener("click", function () {
-        var line = button.closest("[data-cart-line]");
-        if (!line) return;
-        line.classList.add("is-removing");
-        window.setTimeout(function () {
-          line.remove();
-          recalc();
-          if (window.Celebra) window.Celebra.toast("Removed from cart");
-        }, 240);
-      });
-    });
-
-    recalc();
-  })();
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (!form.matches || !form.matches("[data-once]") || event.defaultPrevented) return;
+    if (form.classList.contains("is-sending")) { event.preventDefault(); return; }
+    form.classList.add("is-sending");
+    // Back/forward cache: a page restored after submitting must work again.
+    window.addEventListener("pageshow", function () { form.classList.remove("is-sending"); }, { once: true });
+  });
 
   /* --------------------------------------------------------------- 13. */
   var toastEl = null;
@@ -664,14 +644,6 @@
   }
 
   window.Celebra = { toast: toast };
-
-  // Delegated: product cards can arrive after load, when a filter changes.
-  document.addEventListener("click", function (event) {
-    var button = event.target.closest ? event.target.closest("[data-add-to-cart]") : null;
-    if (!button) return;
-    // Placeholder until the cart backend exists: confirm, then send them on.
-    toast("Added to cart. Pick a slot at checkout.");
-  });
 
   /* --------------------------------------------------------------- 14. */
   (function authModal() {
@@ -1650,4 +1622,188 @@
 
     updateFilterCount();
   })();
+
+  /* --------------------------------------------------------------- 18. */
+  // The setup page: the estimate follows the add-ons ticked.
+  (function setupEstimate() {
+    var form = $("[data-price-form]");
+    if (!form) return;
+    var out = $("[data-price-total]", form);
+    var base = parseInt(form.getAttribute("data-base-price"), 10) || 0;
+    function update() {
+      var total = base;
+      $$("input[data-price]:checked", form).forEach(function (box) {
+        total += parseInt(box.getAttribute("data-price"), 10) || 0;
+      });
+      if (out) out.textContent = money(total);
+    }
+    form.addEventListener("change", update);
+    update();
+  })();
+
+  // The booking form: live summary, setups for the chosen occasion, steps
+  // ticked off as they are filled.
+  (function bookingFlow() {
+    var form = $("[data-bookflow]");
+    if (!form) return;
+
+    var setupsBox = $("[data-setups]", form);
+    var setupNote = $("[data-setups-note]", form);
+    var sum = function (key) { return $('[data-sum="' + key + '"]', form); };
+    var dateFormat = new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
+    function checked(name) { return $('input[name="' + name + '"]:checked', form); }
+    function value(name) {
+      var field = form.elements[name];
+      return field && field.value ? field.value.trim() : "";
+    }
+
+    function write(el, text, empty) {
+      if (!el) return;
+      var next = text || empty;
+      if (el.textContent !== next) {
+        el.textContent = next;
+        el.classList.remove("is-fresh");
+        if (text && !reducedMotion.matches) {
+          void el.offsetWidth;          // restart the flash
+          el.classList.add("is-fresh");
+        }
+      }
+      el.classList.toggle("is-empty", !text);
+    }
+
+    // Only the chosen occasion's setups, plus the "plan it with us" card.
+    function filterSetups(fromUser) {
+      if (!setupsBox) return;
+      var occasion = checked("occasion");
+      var slug = occasion ? occasion.value : "";
+      var shown = 0;
+      $$(".setup-card[data-occasion]", setupsBox).forEach(function (card) {
+        var match = !slug || card.getAttribute("data-occasion") === slug;
+        card.hidden = !match;
+        if (match) shown += 1;
+        var radio = $("input", card);
+        if (!match && radio.checked) {
+          // A setup from another occasion cannot stay picked.
+          radio.checked = false;
+          var custom = $(".setup-card--custom input", setupsBox);
+          if (custom) custom.checked = true;
+        }
+      });
+      if (setupNote) {
+        setupNote.hidden = !slug || shown > 0;
+        setupNote.textContent = occasion
+          ? "No ready-made " + occasion.getAttribute("data-name").toLowerCase() + " setups yet — a planner will design one with you."
+          : "";
+      }
+      if (fromUser && setupsBox.scrollTop) setupsBox.scrollTop = 0;
+    }
+
+    function refresh() {
+      var occasion = checked("occasion");
+      write(sum("occasion"), occasion ? occasion.getAttribute("data-name") : "", "Not chosen yet");
+
+      var pkg = checked("package");
+      var base = pkg ? parseInt(pkg.getAttribute("data-price"), 10) || 0 : 0;
+      write(sum("package"), pkg ? pkg.getAttribute("data-title") : "", "We plan it together");
+
+      var dateText = "";
+      if (value("event_date")) {
+        var parts = value("event_date").split("-");
+        var day = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+        if (!isNaN(day)) dateText = dateFormat.format(day);
+      }
+      write(sum("date"), dateText, "Not chosen yet");
+
+      var slot = checked("time_slot");
+      var slotRow = $('[data-sum-row="slot"]', form);
+      if (slotRow) slotRow.hidden = !slot;
+      write(sum("slot"), slot ? slot.getAttribute("data-label") : "", "");
+
+      var extrasList = sum("extras");
+      var extrasTotal = 0;
+      var picked = $$('input[name="add_ons"]:checked', form);
+      if (extrasList) {
+        extrasList.innerHTML = "";
+        picked.forEach(function (box) {
+          var price = parseInt(box.getAttribute("data-price"), 10) || 0;
+          extrasTotal += price;
+          var li = document.createElement("li");
+          var name = document.createElement("span");
+          name.textContent = "+ " + box.getAttribute("data-name");
+          var cost = document.createElement("span");
+          cost.textContent = money(price);
+          li.appendChild(name);
+          li.appendChild(cost);
+          extrasList.appendChild(li);
+        });
+        extrasList.hidden = picked.length === 0;
+      }
+
+      var total = sum("total");
+      if (total) {
+        var quote = base === 0;
+        total.textContent = quote
+          ? (extrasTotal ? money(extrasTotal) + " + setup quote" : "Quote on the call")
+          : money(base + extrasTotal);
+        total.classList.toggle("is-quote", quote);
+      }
+
+      // A step is done once what it asks for is there.
+      var done = {
+        occasion: !!occasion,
+        package: !!occasion,
+        when: !!value("event_date") && !!value("address"),
+        extras: !!occasion && !!value("event_date"),
+        you: !!value("name") && hasFullPhone(value("phone"))
+      };
+      var steps = $$("[data-bookstep]", form);
+      var count = 0;
+      steps.forEach(function (step) {
+        var key = step.getAttribute("data-bookstep");
+        var isDone = !!done[key];
+        step.classList.toggle("is-done", isDone);
+        if (isDone) count += 1;
+      });
+      var bar = sum("progress");
+      if (bar) bar.style.setProperty("--done", Math.round((count / (steps.length || 1)) * 100) + "%");
+    }
+
+    function hasFullPhone(phone) {
+      return phone.replace(/\D/g, "").length >= 10;
+    }
+
+    form.addEventListener("change", function (event) {
+      if (event.target.name === "occasion") filterSetups(true);
+      refresh();
+    });
+    form.addEventListener("input", debounce(refresh, 120));
+
+    filterSetups(false);
+    refresh();
+
+    // Open on the first problem, or on the picked setup.
+    var errors = $("[data-bookflow-errors]", form);
+    if (errors) {
+      errors.focus({ preventScroll: true });
+      errors.scrollIntoView({ block: "start", behavior: "auto" });
+    } else if (setupsBox) {
+      var picked = $(".setup-card:not([hidden]) input:checked", setupsBox);
+      if (picked && picked.value) {
+        var card = picked.closest(".setup-card");
+        setupsBox.scrollTop = card.offsetTop - setupsBox.offsetTop - 8;
+      }
+    }
+  })();
+
+  // A booking's page: tap the number to copy it.
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest("[data-copy]") : null;
+    if (!button || !navigator.clipboard) return;
+    navigator.clipboard.writeText(button.getAttribute("data-copy")).then(function () {
+      button.classList.add("is-copied");
+      toast("Booking number copied");
+      window.setTimeout(function () { button.classList.remove("is-copied"); }, 1600);
+    });
+  });
 })();

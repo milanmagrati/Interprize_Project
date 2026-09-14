@@ -10,8 +10,6 @@ Everything filters on the published flags, so the panel's publish/unpublish
 toggles are the single control over what the public sees.
 """
 
-from datetime import timedelta
-
 from django.db.models import Case, Count, F, FloatField, Q, Value, When
 from django.db.utils import DatabaseError
 from django.utils import timezone
@@ -20,6 +18,7 @@ from .models import (
     AddOn,
     Category,
     City,
+    Event,
     FAQ,
     Feature,
     HeroSlide,
@@ -353,74 +352,15 @@ def add_ons():
 
 
 # ---------------------------------------------------------------------------
-# Cart (still a front-end demonstration, now built from real packages)
+# Bookings this browser made
 # ---------------------------------------------------------------------------
 
 
-def demo_cart_items():
-    """
-    Two lines assembled from whatever is in the catalogue. The cart has no
-    persistence yet — this exists so the cart page has something to lay out.
-    """
-    packages = list(Package.objects.live().select_related("category")[:2])
-    if not packages:
-        return []
-    extras = list(AddOn.objects.filter(is_active=True)[:1])
-    settings_row = site_settings()
-    city = getattr(settings_row, "default_city", "Bengaluru")
-    date = timezone.localdate() + timedelta(days=5)
-    slots = ["4 PM – 6 PM", "8 PM – 10 PM"]
-    items = []
-    for index, package in enumerate(packages):
-        items.append(
-            {
-                "id": package.pk,
-                "package": package,
-                "quantity": index + 1,
-                "city": city,
-                "date": date.strftime("%d %B %Y"),
-                "slot": slots[index % len(slots)],
-                "add_ons": extras if index == 0 else [],
-            }
-        )
-    return items
-
-
-def cart_summary(items=None):
-    items = demo_cart_items() if items is None else items
-    config = site_settings()
-    threshold = getattr(config, "free_delivery_threshold", 3000)
-    fee = getattr(config, "delivery_fee", 249)
-    tax_rate = float(getattr(config, "tax_percent", 18)) / 100
-
-    lines = []
-    subtotal = 0
-    savings = 0
-    for item in items:
-        add_on_total = sum(a.price for a in item["add_ons"])
-        line_total = (item["package"].price + add_on_total) * item["quantity"]
-        savings += item["package"].saving * item["quantity"]
-        subtotal += line_total
-        line = dict(item)
-        line["add_on_total"] = add_on_total
-        line["line_total"] = line_total
-        lines.append(line)
-
-    delivery = 0 if subtotal >= threshold else fee
-    tax = round(subtotal * tax_rate)
-    return {
-        "lines": lines,
-        "subtotal": subtotal,
-        "savings": savings,
-        "delivery": delivery,
-        "tax": tax,
-        "total": subtotal + delivery + tax,
-        "free_delivery_threshold": threshold,
-    }
-
-
-def cart_count():
+def open_booking_count(pks):
+    """How many of the remembered bookings are still coming up — the header badge."""
+    if not pks:
+        return 0
     try:
-        return len(demo_cart_items())
+        return Event.objects.filter(pk__in=pks).open().count()
     except DatabaseError:
         return 0

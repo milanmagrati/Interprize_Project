@@ -4,7 +4,7 @@
 {% block subheading %}
   <p class="topbar__sub">
     {{ range_start|date:"j M" }} &ndash; {{ range_end|date:"j M Y" }} ·
-    {{ booked }} job{{ booked|pluralize }} worth {{ value|money }}
+    {{ booked }} event{{ booked|pluralize }} worth {{ value|money }}
   </p>
 {% endblock %}
 
@@ -23,8 +23,8 @@
     </div>
     <div class="toolbar__actions">
       {% if can_write %}
-        <a class="btn btn--primary" href="{% url 'panel:resource_create' 'bookings' %}">
-          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New booking
+        <a class="btn btn--primary" href="{% url 'panel:event_create' %}">
+          <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>New event
         </a>
       {% endif %}
     </div>
@@ -33,7 +33,7 @@
   <div class="calwrap">
     <table class="cal">
       <caption class="sr-only">
-        Bookings from {{ range_start|date:"j F Y" }} to {{ range_end|date:"j F Y" }}
+        Events from {{ range_start|date:"j F Y" }} to {{ range_end|date:"j F Y" }}
       </caption>
       <thead>
         <tr>
@@ -59,11 +59,11 @@
                 <ul class="cal__jobs">
                   {% for job in day.jobs %}
                     <li>
-                      <a class="cal__job cal__job--{{ job.status|status_tone }}"
-                         href="{% url 'panel:resource_edit' 'bookings' job.pk %}"
-                         title="{{ job.reference }} · {{ job.customer_name }} · {{ job.get_status_display }}{% if job.staff %} · {{ job.staff }}{% endif %}">
+                      <a class="cal__job cal__job--{{ job.status_tone }}{% if job.is_new %} is-new{% endif %}"
+                         href="{% url 'panel:event_detail' job.pk %}"
+                         title="{{ job.number }} · {{ job.name }} · {{ job.customer.name }} · {{ job.get_status_display }}{% with crew=job.crew.all %}{% if crew %} · crew: {{ crew|join:', ' }}{% endif %}{% endwith %}">
                         <span class="cal__job-time">{{ job.time_slot|default:"—"|truncatechars:9 }}</span>
-                        <span class="cal__job-who">{{ job.customer_name }}</span>
+                        <span class="cal__job-who">{{ job.customer.name }}</span>
                       </a>
                     </li>
                   {% endfor %}
@@ -77,11 +77,10 @@
   </div>
 
   <p class="legend">
-    <span class="legend__one"><i class="dot dot--amber"></i>New</span>
-    <span class="legend__one"><i class="dot dot--blue"></i>Confirmed</span>
-    <span class="legend__one"><i class="dot dot--violet"></i>Assigned</span>
-    <span class="legend__one"><i class="dot dot--green"></i>Completed</span>
-    <span class="legend__one"><i class="dot dot--red"></i>Cancelled</span>
+    {% for value, label, tone in statuses %}
+      <span class="legend__one"><i class="dot dot--{{ tone }}"></i>{{ label }}</span>
+    {% endfor %}
+    <span class="legend__one"><i class="dot dot--new"></i>New from the website</span>
   </p>
 </div>
 {% endblock %}

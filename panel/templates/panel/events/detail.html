@@ -51,17 +51,19 @@ with an error in it.
   {% endif %}
 
   {# ---------------------------------------------------------------- header #}
-  <section class="card evhead">
+  <section class="card evhead evhead--{{ event.status }}{% if event.status == 'completed' and not event.has_outstanding %} is-settled{% endif %}">
     <div class="evhead__top">
       <div class="evhead__who">
         <p class="evhead__eyebrow">
           <span class="evno">{{ event.number }}</span>
           <span class="pill pill--{{ event.status_tone }}">{{ event.get_status_display }}</span>
+          {% if event.source != "panel" %}<span class="srctag srctag--{{ event.source }}">{{ event.get_source_display }}</span>{% endif %}
           {% if event.is_open %}<span class="evhead__when">{{ event.when_label|capfirst }}</span>{% endif %}
         </p>
         <h2 class="evhead__title">{{ event.name }}</h2>
         <ul class="evhead__facts">
-          <li><svg class="icon" aria-hidden="true"><use href="#p-calendar"></use></svg>{{ event.event_date|date:"l, j F Y" }}</li>
+          <li><svg class="icon" aria-hidden="true"><use href="#p-calendar"></use></svg>{{ event.event_date|date:"l, j F Y" }}{% if event.time_slot %} · {{ event.time_slot }}{% endif %}</li>
+          {% if event.occasion %}<li><svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>{{ event.occasion.name }}</li>{% endif %}
           {% if event.location %}<li><svg class="icon" aria-hidden="true"><use href="#p-map-pin"></use></svg>{{ event.location }}</li>{% endif %}
           <li><svg class="icon" aria-hidden="true"><use href="#p-users"></use></svg>{{ event.guests }} guest{{ event.guests|pluralize }}</li>
           <li><svg class="icon" aria-hidden="true"><use href="#p-user"></use></svg>{{ event.customer.name }}</li>
@@ -89,13 +91,52 @@ with an error in it.
     </div>
 
     {% if steps %}
-      <ol class="steps" aria-label="Progress">
+      {# The next step is a button when it can be pressed; the rest say what happened, and when. #}
+      <ol class="steps{% if event.is_cancelled %} steps--cancelled{% elif event.status != 'completed' %} steps--moving{% endif %}"
+          style="--n: {{ steps|length }}; --p: {{ progress }};" aria-label="Progress">
         {% for step in steps %}
-          <li class="steps__one is-{{ step.state }}"{% if step.state == 'current' %} aria-current="step"{% endif %}>
-            <span class="steps__dot" aria-hidden="true">
-              {% if step.state == 'done' %}<svg class="icon"><use href="#p-check"></use></svg>{% else %}{{ forloop.counter }}{% endif %}
-            </span>
-            <span class="steps__label">{{ step.label }}</span>
+          <li class="steps__one is-{{ step.state }}{% if step.action %} has-action{% endif %}{% if step.arrived %} is-arrived{% endif %}"
+              style="--i: {{ forloop.counter0 }};"
+              {% if step.state == 'current' or step.state == 'warn' or step.state == 'cancelled' %}aria-current="step"{% endif %}>
+            {% if step.action %}
+              <form class="steps__form" method="post" action="{% url 'panel:event_action' event.pk %}" data-once>
+                {% csrf_token %}
+                <button class="steps__hit" type="submit" name="action" value="{{ step.action.key }}"
+                        {% if step.action.confirm %}data-confirm="{{ step.action.confirm }}"{% endif %}>
+            {% else %}
+              <div class="steps__hit">
+            {% endif %}
+                <span class="steps__dot" aria-hidden="true">
+                  {% if step.state == 'done' %}
+                    <svg class="icon steps__check"><use href="#p-check"></use></svg>
+                  {% elif step.state == 'warn' %}
+                    <svg class="icon"><use href="#p-alert"></use></svg>
+                  {% elif step.state == 'cancelled' %}
+                    <svg class="icon steps__cross"><use href="#p-x"></use></svg>
+                  {% elif step.action %}
+                    <span class="steps__num">{{ forloop.counter }}</span>
+                    <svg class="icon steps__go"><use href="#p-arrow-right"></use></svg>
+                  {% else %}
+                    {{ forloop.counter }}
+                  {% endif %}
+                  {% if step.arrived %}<span class="steps__burst"></span>{% endif %}
+                </span>
+                <span class="steps__label">{{ step.label }}</span>
+                <span class="steps__meta">
+                  {% if step.action %}
+                    <span class="steps__cta">{{ step.action.label }}<svg class="icon" aria-hidden="true"><use href="#p-arrow-right"></use></svg></span>
+                  {% elif step.when and step.state != 'todo' %}
+                    <time datetime="{{ step.when|date:'c' }}" title="{{ step.when|date:'l, j F Y, H:i' }}">{{ step.when|date:"j M, H:i" }}</time>
+                    {% if step.by %}<span class="steps__by">by {{ step.by }}</span>{% endif %}
+                  {% endif %}
+                  {% if step.hint %}<span class="steps__hint">{{ step.hint }}</span>{% endif %}
+                </span>
+            {% if step.action %}
+                </button>
+              </form>
+            {% else %}
+              </div>
+            {% endif %}
           </li>
         {% endfor %}
       </ol>
@@ -157,6 +198,75 @@ with an error in it.
   <div class="form__body">
     <div class="form__main">
 
+      {# ------------------------------------------------ booked on the website #}
+      {% if event.source != "panel" %}
+        <section class="card booked{% if event.was_new %} is-fresh{% endif %}" id="booking">
+          <div class="card__head">
+            <h2 class="card__title">
+              {% if event.from_website %}Booked on the website{% else %}From an enquiry{% endif %}
+              {% if event.was_new %}<span class="newtag">New</span>{% endif %}
+            </h2>
+            <p class="card__note">{{ event.created_at|date:"j M Y, H:i" }} · {{ event.created_at|timesince }} ago</p>
+          </div>
+
+          {% if event.status == "draft" and event.from_website %}
+            <div class="notice notice--blue booked__todo">
+              <svg class="icon" aria-hidden="true"><use href="#p-phone"></use></svg>
+              <span>
+                Call {{ event.customer.name }} on <a href="tel:{{ event.customer.phone }}">{{ event.customer.phone }}</a>
+                to go over it, then press <strong>Confirm event</strong> — their booking page updates straight away.
+              </span>
+            </div>
+          {% elif event.is_cancelled and not event.created_by and event.cancelled_at %}
+            <div class="notice notice--red booked__todo">
+              <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+              <span>Cancelled {{ event.cancelled_at|date:"j M, H:i" }}.</span>
+            </div>
+          {% endif %}
+
+          <div class="booked__grid">
+            <div class="booked__what">
+              {% if event.package %}
+                <a class="booked__setup" href="{{ event.package.get_absolute_url }}" target="_blank" rel="noopener">
+                  <img src="{{ event.package.image }}" alt="" width="112" height="84" loading="lazy">
+                  <span>
+                    <small>{{ event.package.category.name }} setup</small>
+                    <strong>{{ event.package.title }}</strong>
+                    <span>{{ event.package.price|money }} on the site today</span>
+                  </span>
+                </a>
+              {% else %}
+                <p class="booked__custom">
+                  <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>
+                  No ready-made setup picked — they want it planned with them.
+                </p>
+              {% endif %}
+              <ul class="booked__lines">
+                {% if event.package %}<li><span>{{ event.package.title }}</span><span class="num">{{ event.package.price|money }}</span></li>{% endif %}
+                {% for extra in event.booked_extras %}
+                  <li><span>+ {{ extra.name }}</span><span class="num">{{ extra.price|money }}</span></li>
+                {% empty %}
+                  {% if not event.package %}<li><span>Nothing priced yet — set the revenue once it is quoted.</span><span></span></li>{% endif %}
+                {% endfor %}
+              </ul>
+            </div>
+            <dl class="booked__facts">
+              {% if event.occasion %}<div><dt>Occasion</dt><dd>{{ event.occasion.name }}</dd></div>{% endif %}
+              <div><dt>Date</dt><dd>{{ event.event_date|date:"D j M Y" }}{% if event.time_slot %} · {{ event.time_slot }}{% endif %}</dd></div>
+              <div><dt>Customer</dt><dd>{{ event.customer.name }} · <a href="tel:{{ event.customer.phone }}">{{ event.customer.phone }}</a>{% if event.customer.email %}<br><a href="mailto:{{ event.customer.email }}">{{ event.customer.email }}</a>{% endif %}</dd></div>
+              {% for enquiry in enquiries %}
+                <div><dt>Enquiry</dt><dd><a href="{% url 'panel:resource_edit' 'enquiries' enquiry.pk %}">{{ enquiry.name }}, {{ enquiry.created_at|date:"j M" }}</a></dd></div>
+              {% endfor %}
+            </dl>
+          </div>
+          <p class="card__note">
+            The customer follows this booking at
+            <a href="{% url 'core:booking_status' event.number %}" target="_blank" rel="noopener">their booking page</a>
+            with the number {{ event.number }} and their phone number.
+          </p>
+        </section>
+      {% endif %}
+
       {# ------------------------------------------------------------ overview #}
       <section class="card anchor" id="overview">
         <div class="card__head">
@@ -173,8 +283,22 @@ with an error in it.
               <span class="cell__hint">{{ event.customer.contact_line }}</span>
             </dd>
           </div>
-          <div><dt>Date</dt><dd>{{ event.event_date|date:"D j M Y" }}</dd></div>
+          <div><dt>Date</dt><dd>{{ event.event_date|date:"D j M Y" }}{% if event.time_slot %} <span class="cell__hint">{{ event.time_slot }}</span>{% endif %}</dd></div>
           <div><dt>Guests</dt><dd>{{ event.guests }}</dd></div>
+          <div><dt>Occasion</dt><dd>{{ event.occasion.name|default:"Not set" }}</dd></div>
+          <div class="facts__wide">
+            <dt>Crew</dt>
+            <dd>
+              {% for member in event.crew.all %}
+                <a class="crewchip" href="{% url 'panel:resource_edit' 'staffs' member.pk %}">
+                  <span class="crewchip__dot pill--{{ member.type_tone }}">{{ member.initials }}</span>{{ member.name }}{% if member.category %} <span class="cell__hint">{{ member.category.name }}</span>{% endif %}
+                </a>
+              {% empty %}
+                Nobody yet{% if can_write and not event.is_cancelled %} — <a href="{% url 'panel:event_edit' event.pk %}">pick the crew</a>{% endif %}
+              {% endfor %}
+            </dd>
+          </div>
+          <div><dt>Setup</dt><dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}" target="_blank" rel="noopener">{{ event.package.title }}</a>{% else %}Planned from scratch{% endif %}</dd></div>
           <div class="facts__wide"><dt>Location</dt><dd>{{ event.location|default:"Not set yet" }}</dd></div>
           <div><dt>Created</dt><dd>{{ event.created_at|date:"j M Y, H:i" }}{% if event.created_by %} <span class="cell__hint">by {{ event.created_by.get_full_name|default:event.created_by.username }}</span>{% endif %}</dd></div>
           <div><dt>Last change</dt><dd>{{ event.updated_at|date:"j M Y, H:i" }}</dd></div>

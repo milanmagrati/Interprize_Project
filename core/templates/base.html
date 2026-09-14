@@ -36,14 +36,22 @@
   {% include "core/partials/_navbar.html" %}
 
   {% if messages %}
-    <div class="flashes wrap" role="status" aria-live="polite">
+    <div class="toasts" role="status" aria-live="polite">
       {% for message in messages %}
-        <p class="flash flash--{{ message.tags|default:'info' }}">
-          <svg class="icon" aria-hidden="true">
-            <use href="#i-{% if 'error' in message.tags %}alert-circle{% else %}check-circle{% endif %}"></use>
-          </svg>
-          {{ message }}
-        </p>
+        <div class="toast{% for tag in message.tags.split %} toast--{{ tag }}{% endfor %}"
+             data-toast data-duration="{% if 'error' in message.tags %}7000{% else %}5200{% endif %}"
+             style="--i: {{ forloop.counter0 }}">
+          <span class="toast__icon" aria-hidden="true">
+            <svg class="icon">
+              <use href="#i-{% if 'error' in message.tags %}alert-circle{% elif 'booked' in message.tags or 'enquired' in message.tags %}sparkles{% elif 'cancelled' in message.tags %}clock{% else %}check-circle{% endif %}"></use>
+            </svg>
+          </span>
+          <p>{{ message }}</p>
+          <button class="toast__x" type="button" data-toast-close aria-label="Dismiss">
+            <svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg>
+          </button>
+          <span class="toast__bar" aria-hidden="true"></span>
+        </div>
       {% endfor %}
     </div>
   {% endif %}

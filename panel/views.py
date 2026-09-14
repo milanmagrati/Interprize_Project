@@ -47,7 +47,6 @@ from django.views.decorators.http import require_POST
 
 from core.models import (
     ActivityLog,
-    Booking,
     Category,
     CounterSale,
     CounterSaleLine,
@@ -82,13 +81,46 @@ PAGE_SIZE = 20
 # ---------------------------------------------------------------------------
 
 
+def _announce_new_arrivals(request, events_new, enquiries_new):
+    """
+    A soft live-update: if more website events or enquiries have landed since
+    this session last looked, say so as a toast on whichever page loads next.
+    A high-water mark in the session means it fires once per new arrival, not
+    once per page — and never on the very first visit of a session.
+    """
+    seen_events = request.session.get("seen_new_events")
+    seen_enquiries = request.session.get("seen_new_enquiries")
+
+    if seen_events is not None and events_new > seen_events:
+        gained = events_new - seen_events
+        messages.info(
+            request,
+            f"{gained} new booking request{'s' if gained != 1 else ''} just came in from the website.",
+            extra_tags="live",
+        )
+    if seen_enquiries is not None and enquiries_new > seen_enquiries:
+        gained = enquiries_new - seen_enquiries
+        messages.info(
+            request,
+            f"{gained} new enquir{'ies' if gained != 1 else 'y'} just came in from the website.",
+            extra_tags="live",
+        )
+
+    request.session["seen_new_events"] = events_new
+    request.session["seen_new_enquiries"] = enquiries_new
+
+
 def panel_context(request, **extra):
     """
     Everything the chrome needs: sidebar, the signed-in user, and the two
-    counters that earn a dot in the sidebar (new bookings, unread enquiries).
+    counters that earn a dot in the sidebar (new website events, unread enquiries).
     """
     profile = getattr(request, "profile", None)
     match = request.resolver_match
+    events_new = Event.objects.filter(is_new=True).count()
+    enquiries_new = Enquiry.objects.filter(status="new").count()
+    if profile is not None:
+        _announce_new_arrivals(request, events_new, enquiries_new)
     context = {
         "profile": profile,
         "groups": resources.grouped(profile),
@@ -97,8 +129,9 @@ def panel_context(request, **extra):
         "nav_key": (match.kwargs.get("slug") or match.url_name) if match else "",
         "panel_theme": getattr(profile, "theme", "light"),
         "counts": {
-            "bookings": Booking.objects.filter(status="new").count(),
-            "enquiries": Enquiry.objects.filter(status="new").count(),
+            "enquiries": enquiries_new,
+            # Website bookings (or cancellations) nobody has opened yet.
+            "events": events_new,
             "low_stock": InventoryItem.objects.needs_attention().count(),
         },
         "can_write": bool(profile and profile.can_write),
@@ -246,20 +279,24 @@ def dashboard(request):
     prev_month_end = month_start - timedelta(days=1)
     prev_month_start = prev_month_end.replace(day=1)
 
-    earning = Booking.objects.earning()
+    # Everything below reads events: an event is what the company delivers,
+    # whether it was booked on the website, from an enquiry or in the panel.
+    earning = Event.objects.live()
 
     this_month = earning.filter(event_date__gte=month_start, event_date__lte=today)
     last_month = earning.filter(event_date__gte=prev_month_start, event_date__lte=prev_month_end)
 
-    revenue_now = _money(this_month.aggregate(total=Sum("amount"))["total"])
-    revenue_prev = _money(last_month.aggregate(total=Sum("amount"))["total"])
+    revenue_now = _money(this_month.aggregate(total=Sum("revenue"))["total"])
+    revenue_prev = _money(last_month.aggregate(total=Sum("revenue"))["total"])
     count_now = this_month.count()
     count_prev = last_month.count()
     aov_now = round(revenue_now / count_now) if count_now else 0
     aov_prev = round(revenue_prev / count_prev) if count_prev else 0
 
-    open_bookings = Booking.objects.open()
-    overdue = [b for b in open_bookings.filter(event_date__lt=today).select_related("package")]
+    open_events = Event.objects.open()
+    overdue = list(
+        open_events.filter(event_date__lt=today).select_related("customer").order_by("event_date")
+    )
 
     kpis = [
         {
@@ -268,28 +305,28 @@ def dashboard(request):
             "foot": f"₹{revenue_prev:,} in the same stretch last month", "tone": "green",
         },
         {
-            "label": "Bookings this month", "value": count_now, "icon": "calendar",
+            "label": "Events this month", "value": count_now, "icon": "calendar",
             "trend": _trend(count_now, count_prev),
             "foot": f"{count_prev} last month", "tone": "blue",
         },
         {
-            "label": "Average booking", "value": f"₹{aov_now:,}", "icon": "tag",
+            "label": "Average event", "value": f"₹{aov_now:,}", "icon": "tag",
             "trend": _trend(aov_now, aov_prev),
             "foot": "Value per event, cancellations excluded", "tone": "violet",
         },
         {
-            "label": "Open jobs", "value": open_bookings.count(), "icon": "activity",
+            "label": "Open events", "value": open_events.count(), "icon": "activity",
             "trend": {"pct": None, "direction": "flat"},
             "foot": f"{len(overdue)} past their date" if overdue else "Nothing overdue",
             "tone": "red" if overdue else "grey",
         },
     ]
 
-    # Fourteen days of bookings, as bar heights the template can render directly.
+    # Fourteen days of events taken, as bar heights the template can render directly.
     since = today - timedelta(days=13)
     per_day = {
         row["day"]: row["n"]
-        for row in Booking.objects.filter(created_at__date__gte=since)
+        for row in Event.objects.filter(created_at__date__gte=since)
         .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(n=Count("id"))
@@ -307,29 +344,38 @@ def dashboard(request):
             "is_today": day == today,
         })
 
-    status_rows = (
-        Booking.objects.values("status").annotate(n=Count("id")).order_by("-n")
+    per_status = dict(
+        Event.objects.order_by().values_list("status").annotate(n=Count("id"))
     )
-    status_total = sum(row["n"] for row in status_rows) or 1
-    status_labels = dict(Booking.STATUS_CHOICES)
+    status_total = sum(per_status.values()) or 1
+    # Every status, in workflow order, so the bars read like the event page.
     statuses = [
         {
-            "key": row["status"],
-            "label": status_labels.get(row["status"], row["status"]),
-            "count": row["n"],
-            "pct": round(row["n"] * 100 / status_total),
-            "tone": resources.STATUS_TONES.get(row["status"], "grey"),
+            "key": value,
+            "label": label,
+            "count": per_status.get(value, 0),
+            "pct": round(per_status.get(value, 0) * 100 / status_total),
+            "tone": Event.STATUS_TONES[value],
         }
-        for row in status_rows
+        for value, label in Event.STATUS_CHOICES
+        if per_status.get(value)
     ]
 
-    top_packages = (
-        Package.objects.annotate(
-            jobs=Count("bookings", filter=~Q(bookings__status="cancelled")),
-            earned=Sum("bookings__amount", filter=~Q(bookings__status="cancelled")),
+    live = ~Q(events__status="cancelled")
+    top_occasions = (
+        Category.objects.annotate(
+            jobs=Count("events", filter=live),
+            earned=Sum("events__revenue", filter=live),
         )
         .filter(jobs__gt=0)
-        .order_by("-earned")[:5]
+        .order_by("-earned", "-jobs")[:5]
+    )
+
+    upcoming = (
+        Event.objects.upcoming()
+        .select_related("customer", "occasion", "package")
+        .prefetch_related("crew")
+        .order_by("event_date", "time_slot")[:8]
     )
 
     return render(request, "panel/pages/dashboard.html", panel_context(
@@ -339,8 +385,8 @@ def dashboard(request):
         chart=chart,
         chart_total=sum(row["value"] for row in chart),
         statuses=statuses,
-        top_packages=top_packages,
-        upcoming=Booking.objects.upcoming().select_related("package", "city", "staff")[:8],
+        top_occasions=top_occasions,
+        upcoming=upcoming,
         overdue=overdue[:5],
         recent_enquiries=Enquiry.objects.filter(status="new")[:5],
         alerts=_alerts(),
@@ -374,6 +420,14 @@ def _alerts():
             "tone": "amber", "icon": "image",
             "text": f"{stale} live product{'s' if stale > 1 else ''} still using a placeholder photo.",
             "url": reverse("panel:resource_list", args=["packages"]), "cta": "Review products",
+        })
+
+    fresh = Event.objects.filter(is_new=True).count()
+    if fresh:
+        rows.append({
+            "tone": "blue", "icon": "sparkles",
+            "text": f"{fresh} event{'s' if fresh > 1 else ''} from the website nobody has opened yet.",
+            "url": f"{reverse('panel:events')}?new=1", "cta": "See them",
         })
 
     unanswered = Enquiry.objects.filter(status="new").count()
@@ -826,7 +880,7 @@ def _cell_value(row, name):
 @panel_login_required
 def schedule(request):
     """
-    Six weeks of the calendar with every booking placed on its date. This is
+    Six weeks of the calendar with every event placed on its date. This is
     the view that answers "what is happening on Saturday", which a table cannot.
     """
     today = timezone.localdate()
@@ -839,14 +893,15 @@ def schedule(request):
     start = today - timedelta(days=today.weekday()) + timedelta(weeks=offset)
     end = start + timedelta(days=41)
 
-    bookings = (
-        Booking.objects.filter(event_date__gte=start, event_date__lte=end)
-        .select_related("package", "city", "staff")
-        .order_by("event_date", "time_slot")
+    events = list(
+        Event.objects.filter(event_date__gte=start, event_date__lte=end)
+        .select_related("customer", "occasion")
+        .prefetch_related("crew")
+        .order_by("event_date", "time_slot", "id")
     )
     by_day = OrderedDict()
-    for booking in bookings:
-        by_day.setdefault(booking.event_date, []).append(booking)
+    for event in events:
+        by_day.setdefault(event.event_date, []).append(event)
 
     weeks = []
     for week_index in range(6):
@@ -857,7 +912,7 @@ def schedule(request):
             days.append({
                 "date": day,
                 "jobs": jobs,
-                "value": sum(j.amount for j in jobs if j.status != "cancelled"),
+                "value": sum(j.revenue for j in jobs if j.status != "cancelled"),
                 "is_today": day == today,
                 "is_past": day < today,
                 "is_weekend": day_index >= 5,
@@ -871,8 +926,9 @@ def schedule(request):
         range_start=start,
         range_end=end,
         offset=offset,
-        booked=bookings.count(),
-        value=sum(b.amount for b in bookings if b.status != "cancelled"),
+        booked=len(events),
+        value=sum(e.revenue for e in events if e.status != "cancelled"),
+        statuses=[(value, label, Event.STATUS_TONES[value]) for value, label in Event.STATUS_CHOICES],
     ))
 
 
@@ -1101,14 +1157,6 @@ def quick_search(request):
                 "meta": f"₹{package.price:,} · {package.category.name}",
                 "url": reverse("panel:resource_edit", args=["packages", package.pk]),
             })
-        for booking in Booking.objects.filter(
-            Q(reference__icontains=term) | Q(customer_name__icontains=term) | Q(phone__icontains=term)
-        ).select_related("package")[:5]:
-            results.append({
-                "group": "Bookings", "label": f"{booking.reference} · {booking.customer_name}",
-                "meta": f"{booking.event_date:%d %b} · {booking.get_status_display()}",
-                "url": reverse("panel:resource_edit", args=["bookings", booking.pk]),
-            })
         for slide in HeroSlide.objects.filter(
             Q(eyebrow__icontains=term) | Q(heading__icontains=term)
         )[:4]:
@@ -1135,8 +1183,9 @@ def quick_search(request):
             })
         for event in Event.objects.filter(
             Q(number__icontains=term) | Q(name__icontains=term)
-            | Q(customer__name__icontains=term) | Q(location__icontains=term)
-        ).select_related("customer")[:5]:
+            | Q(customer__name__icontains=term) | Q(customer__phone__icontains=term)
+            | Q(location__icontains=term)
+        ).select_related("customer")[:6]:
             results.append({
                 "group": "Events", "label": f"{event.number} · {event.name}",
                 "meta": f"{event.event_date:%d %b} · {event.get_status_display()}",
@@ -1190,13 +1239,13 @@ def stats_json(request):
     """Small JSON feed the dashboard polls to keep its counters honest."""
     today = timezone.localdate()
     return JsonResponse({
-        "new_bookings": Booking.objects.filter(status="new").count(),
+        "new_events": Event.objects.filter(is_new=True).count(),
         "new_enquiries": Enquiry.objects.filter(status="new").count(),
-        "open_jobs": Booking.objects.open().count(),
+        "open_events": Event.objects.open().count(),
         "revenue_today": _money(
-            Booking.objects.earning()
+            Event.objects.live()
             .filter(event_date=today)
-            .aggregate(total=Sum("amount"))["total"]
+            .aggregate(total=Sum("revenue"))["total"]
         ),
         "counter_today": _money(
             CounterSale.objects.earning().on(today).aggregate(total=Sum("total"))["total"]

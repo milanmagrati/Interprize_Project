@@ -401,7 +401,10 @@ class Category(Positioned, PictureMixin):
     is_active = models.BooleanField(default=True)
 
     class Meta(Positioned.Meta):
-        verbose_name_plural = "Categories"
+        # The kind of event someone is celebrating. The table keeps its old
+        # name; everything a person reads calls it an occasion.
+        verbose_name = "Occasion"
+        verbose_name_plural = "Occasions"
 
     def __str__(self):
         return self.name
@@ -893,7 +896,7 @@ class AddOn(Positioned):
 
 
 # ---------------------------------------------------------------------------
-# Operations — staff, bookings, enquiries, coupons
+# Operations — staff, enquiries, coupons
 # ---------------------------------------------------------------------------
 
 
@@ -967,16 +970,17 @@ class StaffCategory(Positioned):
 
     @property
     def open_jobs(self):
+        """Events still to run with somebody of this type on the crew."""
         return (
-            Booking.objects.filter(staff__category=self)
-            .exclude(status__in=["completed", "cancelled"])
+            Event.objects.filter(crew__category=self, status__in=Event.OPEN_STATUSES)
+            .distinct()
             .count()
         )
 
 
 class StaffMemberQuerySet(models.QuerySet):
     def assignable(self):
-        """Who may be put on a booking."""
+        """Who may be put on an event's crew."""
         return self.filter(is_active=True)
 
     def of_type(self, slug):
@@ -988,7 +992,7 @@ class StaffMemberQuerySet(models.QuerySet):
 
 class StaffMember(models.Model):
     """
-    Somebody who works a booking — the decorator crew, the florist, the driver.
+    Somebody who works an event — the decorator crew, the florist, the driver.
 
     This is the *operational* record: who they are, what they do and how busy
     they are. A control-panel login is a separate thing (`StaffProfile`); the
@@ -1025,7 +1029,7 @@ class StaffMember(models.Model):
     skills = models.CharField(
         max_length=160,
         blank=True,
-        help_text="Comma separated — balloons, mandap, drone. Shown when you assign a booking.",
+        help_text="Comma separated — balloons, mandap, drone. Shown when you put them on an event.",
     )
     city = models.ForeignKey(
         City, null=True, blank=True, on_delete=models.SET_NULL, related_name="staff_members"
@@ -1062,11 +1066,12 @@ class StaffMember(models.Model):
 
     @property
     def open_jobs(self):
-        return self.bookings.exclude(status__in=["completed", "cancelled"]).count()
+        """Events still to run with this person on the crew."""
+        return self.events.filter(status__in=Event.OPEN_STATUSES).count()
 
     @property
     def done_jobs(self):
-        return self.bookings.filter(status="completed").count()
+        return self.events.filter(status="completed").count()
 
     @property
     def type_name(self):
@@ -1099,7 +1104,7 @@ class StaffMember(models.Model):
 
     @property
     def assign_label(self):
-        """How this person reads in a booking's assignment dropdown."""
+        """How this person reads when picking an event's crew."""
         bits = [self.name]
         if self.category_id:
             bits.append(self.category.name)
@@ -1108,116 +1113,11 @@ class StaffMember(models.Model):
         return " · ".join(bits)
 
 
-class BookingQuerySet(models.QuerySet):
-    def open(self):
-        return self.exclude(status__in=["completed", "cancelled"])
-
-    def upcoming(self):
-        return self.open().filter(event_date__gte=timezone.localdate())
-
-    def earning(self):
-        """Rows that count towards revenue."""
-        return self.exclude(status="cancelled")
-
-
-class Booking(Timestamped):
-    """
-    A booked event. This is the operational heart of the panel: every setup the
-    company is committed to delivering has one row here.
-    """
-
-    STATUS_CHOICES = [
-        ("new", "New"),
-        ("confirmed", "Confirmed"),
-        ("assigned", "Staff assigned"),
-        ("completed", "Completed"),
-        ("cancelled", "Cancelled"),
-    ]
-    PAYMENT_CHOICES = [
-        ("unpaid", "Unpaid"),
-        ("advance", "Advance paid"),
-        ("paid", "Paid in full"),
-        ("refunded", "Refunded"),
-    ]
-    OPEN_STATUSES = ["new", "confirmed", "assigned"]
-
-    reference = models.CharField(max_length=20, unique=True, blank=True, editable=False)
-
-    customer_name = models.CharField(max_length=120)
-    email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=40)
-
-    package = models.ForeignKey(
-        Package, null=True, blank=True, on_delete=models.SET_NULL, related_name="bookings"
-    )
-    quantity = models.PositiveSmallIntegerField(default=1)
-    add_ons = models.ManyToManyField(AddOn, blank=True, related_name="bookings")
-
-    city = models.ForeignKey(
-        City, null=True, blank=True, on_delete=models.SET_NULL, related_name="bookings"
-    )
-    address = models.TextField(blank=True)
-    event_date = models.DateField(db_index=True)
-    time_slot = models.CharField(max_length=40, blank=True)
-
-    amount = models.PositiveIntegerField(
-        default=0, help_text="Total charged (₹). Left at 0 it follows the package price."
-    )
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="new", db_index=True
-    )
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_CHOICES, default="unpaid")
-    staff = models.ForeignKey(
-        StaffMember,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="bookings",
-        verbose_name="Assigned to",
-        help_text="Who is doing this job. Filter the list by staff type when you pick.",
-    )
-    notes = models.TextField(blank=True, help_text="Access rules, surprises to keep, anything.")
-
-    objects = BookingQuerySet.as_manager()
-
-    class Meta:
-        ordering = ["-event_date", "-id"]
-
-    def __str__(self):
-        return f"{self.reference} · {self.customer_name}"
-
-    def save(self, *args, **kwargs):
-        if not self.reference:
-            self.reference = self._next_reference()
-        if not self.amount and self.package_id:
-            self.amount = self.package.price * self.quantity
-        return super().save(*args, **kwargs)
-
-    @staticmethod
-    def _next_reference():
-        last = Booking.objects.order_by("-id").values_list("id", flat=True).first() or 0
-        return f"CEL-{1000 + last + 1}"
-
-    @property
-    def is_open(self):
-        return self.status in self.OPEN_STATUSES
-
-    @property
-    def is_overdue(self):
-        """Still open, but the date has passed — the thing the dashboard shouts about."""
-        return self.is_open and self.event_date < timezone.localdate()
-
-    @property
-    def days_away(self):
-        return (self.event_date - timezone.localdate()).days
-
-    @property
-    def created_label(self):
-        return f"booked {timezone.localtime(self.created_at).strftime('%d %b')}"
-
-
 class Enquiry(models.Model):
-    """A contact-form message. Read-only in the panel apart from its status."""
+    """
+    A question from the website — about an occasion, a setup, or anything. The
+    panel reads it, and turns it into an event once the customer is ready.
+    """
 
     STATUS_CHOICES = [
         ("new", "New"),
@@ -1231,9 +1131,19 @@ class Enquiry(models.Model):
     phone = models.CharField(max_length=40, blank=True)
     city = models.CharField(max_length=80, blank=True)
     occasion = models.CharField(max_length=120, blank=True)
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="enquiries", verbose_name="About the setup",
+    )
     event_date = models.DateField(null=True, blank=True)
+    guests = models.PositiveIntegerField(default=0, verbose_name="Number of guests")
     message = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="new", db_index=True)
+    event = models.ForeignKey(
+        "Event", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="enquiries", editable=False,
+        help_text="The event this enquiry turned into.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -1243,6 +1153,23 @@ class Enquiry(models.Model):
 
     def __str__(self):
         return f"{self.name} — {self.occasion or 'general'}"
+
+    @property
+    def about_label(self):
+        """What the list shows under the occasion: the setup, else the city."""
+        bits = [self.package.title] if self.package_id else []
+        if self.event_date:
+            bits.append(self.event_date.strftime("%d %b %Y"))
+        return " · ".join(bits) or self.city
+
+    @property
+    def occasion_match(self):
+        """The occasion this enquiry names, if it is one on the site."""
+        if self.package_id:
+            return self.package.category
+        if not self.occasion:
+            return None
+        return Category.objects.filter(name__iexact=self.occasion).first()
 
 
 class Coupon(models.Model):
@@ -1786,7 +1713,7 @@ class StockMovement(models.Model):
         ("sale", "Counter sale"),
         ("return_in", "Customer return"),
         ("return_out", "Returned to supplier"),
-        ("event", "Used on a booking or event"),
+        ("event", "Used on an event"),
         ("damage", "Damaged"),
         ("lost", "Lost"),
         ("adjustment", "Stock count adjustment"),
@@ -1873,11 +1800,6 @@ class StockMovement(models.Model):
         "CounterSale", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="movements", editable=False,
     )
-    booking = models.ForeignKey(
-        Booking, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="stock_movements",
-        help_text="If this stock went out on a job, which one.",
-    )
     event = models.ForeignKey(
         "Event", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="stock_movements", editable=False,
@@ -1963,8 +1885,6 @@ class StockMovement(models.Model):
             return self.sale.reference
         if self.event_id:
             return self.event.number or self.reference or "—"
-        if self.booking_id:
-            return self.booking.reference
         if self.supplier_id:
             return self.supplier.name
         return self.reference or "—"
@@ -2273,8 +2193,8 @@ def _units(value):
 
 class Customer(Timestamped):
     """
-    Somebody the company runs events for. Website bookings still carry their
-    own name and phone; an event points at one of these, so a repeat customer's
+    Somebody the company runs events for. Every event points at one of these —
+    a website booking finds its customer by phone — so a repeat customer's
     history lives in one place.
     """
 
@@ -2289,6 +2209,44 @@ class Customer(Timestamped):
 
     def __str__(self):
         return f"{self.name} · {self.phone}" if self.phone else self.name
+
+    @staticmethod
+    def phone_digits(phone):
+        """The last ten digits — "+91 98765-43210" and "9876543210" are one number."""
+        return "".join(ch for ch in (phone or "") if ch.isdigit())[-10:]
+
+    @classmethod
+    def find_by_phone(cls, phone):
+        digits = cls.phone_digits(phone)
+        if len(digits) < 6:
+            return None
+        for customer in cls.objects.filter(phone__contains=digits[-4:]).order_by("pk"):
+            if cls.phone_digits(customer.phone) == digits:
+                return customer
+        return None
+
+    @classmethod
+    def for_booking(cls, name, phone, email="", address=""):
+        """
+        The customer a website booking belongs to: somebody already on file
+        with that phone number, or a new record. An existing customer's name is
+        never overwritten from the website — only gaps are filled in.
+        """
+        customer = cls.find_by_phone(phone)
+        if customer is None:
+            return cls.objects.create(
+                name=name, phone=phone.strip(), email=email, address=address,
+            )
+        changed = []
+        if email and not customer.email:
+            customer.email = email
+            changed.append("email")
+        if address and not customer.address:
+            customer.address = address
+            changed.append("address")
+        if changed:
+            customer.save(update_fields=changed + ["updated_at"])
+        return customer
 
     @property
     def contact_line(self):
@@ -2381,6 +2339,23 @@ class Event(Timestamped):
         max_length=200, blank=True, help_text="Venue and address — where the crew goes.",
     )
     guests = models.PositiveIntegerField(default=0, verbose_name="Number of guests")
+    occasion = models.ForeignKey(
+        Category, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="events", help_text="What is being celebrated.",
+    )
+    package = models.ForeignKey(
+        Package, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="events", verbose_name="Setup",
+        help_text="The setup from the website this event is built around, if any.",
+    )
+    time_slot = models.CharField(
+        max_length=40, blank=True, verbose_name="Arrival window",
+        help_text="When the crew is expected, e.g. 4 PM – 6 PM.",
+    )
+    crew = models.ManyToManyField(
+        StaffMember, blank=True, related_name="events",
+        help_text="Who works this event — decorators, florists, drivers.",
+    )
     status = models.CharField(
         max_length=12, choices=STATUS_CHOICES, default="draft", db_index=True,
     )
@@ -2394,6 +2369,33 @@ class Event(Timestamped):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="events_created", editable=False,
     )
+
+    # When each step was reached, stamped by the workflow — never typed in.
+    confirmed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    started_at = models.DateTimeField(null=True, blank=True, editable=False)
+    completed_at = models.DateTimeField(null=True, blank=True, editable=False)
+    cancelled_at = models.DateTimeField(null=True, blank=True, editable=False)
+
+    SOURCE_CHOICES = [
+        ("panel", "Added in the panel"),
+        ("website", "Booked on the website"),
+        ("enquiry", "From an enquiry"),
+    ]
+    source = models.CharField(
+        max_length=10, choices=SOURCE_CHOICES, default="panel", editable=False, db_index=True,
+    )
+    #: A website booking nobody in the panel has opened yet.
+    is_new = models.BooleanField(default=False, editable=False, db_index=True)
+    #: The extras picked on the website, with the price each had at the time.
+    booked_extras = models.JSONField(default=list, blank=True, editable=False)
+
+    #: The status each stamp belongs to.
+    STAMPS = {
+        "confirmed": "confirmed_at",
+        "in_progress": "started_at",
+        "completed": "completed_at",
+        "cancelled": "cancelled_at",
+    }
 
     objects = EventQuerySet.as_manager()
 
@@ -2459,6 +2461,72 @@ class Event(Timestamped):
         if days == -1:
             return "yesterday"
         return f"in {days} days" if days > 0 else f"{-days} days ago"
+
+    # -- the website side -------------------------------------------------
+
+    #: What a customer reads on their booking page, per status.
+    PUBLIC_STATES = {
+        "draft": ("Request received", "amber", "We call you to go over the details and confirm."),
+        "confirmed": ("Confirmed", "teal", "It is in the diary. The crew prepares for your date."),
+        "in_progress": ("Happening now", "violet", "The crew is on it."),
+        "completed": ("Completed", "green", "All done — thank you for celebrating with us."),
+        "cancelled": ("Cancelled", "red", "This booking was cancelled."),
+    }
+    PUBLIC_STEPS = [
+        ("draft", "Requested"),
+        ("confirmed", "Confirmed"),
+        ("in_progress", "On the day"),
+        ("completed", "Completed"),
+    ]
+
+    @property
+    def from_website(self):
+        return self.source == "website"
+
+    @property
+    def extras_total(self):
+        return sum(int(extra.get("price") or 0) for extra in self.booked_extras or [])
+
+    @property
+    def public_label(self):
+        return self.PUBLIC_STATES[self.status][0]
+
+    @property
+    def public_tone(self):
+        return self.PUBLIC_STATES[self.status][1]
+
+    @property
+    def public_hint(self):
+        return self.PUBLIC_STATES[self.status][2]
+
+    @property
+    def public_steps(self):
+        """The customer's view of the progress track: done, current or to come."""
+        order = [key for key, _label in self.PUBLIC_STEPS]
+        at = order.index(self.reached)
+        steps = []
+        for index, (key, label) in enumerate(self.PUBLIC_STEPS):
+            if self.is_cancelled and index > at:
+                break
+            if index < at or (index == at and (self.is_cancelled or key == "completed")):
+                state = "done"
+            elif index == at:
+                state = "current"
+            else:
+                state = "todo"
+            steps.append({"key": key, "label": label, "state": state})
+        if self.is_cancelled:
+            steps.append({"key": "cancelled", "label": "Cancelled", "state": "cancelled"})
+        return steps
+
+    @property
+    def can_customer_cancel(self):
+        """Until it is confirmed a request is only a request, so they can withdraw it."""
+        return self.status == "draft" and self.source in ("website", "enquiry")
+
+    def matches_phone(self, phone):
+        digits = Customer.phone_digits(phone)
+        return len(digits) >= 6 and digits == Customer.phone_digits(self.customer.phone)
 
     # -- lines ------------------------------------------------------------
     # Each reads `items.all()`, so a prefetched event costs no extra queries.
@@ -2557,8 +2625,27 @@ class Event(Timestamped):
 
     def _set_status(self, event, status):
         event.status = status
-        event.save(update_fields=["status", "updated_at"])
+        fields = ["status", "updated_at"]
+        stamp = self.STAMPS.get(status)
+        if stamp:
+            setattr(event, stamp, timezone.now())
+            setattr(self, stamp, getattr(event, stamp))
+            fields.append(stamp)
+        event.save(update_fields=fields)
         self.status = status
+
+    @property
+    def reached(self):
+        """The furthest step the event got to, cancelled or not."""
+        if self.status != "cancelled":
+            return self.status
+        if self.completed_at:
+            return "completed"
+        if self.started_at:
+            return "in_progress"
+        if self.confirmed_at:
+            return "confirmed"
+        return "draft"
 
     def confirm(self, user=None):
         with transaction.atomic():
@@ -3357,7 +3444,7 @@ class StaffProfile(models.Model):
     ROLE_CHOICES = [
         ("owner", "Owner — everything, including staff accounts"),
         ("admin", "Admin — everything except staff accounts"),
-        ("editor", "Editor — content and bookings, no settings"),
+        ("editor", "Editor — content and events, no settings"),
         ("viewer", "Viewer — read only"),
     ]
     RANK = {"viewer": 0, "editor": 1, "admin": 2, "owner": 3}

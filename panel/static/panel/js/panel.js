@@ -462,8 +462,9 @@
     var submitting = false;
 
     forms.forEach(function (form) {
-      form.addEventListener('input', function () { dirty = true; });
-      form.addEventListener('change', function () { dirty = true; });
+      var mark = function () { dirty = true; form.classList.add('is-dirty'); };
+      form.addEventListener('input', mark);
+      form.addEventListener('change', mark);
       form.addEventListener('submit', function () { submitting = true; });
     });
 
@@ -597,7 +598,13 @@
 
     window.addEventListener('pageshow', function (event) {
       if (!event.persisted) { return; }
-      // Restored from the back/forward cache: let it be used again.
+      // Restored from the back/forward cache, so its statuses and counts may
+      // be out of date: fetch it again rather than show the old copy.
+      if (!document.querySelector('[data-dirty-guard].is-dirty')) {
+        window.location.reload();
+        return;
+      }
+      // A half-filled form is worth more than fresh numbers: let it be used again.
       $$('[data-once]').forEach(function (form) {
         form.classList.remove('is-sending');
         $$('button[type="submit"], input[type="submit"]', form).forEach(function (button) {

@@ -201,7 +201,7 @@ MOVEMENT_TONES = {
     "Counter sale": "blue",
     "Customer return": "violet",
     "Returned to supplier": "amber",
-    "Used on a booking or event": "violet",
+    "Used on an event": "violet",
     "Damaged": "red",
     "Lost": "red",
     "Stock count adjustment": "grey",
@@ -465,50 +465,32 @@ RESOURCES = [
     ),
     # -------------------------------------------------------------- operations
     Resource(
-        slug="bookings",
-        model=m.Booking,
-        form_class=f.BookingForm,
-        label="Booking",
-        plural="Bookings",
-        icon="calendar",
-        group="Operations",
-        blurb="Every event the company is committed to delivering.",
-        columns=[
-            Column("reference", "Ref", sortable="reference", hint="created_label"),
-            Column("customer_name", "Customer", sortable="customer_name", hint="phone"),
-            Column("package", "Product", sortable="package__title", hint="city"),
-            Column("event_date", "Event", "date", sortable="event_date", hint="time_slot"),
-            Column("amount", "Value", "money", sortable="amount", hint="get_payment_status_display"),
-            Column("status", "Status", "badge", sortable="status", badges=STATUS_TONES),
-        ],
-        search_fields=["reference", "customer_name", "phone", "email", "package__title", "city__name"],
-        filters=[
-            Filter("status", "Status", m.Booking.STATUS_CHOICES),
-            Filter("payment_status", "Payment", m.Booking.PAYMENT_CHOICES),
-            Filter("city", "City", [], lookup="city__slug"),
-        ],
-        select_related=["package", "city", "staff", "staff__category"],
-        prefetch_related=["add_ons"],
-    ),
-    Resource(
         slug="enquiries",
         model=m.Enquiry,
         form_class=f.EnquiryForm,
         label="Enquiry",
         plural="Enquiries",
         icon="message",
-        group="Operations",
-        blurb="Messages from the contact form.",
+        group="Events",
+        blurb=(
+            "Questions from the website — about an occasion, a setup, or anything. "
+            "Open one to turn it into an event when the customer is ready."
+        ),
         can_create=False,
+        select_related=["package", "event"],
         columns=[
             Column("name", "From", sortable="name", hint="phone"),
-            Column("occasion", "About", hint="city"),
+            Column("occasion", "About", hint="about_label"),
             Column("message", "Message", "excerpt"),
             Column("created_at", "Received", "datetime", sortable="created_at"),
             Column("status", "Status", "badge", sortable="status", badges=STATUS_TONES),
         ],
-        search_fields=["name", "email", "phone", "message", "occasion"],
-        filters=[Filter("status", "Status", m.Enquiry.STATUS_CHOICES)],
+        search_fields=["name", "email", "phone", "message", "occasion", "package__title"],
+        filters=[
+            Filter("status", "Status", m.Enquiry.STATUS_CHOICES),
+            # The lookup is "has no event", so the yes/no values read inverted.
+            Filter("event", "Became an event", [("__false__", "Yes"), ("__true__", "Not yet")], lookup="event__isnull"),
+        ],
     ),
     Resource(
         slug="staffs",
@@ -519,8 +501,8 @@ RESOURCES = [
         icon="users",
         group="Operations",
         blurb=(
-            "Everyone who works a booking — decorators, florists, drivers, "
-            "coordinators. Give somebody a type, then assign them to jobs."
+            "Everyone who works an event — decorators, florists, drivers, "
+            "coordinators. Give somebody a type, then put them on an event's crew."
         ),
         permission="admin",
         add_label="New staff member",
@@ -548,7 +530,9 @@ RESOURCES = [
             Filter("is_active", "Active", YES_NO),
         ],
         select_related=["city", "category", "account"],
-        annotate=lambda qs: qs.annotate(job_total=Count("bookings")),
+        annotate=lambda qs: qs.annotate(
+            job_total=Count("events", filter=Q(events__status__in=m.Event.OPEN_STATUSES))
+        ),
         ordering="name",
     ),
     Resource(
@@ -743,7 +727,7 @@ RESOURCES = [
             Filter("group", "Group", [], lookup="item__category__slug"),
             Filter("supplier", "Supplier", [], lookup="supplier_id"),
         ],
-        select_related=["item", "supplier", "sale", "booking", "event", "created_by"],
+        select_related=["item", "supplier", "sale", "event", "created_by"],
         ordering="-created_at,-id",
     ),
     Resource(
@@ -871,7 +855,7 @@ RESOURCES = [
 BY_SLUG = {resource.slug: resource for resource in RESOURCES}
 
 # Sidebar order. Groups not listed here fall to the end.
-GROUP_ORDER = ["Operations", "Events", "Inventory", "Catalogue", "Homepage", "Site"]
+GROUP_ORDER = ["Events", "Operations", "Inventory", "Catalogue", "Homepage", "Site"]
 GROUP_ICONS = {
     "Operations": "activity",
     "Events": "sparkles",

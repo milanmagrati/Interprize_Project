@@ -22,7 +22,6 @@ from django.utils import timezone
 
 from core.models import (
     AddOn,
-    Booking,
     Category,
     City,
     CounterSale,
@@ -63,12 +62,14 @@ User = get_user_model()
 ROUTE_CHOICES = [
     ("core:home", "Home"),
     ("core:products", "All products"),
-    ("core:categories", "All categories"),
-    ("core:category_detail", "A category page — needs a slug"),
+    ("core:categories", "All occasions"),
+    ("core:category_detail", "An occasion page — needs a slug"),
     ("core:package_detail", "A package page — needs a slug"),
+    ("core:book", "Book an event"),
+    ("core:track", "Track a booking"),
+    ("core:enquire", "Ask a question"),
     ("core:how_it_works", "How it works"),
     ("core:contact", "Contact"),
-    ("core:cart", "Cart"),
 ]
 
 
@@ -587,58 +588,33 @@ class HeroSlideForm(PanelModelForm):
 # ---------------------------------------------------------------------------
 
 
-class BookingForm(PanelModelForm):
+class EnquiryForm(PanelModelForm):
     class Meta:
-        model = Booking
+        model = Enquiry
         fields = [
-            "customer_name", "phone", "email",
-            "package", "quantity", "add_ons", "amount",
-            "city", "address", "event_date", "time_slot",
-            "status", "payment_status", "staff", "notes",
+            "name", "phone", "email", "city", "occasion", "package", "event_date", "guests",
+            "message", "status",
         ]
-        widgets = {
-            "event_date": DateInput(),
-            "address": forms.Textarea(attrs={"rows": 2}),
-            "notes": forms.Textarea(attrs={"rows": 3}),
-            "add_ons": forms.CheckboxSelectMultiple(),
-        }
+        widgets = {"event_date": DateInput(), "message": forms.Textarea(attrs={"rows": 5})}
 
     SECTIONS = [
-        ("Customer", ["customer_name", "phone", "email"]),
-        ("What they booked", ["package", "quantity", "add_ons", "amount"]),
-        ("Where and when", ["city", "address", "event_date", "time_slot"]),
-        ("Operations", ["status", "payment_status", "staff", "notes"]),
+        ("From", ["name", "phone", "email", "city"]),
+        ("About", ["occasion", "package", "event_date", "guests", "message"]),
+        ("Handling", ["status"]),
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["package"].queryset = Package.objects.live().select_related("category")
-        self.fields["staff"].queryset = (
-            StaffMember.objects.assignable().select_related("category", "city")
-        )
-        # "Anand Events · Decorator · Delhi" reads far better in a long dropdown
-        # than a bare name, and it is the only place the type shows up here.
-        self.fields["staff"].label_from_instance = lambda member: member.assign_label
-        self.fields["city"].queryset = City.objects.filter(is_active=True)
-        self.fields["add_ons"].widget.attrs.pop("class", None)
-        self.fields["amount"].help_text = "Leave at 0 to charge the package price."
+        self.fields["package"].queryset = Package.objects.select_related("category").order_by("title")
+        self.fields["package"].empty_label = "No particular setup"
+        self.fields["guests"].required = False
+        self.fields["guests"].widget.attrs.pop("required", None)
+
+    def clean_guests(self):
+        return self.cleaned_data.get("guests") or 0
 
     def sections(self):
-        for title, names in self.SECTIONS:
-            yield title, [self[name] for name in names]
-
-    def clean(self):
-        cleaned = super().clean()
-        if cleaned.get("status") == "assigned" and not cleaned.get("staff"):
-            self.add_error("staff", "Pick who is doing it, or leave the status as confirmed.")
-        return cleaned
-
-
-class EnquiryForm(PanelModelForm):
-    class Meta:
-        model = Enquiry
-        fields = ["name", "phone", "email", "city", "occasion", "event_date", "message", "status"]
-        widgets = {"event_date": DateInput(), "message": forms.Textarea(attrs={"rows": 5})}
+        return _sections(self)
 
 
 class StaffCategoryForm(PanelModelForm):
@@ -910,13 +886,13 @@ class StockMovementForm(PanelModelForm):
         model = StockMovement
         fields = [
             "item", "kind", "change", "unit_cost",
-            "supplier", "booking", "reference", "note",
+            "supplier", "reference", "note",
         ]
         widgets = {"note": forms.Textarea(attrs={"rows": 2})}
 
     SECTIONS = [
         ("What moved", ["item", "kind", "change"]),
-        ("Where it came from or went", ["unit_cost", "supplier", "booking"]),
+        ("Where it came from or went", ["unit_cost", "supplier"]),
         ("For the record", ["reference", "note"]),
     ]
 
@@ -930,10 +906,6 @@ class StockMovementForm(PanelModelForm):
         )
         self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True)
         self.fields["supplier"].empty_label = "Not from a supplier"
-        self.fields["booking"].queryset = (
-            Booking.objects.open().select_related("package").order_by("-event_date")[:200]
-        )
-        self.fields["booking"].empty_label = "Not for a booking"
         if not self.instance.pk:
             # Reservations are written by events; a hand-typed one would move
             # nothing and mean nothing.
@@ -1105,15 +1077,20 @@ class EventForm(PanelModelForm):
 
     class Meta:
         model = Event
-        fields = ["name", "customer", "event_date", "location", "guests", "revenue", "notes"]
+        fields = [
+            "name", "occasion", "package", "customer", "event_date", "time_slot",
+            "location", "guests", "crew", "revenue", "notes",
+        ]
         widgets = {
             "event_date": DateInput(),
             "notes": forms.Textarea(attrs={"rows": 4}),
+            "crew": forms.CheckboxSelectMultiple(),
         }
 
     SECTIONS = [
-        ("The event", ["name", "event_date", "location", "guests"]),
+        ("The event", ["name", "occasion", "package", "event_date", "time_slot", "location", "guests"]),
         ("Customer", ["customer", "new_customer_name", "new_customer_phone"]),
+        ("Crew", ["crew"]),
         ("Money and notes", ["revenue", "notes"]),
     ]
 
@@ -1131,6 +1108,35 @@ class EventForm(PanelModelForm):
         for name in ("guests", "revenue"):
             self.fields[name].widget.attrs.update({"inputmode": "numeric", "min": "0"})
 
+        self.fields["occasion"].queryset = Category.objects.order_by("position", "name")
+        self.fields["occasion"].empty_label = "Pick an occasion"
+        package = self.fields["package"]
+        # A setup that has since been unpublished stays selectable on its own event.
+        current = self.instance.package_id if self.instance.pk else None
+        package.queryset = (
+            Package.objects.filter(Q(is_active=True) | Q(pk=current))
+            .select_related("category").order_by("category__position", "title")
+        )
+        package.empty_label = "No setup — planned from scratch"
+        package.label_from_instance = lambda p: f"{p.title} · {p.category.name} · ₹{p.price:,}"
+        crew = self.fields["crew"]
+        # Somebody since switched off stays ticked on the events they worked.
+        current_crew = list(self.instance.crew.values_list("pk", flat=True)) if self.instance.pk else []
+        crew.queryset = (
+            StaffMember.objects.filter(Q(is_active=True) | Q(pk__in=current_crew))
+            .select_related("category", "city").order_by("category__position", "name")
+        )
+        crew.label_from_instance = lambda member: member.assign_label
+        crew.widget.attrs.pop("class", None)
+        crew.help_text = "Tick everyone working it. Their open jobs count on the Staffs page follows."
+        slots = [slot.label for slot in TimeSlot.objects.all()]
+        if self.instance.time_slot and self.instance.time_slot not in slots:
+            slots.append(self.instance.time_slot)
+        self.fields["time_slot"].widget = forms.Select(
+            choices=[("", "Any time")] + [(label, label) for label in slots],
+            attrs={"class": "field__input field__input--select"},
+        )
+
     def sections(self):
         return _sections(self)
 
@@ -1146,18 +1152,29 @@ class EventForm(PanelModelForm):
         elif not customer and not new_name:
             self.add_error("customer", "Pick a customer, or type a new one's name below.")
         cleaned["new_customer_name"] = new_name
+
+        occasion, package = cleaned.get("occasion"), cleaned.get("package")
+        if package and not occasion:
+            cleaned["occasion"] = package.category
+        elif package and occasion and package.category_id != occasion.pk:
+            self.add_error(
+                "package", f"{package.title} is a {package.category.name} setup, not {occasion.name}.",
+            )
         return cleaned
 
     def save(self, commit=True):
         event = super().save(commit=False)
+        event.occasion = self.cleaned_data.get("occasion")
         new_name = self.cleaned_data.get("new_customer_name")
         if new_name and not self.cleaned_data.get("customer"):
-            event.customer = Customer.objects.create(
-                name=new_name,
-                phone=(self.cleaned_data.get("new_customer_phone") or "").strip(),
+            phone = (self.cleaned_data.get("new_customer_phone") or "").strip()
+            # Somebody already on file with that number is the same person.
+            event.customer = Customer.find_by_phone(phone) or Customer.objects.create(
+                name=new_name, phone=phone,
             )
         if commit:
             event.save()
+            self.save_m2m()
         return event
 
 

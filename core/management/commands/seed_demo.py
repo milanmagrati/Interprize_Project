@@ -5,8 +5,8 @@ Load the original sample content into the database.
     python manage.py seed_demo --reset    # wipes the content tables first
 
 `sample_data.py` is no longer read at request time — this command is the only
-thing left that imports it. Bookings and enquiries are generated rather than
-copied, so the panel's dashboard has a plausible few months of history to show.
+thing left that imports it. Events and enquiries are generated rather than
+copied, so the panel's dashboard and schedule have something to show.
 """
 
 import random
@@ -20,7 +20,6 @@ from django.utils import timezone
 from core import sample_data as data
 from core.models import (
     AddOn,
-    Booking,
     Category,
     City,
     CounterSale,
@@ -62,7 +61,6 @@ CONTENT_MODELS = [
     InventoryItem,
     StockCategory,
     Supplier,
-    Booking,
     Enquiry,
     Coupon,
     StaffMember,
@@ -146,12 +144,6 @@ class Command(BaseCommand):
             action="store_true",
             help="Delete existing content rows before seeding. Staff accounts are untouched.",
         )
-        parser.add_argument(
-            "--bookings",
-            type=int,
-            default=60,
-            help="How many demo bookings to generate (default 60).",
-        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -171,11 +163,10 @@ class Command(BaseCommand):
         self.seed_copy(categories)
         self.seed_testimonials(packages)
         decorators = self.seed_decorators(cities)
-        self.seed_bookings(packages, cities, decorators, options["bookings"])
         self.seed_enquiries(categories)
         self.seed_coupons()
         self.seed_inventory(decorators)
-        self.seed_events()
+        self.seed_events(decorators)
 
         self.stdout.write(self.style.SUCCESS("\nSeeded. Sign in at /manage/ to edit any of it."))
 
@@ -374,64 +365,6 @@ class Command(BaseCommand):
         self.stdout.write(f"  {len(decorators)} staff members")
         return decorators
 
-    def seed_bookings(self, packages, cities, decorators, count):
-        if Booking.objects.exists() or not packages:
-            return
-        today = timezone.localdate()
-        slots = [s.label for s in TimeSlot.objects.all()] or ["4 PM – 6 PM"]
-        add_ons = list(AddOn.objects.all())
-        metros = [c for c in cities if c.is_metro] or cities
-
-        # Weighted towards the past so the dashboard has revenue history, with a
-        # tail of upcoming jobs for the schedule board.
-        for index in range(count):
-            offset = random.randint(-120, 30)
-            event_date = today + timedelta(days=offset)
-            package = random.choice(packages)
-            quantity = 1 if random.random() < 0.85 else 2
-
-            if offset < -1:
-                status = "cancelled" if random.random() < 0.08 else "completed"
-            elif offset < 3:
-                status = random.choice(["assigned", "confirmed"])
-            else:
-                status = random.choice(["new", "new", "confirmed", "assigned"])
-
-            payment = {
-                "completed": "paid",
-                "cancelled": "refunded",
-                "assigned": "advance",
-                "confirmed": "advance",
-                "new": "unpaid",
-            }[status]
-
-            booking = Booking.objects.create(
-                customer_name=f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}",
-                email=f"guest{index}@example.com",
-                phone=f"+9198{random.randint(10000000, 99999999)}",
-                package=package,
-                quantity=quantity,
-                city=random.choice(metros),
-                address=f"Flat {random.randint(101, 908)}, {random.choice(['Lake View', 'Green Acres', 'Sunrise Residency', 'Palm Court'])}",
-                event_date=event_date,
-                time_slot=random.choice(slots),
-                amount=package.price * quantity,
-                status=status,
-                payment_status=payment,
-                staff=random.choice(decorators) if status in ("assigned", "completed") else None,
-                notes=random.choice(
-                    ["", "", "Surprise — do not call, message on arrival.", "No adhesive on walls.",
-                     "Lift access only until 8 PM.", "Park in visitor bay B."]
-                ),
-            )
-            if add_ons and random.random() < 0.4:
-                booking.add_ons.add(random.choice(add_ons))
-            # created_at is auto_now_add; push it back so charts have a spread.
-            Booking.objects.filter(pk=booking.pk).update(
-                created_at=timezone.now() - timedelta(days=max(0, -offset) + random.randint(2, 9))
-            )
-        self.stdout.write(f"  {Booking.objects.count()} bookings")
-
     def seed_enquiries(self, categories):
         if Enquiry.objects.exists():
             return
@@ -554,7 +487,7 @@ class Command(BaseCommand):
         sold = CounterSale.objects.count()
         self.stdout.write(f"  {sold} counter sales, {StockMovement.objects.count()} ledger rows")
 
-    def seed_events(self):
+    def seed_events(self, crews=()):
         """
         A handful of events in every state, built through the same model methods
         the panel calls, so each reservation and return lands in the ledger.
@@ -607,7 +540,12 @@ class Command(BaseCommand):
                     "Palace Grounds, Bellary Road", "The Leela, Old Airport Road",
                     "Rooftop, Indiranagar", "Community hall, Jayanagar 4th Block",
                 ]),
+                occasion=next(
+                    (c for c in Category.objects.all() if c.name.lower() in name.lower()), None,
+                ),
             )
+            if crews:
+                event.crew.set(random.sample(list(crews), min(2, len(crews))))
             for item_name, quantity in stock_lines:
                 item = InventoryItem.objects.filter(name=item_name).first()
                 if item is None:

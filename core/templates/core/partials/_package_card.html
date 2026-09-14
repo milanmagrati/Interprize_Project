@@ -38,10 +38,10 @@ Optional: `compact=1` for the carousel variant.
 
     <div class="pkg__actions">
       <a class="btn btn--outline btn--sm" href="{% url 'core:package_detail' package.slug %}">View details</a>
-      <button class="btn btn--primary btn--sm" type="button" data-add-to-cart="{{ package.slug }}">
-        <svg class="icon" aria-hidden="true"><use href="#i-shopping-bag"></use></svg>
-        Add to cart
-      </button>
+      <a class="btn btn--primary btn--sm" href="{% url 'core:book' %}?package={{ package.slug }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
+        Book now
+      </a>
     </div>
   </div>
 </article>

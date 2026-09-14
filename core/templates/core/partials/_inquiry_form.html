@@ -1,54 +1,81 @@
 {% comment %}
-Shared enquiry form. Posts to whichever page it sits on; `core.views
-.handle_enquiry` validates it, saves an Enquiry and redirects back here, so the
-message appears in the control panel's inbox.
+Shared enquiry form. Wherever it sits, it posts to `core:enquire`, which saves an
+Enquiry for the control panel and sends the visitor back to this page with a
+thank-you — or shows the form again on its own page if something is missing.
 
     {% include "core/partials/_inquiry_form.html" with full=1 occasions=occasions %}
+
+Optional: `package` (a setup the question is about), `values` and `errors` (a
+form being shown again), `next` (where to return), `no_anchor=1` when the page
+already has an #enquiry section around the form.
 {% endcomment %}
-<form class="form{% if full %} form--full{% endif %}" id="enquiry" method="post" action="" novalidate>
+<form class="form{% if full %} form--full{% endif %}"{% if not no_anchor %} id="enquiry"{% endif %}
+      method="post" action="{% url 'core:enquire' %}" novalidate data-once>
   {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next|default:request.get_full_path }}">
+  {% if package %}<input type="hidden" name="package" value="{{ package.slug }}">{% endif %}
+  <p class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></p>
+
+  {% if errors.non_field_errors %}
+    <p class="flash flash--error">{{ errors.non_field_errors|first }}</p>
+  {% endif %}
+
   <div class="form__grid">
-    <label class="field">
+    <label class="field{% if errors.name %} has-error{% endif %}">
       <span class="field__label">Your name</span>
-      <input type="text" name="name" autocomplete="name" placeholder="Ananya Raghavan" required>
+      <input type="text" name="name" autocomplete="name" placeholder="Ananya Raghavan" value="{{ values.name }}" required maxlength="120">
+      {% if errors.name %}<span class="field__error">{{ errors.name|first }}</span>{% endif %}
     </label>
 
-    <label class="field">
+    <label class="field{% if errors.phone %} has-error{% endif %}">
       <span class="field__label">Phone</span>
-      <input type="tel" name="phone" autocomplete="tel" placeholder="98765 43210" required>
+      <input type="tel" name="phone" autocomplete="tel" placeholder="98765 43210" value="{{ values.phone }}" required maxlength="40">
+      {% if errors.phone %}<span class="field__error">{{ errors.phone|first }}</span>{% endif %}
     </label>
 
     {% if full %}
-      <label class="field">
-        <span class="field__label">Email</span>
-        <input type="email" name="email" autocomplete="email" placeholder="you@example.com">
+      <label class="field{% if errors.email %} has-error{% endif %}">
+        <span class="field__label">Email <em>optional</em></span>
+        <input type="email" name="email" autocomplete="email" placeholder="you@example.com" value="{{ values.email }}">
+        {% if errors.email %}<span class="field__error">{{ errors.email|first }}</span>{% endif %}
       </label>
     {% endif %}
 
     <label class="field">
       <span class="field__label">City</span>
-      <input type="text" name="city" list="city-options" placeholder="{{ active_city }}" autocomplete="address-level2" required>
+      <input type="text" name="city" list="city-options" placeholder="{{ active_city }}" value="{{ values.city }}" autocomplete="address-level2" maxlength="80">
     </label>
 
     {% if full %}
       <label class="field">
         <span class="field__label">Occasion</span>
-        <select name="occasion">
-          <option value="">Choose an occasion</option>
-          {% for category in occasions %}<option value="{{ category.slug }}">{{ category.name }}</option>{% endfor %}
-          <option value="other">Something else</option>
-        </select>
+        <span class="select">
+          <select name="occasion">
+            <option value="">Choose an occasion</option>
+            {% for category in occasions %}<option value="{{ category.slug }}"{% if values.occasion == category.slug %} selected{% endif %}>{{ category.name }}</option>{% endfor %}
+            <option value="other"{% if values.occasion == "other" %} selected{% endif %}>Something else</option>
+          </select>
+          <svg class="icon select__caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+        </span>
       </label>
 
-      <label class="field">
-        <span class="field__label">Event date</span>
-        <input type="date" name="event_date">
+      <label class="field{% if errors.event_date %} has-error{% endif %}">
+        <span class="field__label">Event date <em>if you know it</em></span>
+        <input type="date" name="event_date" value="{{ values.event_date }}" min="{% now 'Y-m-d' %}">
+        {% if errors.event_date %}<span class="field__error">{{ errors.event_date|first }}</span>{% endif %}
+      </label>
+
+      <label class="field{% if errors.guests %} has-error{% endif %}">
+        <span class="field__label">Guests <em>roughly</em></span>
+        <input type="number" name="guests" inputmode="numeric" min="0" max="100000" placeholder="40" value="{{ values.guests }}">
+        {% if errors.guests %}<span class="field__error">{{ errors.guests|first }}</span>{% endif %}
       </label>
     {% endif %}
 
     <label class="field field--wide">
-      <span class="field__label">What are you planning?</span>
-      <textarea name="message" rows="{% if full %}5{% else %}3{% endif %}" placeholder="A first birthday at home, about 20 guests, evening slot."></textarea>
+      <span class="field__label">{% if package %}What would you like to know?{% else %}What are you planning?{% endif %}</span>
+      <textarea name="message" rows="{% if full %}5{% else %}3{% endif %}" maxlength="4000"
+                placeholder="{% if package %}Can it be done in pastel colours, and is there parking for the van?{% else %}A first birthday at home, about 20 guests, evening slot.{% endif %}">{{ values.message }}</textarea>
     </label>
   </div>
 
@@ -60,6 +87,6 @@ message appears in the control panel's inbox.
     <button class="btn btn--accent" type="submit">
       Send enquiry <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
     </button>
-    <p class="form__note">We reply within an hour, 9 AM to 11 PM. No sales calls afterwards.</p>
+    <p class="form__note">We reply within an hour, 9 AM to 11 PM. Ready to go ahead? <a href="{% url 'core:book' %}{% if package %}?package={{ package.slug }}{% endif %}">Book the event</a> instead.</p>
   </div>
 </form>

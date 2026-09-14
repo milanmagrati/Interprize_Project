@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ event.number }} &mdash; your booking with {{ brand.name }}{% endblock %}
+
+{% comment %}
+The customer's page for one booking. It reads the same event the panel edits,
+so every status change made there shows up here on the next visit.
+{% endcomment %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="bstatus bstatus--{{ event.status }}">
+  <div class="wrap bstatus__inner">
+
+    <header class="bstatus__hero{% if is_new %} is-new{% endif %}">
+      {% if is_new %}<span class="bstatus__confetti" aria-hidden="true">{% for i in "123456789012" %}<i></i>{% endfor %}</span>{% endif %}
+      <span class="bstatus__badge bstatus__badge--{{ event.public_tone }}" aria-hidden="true">
+        <svg class="icon"><use href="#i-{% if event.is_cancelled %}close{% elif event.status == 'draft' %}clock{% else %}check{% endif %}"></use></svg>
+      </span>
+      <div class="bstatus__heading">
+        <p class="bstatus__eyebrow">
+          {% if is_new %}Request sent{% else %}Booking{% endif %}
+          <button class="bstatus__number" type="button" data-copy="{{ event.number }}" title="Copy the booking number">
+            {{ event.number }}<svg class="icon" aria-hidden="true"><use href="#i-tag"></use></svg>
+          </button>
+        </p>
+        <h1 class="bstatus__title">
+          {% if is_new %}Thank you, {{ event.customer.name.split.0 }} — we&rsquo;ve got it!{% else %}{{ event.name }}{% endif %}
+        </h1>
+        <p class="bstatus__lead">
+          <span class="status-pill status-pill--{{ event.public_tone }}">{{ event.public_label }}</span>
+          {{ event.public_hint }}
+        </p>
+        {% if is_new %}
+          <p class="bstatus__save">Keep the number <strong>{{ event.number }}</strong> — with your phone number it opens this page on any device.</p>
+        {% endif %}
+      </div>
+    </header>
+
+    <ol class="ptrack{% if event.is_cancelled %} ptrack--cancelled{% endif %}" aria-label="Booking progress">
+      {% for step in event.public_steps %}
+        <li class="ptrack__step is-{{ step.state }}" style="--i: {{ forloop.counter0 }}">
+          {% if step.state == "current" %}
+            <span class="ptrack__pointer" aria-hidden="true">
+              <svg class="icon"><use href="#i-chevron-down"></use></svg>
+            </span>
+            <span class="ptrack__flag" aria-hidden="true">You are here</span>
+          {% endif %}
+          <span class="ptrack__dot" aria-hidden="true">
+            {% if step.state == "done" %}<svg class="icon"><use href="#i-check"></use></svg>
+            {% elif step.state == "cancelled" %}<svg class="icon"><use href="#i-close"></use></svg>
+            {% else %}{{ forloop.counter }}{% endif %}
+          </span>
+          <span class="ptrack__label">{{ step.label }}</span>
+          <span class="sr-only">— {% if step.state == "done" %}done{% elif step.state == "current" %}where it is now{% elif step.state == "cancelled" %}cancelled{% else %}still to come{% endif %}</span>
+        </li>
+      {% endfor %}
+    </ol>
+
+    <div class="bstatus__grid">
+      <div class="card card--pad bstatus__card">
+        <h2 class="card__title">The event</h2>
+        <dl class="factlist">
+          {% if event.occasion %}
+            <div><dt><svg class="icon" aria-hidden="true"><use href="#i-{{ event.occasion.icon }}"></use></svg>Occasion</dt><dd>{{ event.occasion.name }}</dd></div>
+          {% endif %}
+          <div>
+            <dt><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Setup</dt>
+            <dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}">{{ event.package.title }}</a>{% else %}Planned together with you{% endif %}</dd>
+          </div>
+          <div>
+            <dt><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Date</dt>
+            <dd>{{ event.event_date|date:"l, j F Y" }}{% if event.is_open %} <small>{{ event.when_label }}</small>{% endif %}</dd>
+          </div>
+          {% if event.time_slot %}
+            <div><dt><svg class="icon" aria-hidden="true"><use href="#i-clock"></use></svg>Arrival</dt><dd>{{ event.time_slot }}</dd></div>
+          {% endif %}
+          {% if event.location %}
+            <div><dt><svg class="icon" aria-hidden="true"><use href="#i-map-pin"></use></svg>Venue</dt><dd>{{ event.location }}</dd></div>
+          {% endif %}
+          {% if event.guests %}
+            <div><dt><svg class="icon" aria-hidden="true"><use href="#i-users"></use></svg>Guests</dt><dd>About {{ event.guests|intcomma }}</dd></div>
+          {% endif %}
+          <div><dt><svg class="icon" aria-hidden="true"><use href="#i-user"></use></svg>Booked by</dt><dd>{{ event.customer.name }} · {{ event.customer.phone }}</dd></div>
+        </dl>
+      </div>
+
+      <div class="card card--pad bstatus__card">
+        <h2 class="card__title">Price</h2>
+        <ul class="pricelist">
+          <li><span>{% if event.package %}{{ event.package.title }}{% else %}Setup{% endif %}</span><span>{% if base_price %}&#8377;{{ base_price|intcomma }}{% else %}Quoted on the call{% endif %}</span></li>
+          {% for extra in extras %}
+            <li><span>{{ extra.name }}</span><span>+&#8377;{{ extra.price|intcomma }}</span></li>
+          {% endfor %}
+        </ul>
+        <div class="pricelist__total">
+          <span>{% if event.status == "draft" %}Estimated total{% else %}Total{% endif %}</span>
+          <strong>{% if event.revenue %}&#8377;{{ event.revenue|intcomma }}{% else %}To be quoted{% endif %}</strong>
+        </div>
+        {% if event.paid %}
+          <ul class="pricelist pricelist--paid">
+            <li><span>Paid so far</span><span>&#8377;{{ event.paid|intcomma }}</span></li>
+            <li><span>Still to pay</span><span>&#8377;{{ event.remaining|intcomma }}</span></li>
+          </ul>
+        {% elif event.status == "draft" %}
+          <p class="card__note">The final price is agreed on the call. Nothing is charged until then.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="bstatus__actions">
+      <a class="btn btn--primary" href="tel:{{ brand.phone_href }}">
+        <svg class="icon" aria-hidden="true"><use href="#i-phone"></use></svg>Call {{ brand.phone }}
+      </a>
+      <a class="btn btn--outline" href="https://wa.me/{{ brand.phone_href|cut:'+' }}?text={{ 'Hello, about my booking '|urlencode }}{{ event.number }}" rel="noopener">
+        <svg class="icon" aria-hidden="true"><use href="#i-whatsapp"></use></svg>WhatsApp us
+      </a>
+      <a class="btn btn--ghost" href="{% url 'core:book' %}">
+        <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg>Book another event
+      </a>
+      {% if event.can_customer_cancel %}
+        <form class="bstatus__cancel" method="post" action="{% url 'core:booking_cancel' event.number %}" data-once>
+          {% csrf_token %}
+          <button class="btn btn--quiet" type="submit" data-confirm="Cancel booking {{ event.number }}? You can always book again.">
+            Cancel this request
+          </button>
+        </form>
+      {% elif event.is_open %}
+        <p class="bstatus__fine">Need to change or cancel? It is confirmed, so call us and we&rsquo;ll sort it out.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

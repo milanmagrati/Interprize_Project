@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Ask a question &mdash; {{ brand.name }}{% endblock %}
+
+{% block content %}
+{% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
+
+<section class="page-head page-head--compact">
+  <div class="wrap">
+    <h1 class="page-head__title">{% if package %}Ask about this setup{% else %}Ask us anything{% endif %}</h1>
+    <p class="page-head__lead">
+      Not ready to book? Tell us what you have in mind — a planner replies within the hour,
+      9 AM to 11 PM, and can turn it into a booking when you are ready.
+    </p>
+  </div>
+</section>
+
+<section class="section section--tight">
+  <div class="wrap contact__inner">
+    <div class="card card--pad contact__form">
+      {% if package %}
+        <a class="askabout" href="{{ package.get_absolute_url }}">
+          <img src="{{ package.image }}" alt="" width="120" height="90" loading="lazy">
+          <span>
+            <small>{{ package.category.name }}</small>
+            <strong>{{ package.title }}</strong>
+            <span>&#8377;{{ package.price|intcomma }}</span>
+          </span>
+        </a>
+      {% endif %}
+      {% include "core/partials/_inquiry_form.html" with full=1 occasions=occasions package=package values=values errors=errors next=next %}
+    </div>
+
+    <div class="contact__side">
+      <div class="card card--pad">
+        <h2 class="card__title">Rather talk?</h2>
+        <ul class="notes">
+          <li><strong>Call</strong> <a href="tel:{{ brand.phone_href }}">{{ brand.phone }}</a>, 9 AM to 11 PM</li>
+          <li><strong>WhatsApp</strong> Send a reference photo and get a quote.</li>
+          <li><strong>Already booked?</strong> <a href="{% url 'core:track' %}">Check your booking</a>.</li>
+        </ul>
+        <a class="btn btn--primary btn--block" href="{% url 'core:book' %}{% if package %}?package={{ package.slug }}{% endif %}">
+          <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>Ready? Book the event
+        </a>
+      </div>
+
+      {% if faqs %}
+        <div class="faq-list" data-faq-group>
+          {% for faq in faqs %}
+            {% include "core/partials/_faq_item.html" with faq=faq index=forloop.counter %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
