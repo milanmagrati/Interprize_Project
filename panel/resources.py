@@ -271,19 +271,28 @@ RESOURCES = [
         plural="Occasions",
         icon="layers",
         group="Catalogue",
-        blurb="The occasion each product belongs to, and a filter on the products page. Order here is the order on the site.",
+        blurb=(
+            "The kinds of celebration you decorate — Birthday, Wedding. Products are "
+            "grouped under one, and every event is booked as one. Order here is the "
+            "order on the site; switch Live off to retire one — past events keep it."
+        ),
         columns=[
             Column("image", "", "image"),
             Column("name", "Occasion", sortable="name", hint="blurb"),
             Column("price_from", "From", "money", sortable="price_from"),
             Column("live_count", "Products", "chip", sortable="package_total"),
+            Column("event_total", "Events", "chip", sortable="event_count"),
             Column("is_active", "Live", "toggle", sortable="is_active"),
         ],
         search_fields=["name", "blurb", "slug"],
         filters=[PUBLISHED_FILTER],
         # An aggregate adds a GROUP BY, which drops the model's Meta ordering,
-        # so it is restated here — the paginator needs a stable sort.
-        annotate=lambda qs: qs.annotate(package_total=Count("packages")),
+        # so it is restated here — the paginator needs a stable sort. Two
+        # counts over two joins multiply, hence distinct.
+        annotate=lambda qs: qs.annotate(
+            package_total=Count("packages", distinct=True),
+            event_count=Count("events", distinct=True),
+        ),
         ordering="position,id",
         orderable=True,
         preview_url="get_absolute_url",
@@ -382,11 +391,11 @@ RESOURCES = [
         columns=[
             Column("name", "Customer", sortable="name", hint="city"),
             Column("rating", "Rating", "rating", sortable="rating"),
-            Column("occasion", "Booked", hint="date"),
+            Column("booked", "Booked", hint="date"),
             Column("text", "Quote", "excerpt"),
             Column("is_published", "Live", "toggle", sortable="is_published"),
         ],
-        search_fields=["name", "text", "occasion", "city"],
+        search_fields=["name", "text", "booked", "city"],
         filters=[
             Filter("rating", "Stars", [(str(n), f"{n} star" + ("s" if n > 1 else "")) for n in range(5, 0, -1)]),
             Filter("is_published", "Published", YES_NO),
@@ -437,7 +446,7 @@ RESOURCES = [
         plural="FAQs",
         icon="help",
         group="Homepage",
-        blurb="Answers shown on the homepage, the package pages and How it works.",
+        blurb="Answers shown on the homepage, the product pages and How it works.",
         columns=[
             Column("question", "Question", sortable="question"),
             Column("answer", "Answer", "excerpt"),
@@ -473,7 +482,7 @@ RESOURCES = [
         icon="message",
         group="Events",
         blurb=(
-            "Questions from the website — about an occasion, a setup, or anything. "
+            "Questions from the website — about an occasion, a product, or anything. "
             "Open one to turn it into an event when the customer is ready."
         ),
         can_create=False,

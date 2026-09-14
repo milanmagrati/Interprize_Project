@@ -82,7 +82,7 @@ class BookPageTests(BookingTestCase):
         self.assertRegex(page, rf'name="package" value="{self.wall.slug}"[^>]*\schecked')
         self.assertNotRegex(page, r'name="occasion" value="wedding"[^>]*\schecked')
         self.assertIn('value="2030-01-02"', page)
-        self.assertNotIn("Old Setup", page)       # unpublished setups are not offered
+        self.assertNotIn("Old Setup", page)       # unpublished products are not offered
         self.assertNotIn("Retired", page)
         self.assertIn("8 PM – 10 PM <em>full</em>", page)
 
@@ -109,7 +109,7 @@ class BookPageTests(BookingTestCase):
         self.assertTrue(ActivityLog.objects.filter(detail="booked on the website").exists())
 
     def test_a_returning_phone_number_is_the_same_customer(self):
-        known = Customer.objects.create(name="Milan M.", phone="+91-9866041254")
+        known = Customer.objects.create(name="Milan M.", phone="+977-9866041254")
         self.book(email="new@example.com")
         event = Event.objects.get()
         self.assertEqual(event.customer, known)
@@ -144,10 +144,10 @@ class BookPageTests(BookingTestCase):
                 response = self.book(**{field: value})
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, message)
-        # A wedding setup for a birthday.
+        # A wedding product for a birthday.
         response = self.book(package=self.stage.slug)
-        self.assertContains(response, "is a Wedding setup")
-        # No occasion and no setup.
+        self.assertContains(response, "is a Wedding product")
+        # No occasion and no product.
         response = self.book(occasion="", package="")
         self.assertContains(response, "Pick what you are celebrating.")
         self.assertEqual(Event.objects.count(), 0)

@@ -13,7 +13,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -49,7 +49,7 @@ def home(request):
     context = {
         "page_id": "home",
         "meta_description": (
-            "Barahi Florist & Events books floral and event decoration setups at "
+            "Barahi Florist & Events books floral and event decoration products at "
             "fixed prices, with verified decorators and an on-time guarantee."
         ),
         "hero_slides": q.hero_slides(),
@@ -187,7 +187,7 @@ def products(request):
         })
     if price_ceiling and (min_price > price_floor or max_price < price_ceiling):
         chips.append({
-            "label": f"₹{min_price:,} – ₹{max_price:,}",
+            "label": f"Rs. {min_price:,} – Rs. {max_price:,}",
             "url": _listing_url(request, "min_price", "max_price"),
         })
     if min_rating:
@@ -217,7 +217,7 @@ def products(request):
         "list_url": _view_url("list"),
         "meta_description": (
             getattr(config, "products_page_lead", "")
-            or "Every floral and event decoration setup Barahi Florist & Events builds, at a fixed price."
+            or "Every floral and event decoration product Barahi Florist & Events builds, at a fixed price."
         )[:155],
         "products": page_obj.object_list,
         "page_obj": page_obj,
@@ -265,7 +265,7 @@ def categories(request):
 def category_detail(request, slug):
     category = q.get_category(slug)
     if category is None:
-        raise Http404("No category matches the given slug.")
+        raise Http404("No occasion matches the given slug.")
 
     packages = q.packages_in_category(slug)
 
@@ -315,7 +315,7 @@ def category_detail(request, slug):
 
     context = {
         "page_id": "category",
-        "meta_description": f"{category.name} decoration packages from Barahi Florist & Events. {category.blurb}",
+        "meta_description": f"{category.name} decoration products from Barahi Florist & Events. {category.blurb}",
         "category": category,
         "packages": page_obj.object_list,
         "page_obj": page_obj,
@@ -351,7 +351,7 @@ def category_detail(request, slug):
 def package_detail(request, slug):
     package = q.get_package(slug)
     if package is None:
-        raise Http404("No package matches the given slug.")
+        raise Http404("No product matches the given slug.")
 
     category = package.category
     context = {
@@ -378,7 +378,7 @@ def package_detail(request, slug):
 def how_it_works(request):
     context = {
         "page_id": "how-it-works",
-        "meta_description": "How a Barahi Florist & Events booking works, from choosing a package to the decorator leaving.",
+        "meta_description": "How a Barahi Florist & Events booking works, from choosing a product to the decorator leaving.",
         "how_it_works": q.how_it_works(),
         "features": q.features(),
         "faqs": q.faqs(),
@@ -391,7 +391,7 @@ def how_it_works(request):
 def contact(request):
     context = {
         "page_id": "contact",
-        "meta_description": "Talk to the Barahi Florist & Events team about a booking, a custom setup or a corporate event.",
+        "meta_description": "Talk to the Barahi Florist & Events team about a booking, a custom decoration or a corporate event.",
         "occasions": q.categories(),
         "faqs": q.faqs(limit=4),
         "breadcrumbs": [{"label": "Contact", "url": None}],
@@ -451,7 +451,7 @@ def book(request):
     today = timezone.localdate()
     context = {
         "page_id": "book",
-        "meta_description": "Book an event with Barahi Florist & Events: pick the occasion, a setup and a date, and we call to confirm.",
+        "meta_description": "Book an event with Barahi Florist & Events: pick the occasion, a product and a date, and we call to confirm.",
         "form": form,
         "errors": form.errors if request.method == "POST" else {},
         "values": values,
@@ -469,11 +469,10 @@ def book(request):
 
 
 def _my_booking(request, number):
-    event = get_object_or_404(
-        Event.objects.select_related("customer", "occasion", "package", "package__category"),
-        number=number,
-    )
-    if event.pk not in request.session.get(MY_BOOKINGS, []):
+    event = Event.objects.select_related(
+        "customer", "occasion", "package", "package__category"
+    ).filter(number=number).first()
+    if event is None or event.pk not in request.session.get(MY_BOOKINGS, []):
         return None
     return event
 
@@ -587,7 +586,7 @@ def enquire(request):
 
     return render(request, "core/enquire.html", {
         "page_id": "enquire",
-        "meta_description": "Ask Barahi Florist & Events about an occasion, a setup or a custom event.",
+        "meta_description": "Ask Barahi Florist & Events about an occasion, a product or a custom event.",
         "form": form,
         "errors": form.errors if request.method == "POST" else {},
         "values": values,

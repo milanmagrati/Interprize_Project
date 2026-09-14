@@ -64,7 +64,7 @@ ROUTE_CHOICES = [
     ("core:products", "All products"),
     ("core:categories", "All occasions"),
     ("core:category_detail", "An occasion page — needs a slug"),
-    ("core:package_detail", "A package page — needs a slug"),
+    ("core:package_detail", "A product page — needs a slug"),
     ("core:book", "Book an event"),
     ("core:track", "Track a booking"),
     ("core:enquire", "Ask a question"),
@@ -606,7 +606,7 @@ class EnquiryForm(PanelModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["package"].queryset = Package.objects.select_related("category").order_by("title")
-        self.fields["package"].empty_label = "No particular setup"
+        self.fields["package"].empty_label = "No particular product"
         self.fields["guests"].required = False
         self.fields["guests"].widget.attrs.pop("required", None)
 
@@ -701,8 +701,15 @@ class CouponForm(PanelModelForm):
 class TestimonialForm(PanelModelForm):
     class Meta:
         model = Testimonial
-        fields = ["name", "city", "rating", "occasion", "package", "date", "text", "is_published", "position"]
+        fields = ["name", "city", "rating", "package", "booked", "date", "text", "is_published", "position"]
         widgets = {"text": forms.Textarea(attrs={"rows": 5})}
+
+    def clean(self):
+        cleaned = super().clean()
+        package = cleaned.get("package")
+        if package and not (cleaned.get("booked") or "").strip():
+            cleaned["booked"] = package.title
+        return cleaned
 
 
 class FAQForm(PanelModelForm):
@@ -1042,14 +1049,14 @@ class CounterCheckoutForm(PanelFormMixin, forms.Form):
         widget=forms.RadioSelect,
     )
     discount = forms.IntegerField(
-        min_value=0, initial=0, required=False, label="Discount (₹)"
+        min_value=0, initial=0, required=False, label="Discount (Rs.)"
     )
     tax_percent = forms.DecimalField(
         min_value=0, max_value=100, max_digits=5, decimal_places=2,
         initial=0, required=False, label="Tax %",
     )
     amount_tendered = forms.IntegerField(
-        min_value=0, initial=0, required=False, label="Cash taken (₹)",
+        min_value=0, initial=0, required=False, label="Cash taken (Rs.)",
         help_text="Optional. Fills in the change line on the receipt.",
     )
     notes = forms.CharField(
@@ -1070,7 +1077,7 @@ class CounterCheckoutForm(PanelFormMixin, forms.Form):
         discount = self.cleaned_data.get("discount") or 0
         if discount > self.subtotal:
             raise forms.ValidationError(
-                f"The discount is more than the sale is worth (₹{self.subtotal:,})."
+                f"The discount is more than the sale is worth (Rs. {self.subtotal:,})."
             )
         return discount
 
@@ -1156,17 +1163,23 @@ class EventForm(PanelModelForm):
         for name in ("guests", "revenue"):
             self.fields[name].widget.attrs.update({"inputmode": "numeric", "min": "0"})
 
-        self.fields["occasion"].queryset = Category.objects.order_by("position", "name")
-        self.fields["occasion"].empty_label = "Pick an occasion"
+        occasion = self.fields["occasion"]
+        occasion.queryset = Category.objects.order_by("position", "name")
+        occasion.empty_label = "Pick an occasion"
+        # Required, but enforced in clean() rather than on the field: a product
+        # on its own already says which occasion it is.
+        occasion.help_text = (
+            "What kind of celebration this is. Picking a product below fills it in."
+        )
         package = self.fields["package"]
-        # A setup that has since been unpublished stays selectable on its own event.
+        # A product that has since been unpublished stays selectable on its own event.
         current = self.instance.package_id if self.instance.pk else None
         package.queryset = (
             Package.objects.filter(Q(is_active=True) | Q(pk=current))
             .select_related("category").order_by("category__position", "title")
         )
-        package.empty_label = "No setup — planned from scratch"
-        package.label_from_instance = lambda p: f"{p.title} · {p.category.name} · ₹{p.price:,}"
+        package.empty_label = "No product — planned from scratch"
+        package.label_from_instance = lambda p: f"{p.title} · {p.category.name} · Rs. {p.price:,}"
         crew = self.fields["crew"]
         # Somebody since switched off stays ticked on the events they worked.
         current_crew = list(self.instance.crew.values_list("pk", flat=True)) if self.instance.pk else []
@@ -1204,9 +1217,13 @@ class EventForm(PanelModelForm):
         occasion, package = cleaned.get("occasion"), cleaned.get("package")
         if package and not occasion:
             cleaned["occasion"] = package.category
+        elif not occasion and "occasion" not in self.errors:
+            self.add_error(
+                "occasion", "Pick the occasion — every event is one (Birthday, Wedding…).",
+            )
         elif package and occasion and package.category_id != occasion.pk:
             self.add_error(
-                "package", f"{package.title} is a {package.category.name} setup, not {occasion.name}.",
+                "package", f"{package.title} is a {package.category.name} product, not {occasion.name}.",
             )
         return cleaned
 
@@ -1427,5 +1444,5 @@ class EventPaymentForm(PanelModelForm):
                 "the customer owes more."
             )
         if amount > owed:
-            raise forms.ValidationError(f"That is more than the ₹{owed:,} still owed.")
+            raise forms.ValidationError(f"That is more than the Rs. {owed:,} still owed.")
         return amount

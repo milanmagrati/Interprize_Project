@@ -187,8 +187,8 @@ class SiteSettings(models.Model):
             "the text does not repeat."
         ),
     )
-    phone = models.CharField(max_length=40, default="+91 98765 43210")
-    whatsapp = models.CharField(max_length=40, blank=True, default="+91 98765 43210")
+    phone = models.CharField(max_length=40, default="+977 985-1234567")
+    whatsapp = models.CharField(max_length=40, blank=True, default="+977 985-1234567")
     email = models.EmailField(default="hello@barahiflorist.com")
     address = models.CharField(max_length=255, blank=True)
     hours = models.CharField(max_length=120, blank=True)
@@ -199,12 +199,12 @@ class SiteSettings(models.Model):
     youtube = models.URLField(blank=True)
     twitter = models.URLField(blank=True)
 
-    default_city = models.CharField(max_length=80, default="Bengaluru")
+    default_city = models.CharField(max_length=80, default="Kathmandu")
     free_delivery_threshold = models.PositiveIntegerField(
-        default=3000, help_text="Cart subtotal above which delivery is free (₹)."
+        default=3000, help_text="Cart subtotal above which delivery is free (Rs.)."
     )
     delivery_fee = models.PositiveIntegerField(default=249)
-    tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=18)
+    tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=13)
 
     # -- the products section, on the homepage and on its own page ---------
     PRODUCT_SOURCE_CHOICES = [
@@ -218,7 +218,7 @@ class SiteSettings(models.Model):
 
     home_products_eyebrow = models.CharField(
         max_length=60,
-        default="Featured setups",
+        default="Featured products",
         verbose_name="Homepage eyebrow",
         help_text="The small line above the heading of the homepage products block.",
     )
@@ -261,7 +261,7 @@ class SiteSettings(models.Model):
     )
     products_page_title = models.CharField(
         max_length=120,
-        default="Every setup we build",
+        default="Every product we offer",
         verbose_name="Products page heading",
     )
     products_page_lead = models.CharField(
@@ -384,6 +384,16 @@ class City(models.Model):
 
 
 class Category(Positioned, PictureMixin):
+    """
+    An occasion: a *kind* of celebration — Birthday, Wedding, Baby shower.
+
+    Occasions are the catalogue side. Customers browse them, and products
+    are grouped under one. An `Event` is the operational side: one real
+    job for one customer on one date, and every event is *of* an occasion. An
+    occasion is permanent — it is retired with `is_active`, never deleted out
+    from under the events that were booked as it.
+    """
+
     name = models.CharField(max_length=80, unique=True)
     slug = models.SlugField(max_length=90, unique=True, blank=True)
     icon = models.CharField(
@@ -395,7 +405,7 @@ class Category(Positioned, PictureMixin):
     price_from = models.PositiveIntegerField(default=1499)
     package_count = models.PositiveIntegerField(
         default=0,
-        verbose_name="Displayed setup count",
+        verbose_name="Displayed product count",
         help_text="The number shown on the card. Leave 0 to show the real count.",
     )
     is_active = models.BooleanField(default=True)
@@ -430,6 +440,12 @@ class Category(Positioned, PictureMixin):
         """Real number of published packages — used on the categories index."""
         return self.live_count
 
+    @property
+    def event_total(self):
+        """How many events have been booked as this occasion, cancelled included."""
+        annotated = getattr(self, "event_count", None)
+        return annotated if annotated is not None else self.events.count()
+
     def display_count(self):
         return self.package_count or self.live_count
 
@@ -448,7 +464,7 @@ class Package(Positioned, PictureMixin, Timestamped):
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="packages"
     )
-    price = models.PositiveIntegerField(help_text="What the customer pays (₹).")
+    price = models.PositiveIntegerField(help_text="What the customer pays (Rs.).")
     original_price = models.PositiveIntegerField(
         help_text="Struck-through price. The discount badge is worked out from this."
     )
@@ -470,7 +486,7 @@ class Package(Positioned, PictureMixin, Timestamped):
         help_text="One item per line. Each line becomes a ticked bullet.",
     )
     is_featured = models.BooleanField(
-        default=False, help_text="Featured packages fill the homepage grid."
+        default=False, help_text="Featured products fill the homepage grid."
     )
     is_active = models.BooleanField(
         default=True, help_text="Unpublish to hide it from the public site."
@@ -514,7 +530,7 @@ class Package(Positioned, PictureMixin, Timestamped):
 
     @property
     def alt(self):
-        return f"{self.title} decoration setup by Barahi Florist & Events"
+        return f"{self.title} decoration by Barahi Florist & Events"
 
     @property
     def includes(self):
@@ -546,7 +562,7 @@ class Package(Positioned, PictureMixin, Timestamped):
             Shot(
                 url=placeholder(f"{seed}-{i}", 1200, 900),
                 thumb=placeholder(f"{seed}-{i}", 240, 180),
-                alt=f"{self.title} — setup photo {i}",
+                alt=f"{self.title} — photo {i}",
             )
             for i in range(1, 6)
         ]
@@ -795,8 +811,11 @@ class Testimonial(Positioned):
     rating = models.PositiveSmallIntegerField(
         default=5, validators=[MinValueValidator(1), MaxValueValidator(5)]
     )
-    occasion = models.CharField(
-        max_length=140, blank=True, help_text="Usually the package they booked."
+    booked = models.CharField(
+        max_length=140,
+        blank=True,
+        verbose_name="What they booked",
+        help_text="The product they had, shown as “Booked …”. Filled in from the linked product.",
     )
     package = models.ForeignKey(
         Package,
@@ -804,7 +823,7 @@ class Testimonial(Positioned):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="testimonials",
-        help_text="Link it to a package and it shows on that package's page.",
+        help_text="Link it to a product and it shows on that product's page.",
     )
     date = models.CharField(
         max_length=40, blank=True, help_text="Shown as written, e.g. March 2026."
@@ -892,7 +911,7 @@ class AddOn(Positioned):
         verbose_name = "Add-on"
 
     def __str__(self):
-        return f"{self.name} (+₹{self.price})"
+        return f"{self.name} (+Rs. {self.price})"
 
 
 # ---------------------------------------------------------------------------
@@ -1115,7 +1134,7 @@ class StaffMember(models.Model):
 
 class Enquiry(models.Model):
     """
-    A question from the website — about an occasion, a setup, or anything. The
+    A question from the website — about an occasion, a product, or anything. The
     panel reads it, and turns it into an event once the customer is ready.
     """
 
@@ -1133,7 +1152,7 @@ class Enquiry(models.Model):
     occasion = models.CharField(max_length=120, blank=True)
     package = models.ForeignKey(
         Package, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="enquiries", verbose_name="About the setup",
+        related_name="enquiries", verbose_name="About the product",
     )
     event_date = models.DateField(null=True, blank=True)
     guests = models.PositiveIntegerField(default=0, verbose_name="Number of guests")
@@ -1156,7 +1175,7 @@ class Enquiry(models.Model):
 
     @property
     def about_label(self):
-        """What the list shows under the occasion: the setup, else the city."""
+        """What the list shows under the occasion: the product, else the city."""
         bits = [self.package.title] if self.package_id else []
         if self.event_date:
             bits.append(self.event_date.strftime("%d %b %Y"))
@@ -1173,11 +1192,11 @@ class Enquiry(models.Model):
 
 
 class Coupon(models.Model):
-    KIND_CHOICES = [("percent", "Percent off"), ("flat", "Flat ₹ off")]
+    KIND_CHOICES = [("percent", "Percent off"), ("flat", "Flat Rs. off")]
 
     code = models.CharField(max_length=30, unique=True)
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default="percent")
-    value = models.PositiveIntegerField(help_text="15 means 15% or ₹15 depending on the kind.")
+    value = models.PositiveIntegerField(help_text="15 means 15% or Rs. 15 depending on the kind.")
     min_order = models.PositiveIntegerField(default=0)
     max_uses = models.PositiveIntegerField(default=0, help_text="0 means unlimited.")
     used_count = models.PositiveIntegerField(default=0, editable=False)
@@ -1211,7 +1230,7 @@ class Coupon(models.Model):
 
     @property
     def display_value(self):
-        return f"{self.value}%" if self.kind == "percent" else f"₹{self.value}"
+        return f"{self.value}%" if self.kind == "percent" else f"Rs. {self.value}"
 
     @property
     def kind_label(self):
@@ -1497,10 +1516,10 @@ class InventoryItem(PictureMixin, Timestamped):
         help_text="Drop to this and the item is flagged as running low. 0 turns the warning off.",
     )
     cost_price = models.PositiveIntegerField(
-        default=0, help_text="What one costs you (₹)."
+        default=0, help_text="What one costs you (Rs.)."
     )
     sale_price = models.PositiveIntegerField(
-        default=0, help_text="What one sells for at the counter (₹)."
+        default=0, help_text="What one sells for at the counter (Rs.)."
     )
 
     is_sellable = models.BooleanField(
@@ -1565,7 +1584,7 @@ class InventoryItem(PictureMixin, Timestamped):
     def margin_label(self):
         if not self.sale_price:
             return "No sale price yet"
-        return f"₹{self.margin:,} a unit · {self.margin_percent}%"
+        return f"Rs. {self.margin:,} a unit · {self.margin_percent}%"
 
     # -- stock ------------------------------------------------------------
 
@@ -1790,7 +1809,7 @@ class StockMovement(models.Model):
         verbose_name="Stock after",
     )
     unit_cost = models.PositiveIntegerField(
-        default=0, help_text="What one unit cost on this movement (₹). Purchases mostly."
+        default=0, help_text="What one unit cost on this movement (Rs.). Purchases mostly."
     )
     supplier = models.ForeignKey(
         Supplier, null=True, blank=True, on_delete=models.SET_NULL,
@@ -1923,7 +1942,7 @@ class CounterSale(Timestamped):
     ]
     PAYMENT_CHOICES = [
         ("cash", "Cash"),
-        ("upi", "UPI"),
+        ("upi", "eSewa / Khalti"),
         ("card", "Card"),
         ("bank", "Bank transfer"),
         ("credit", "On account"),
@@ -1953,10 +1972,10 @@ class CounterSale(Timestamped):
     )
 
     subtotal = models.PositiveIntegerField(default=0, editable=False)
-    discount = models.PositiveIntegerField(default=0, help_text="Flat ₹ off the whole sale.")
+    discount = models.PositiveIntegerField(default=0, help_text="Flat Rs. off the whole sale.")
     tax_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=0, verbose_name="Tax %",
-        help_text="GST or similar, applied after the discount. 0 for none.",
+        help_text="VAT or similar, applied after the discount. 0 for none.",
     )
     tax_amount = models.PositiveIntegerField(default=0, editable=False)
     total = models.PositiveIntegerField(default=0, editable=False)
@@ -1978,7 +1997,7 @@ class CounterSale(Timestamped):
         verbose_name_plural = "Counter sales"
 
     def __str__(self):
-        return f"{self.reference} · ₹{self.total:,}"
+        return f"{self.reference} · Rs. {self.total:,}"
 
     def save(self, *args, **kwargs):
         if not self.reference:
@@ -2212,7 +2231,7 @@ class Customer(Timestamped):
 
     @staticmethod
     def phone_digits(phone):
-        """The last ten digits — "+91 98765-43210" and "9876543210" are one number."""
+        """The last ten digits — "+977 985-1234567" and "9851234567" are one number."""
         return "".join(ch for ch in (phone or "") if ch.isdigit())[-10:]
 
     @classmethod
@@ -2299,6 +2318,8 @@ class EventQuerySet(models.QuerySet):
 class Event(Timestamped):
     """
     One event the company runs: a customer, a date, a place, and a price.
+    Where an occasion (`Category`) is the kind of celebration, an event is one
+    real booking of it.
     Its items, expenses and payments hang off it; its profit is worked out
     from them rather than typed in.
     """
@@ -2330,7 +2351,10 @@ class Event(Timestamped):
         max_length=20, unique=True, null=True, blank=True, editable=False,
         verbose_name="Event number",
     )
-    name = models.CharField(max_length=160, verbose_name="Event name")
+    name = models.CharField(
+        max_length=160, verbose_name="Event name",
+        help_text="This event's own name, e.g. Aarav's 5th birthday. The occasion says what kind it is.",
+    )
     customer = models.ForeignKey(
         Customer, on_delete=models.PROTECT, related_name="events",
     )
@@ -2339,14 +2363,17 @@ class Event(Timestamped):
         max_length=200, blank=True, help_text="Venue and address — where the crew goes.",
     )
     guests = models.PositiveIntegerField(default=0, verbose_name="Number of guests")
+    # Nullable only for rows from before it was asked for; the forms require it.
+    # PROTECT: an occasion with events is retired (switched off), not deleted.
     occasion = models.ForeignKey(
-        Category, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="events", help_text="What is being celebrated.",
+        Category, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="events",
+        help_text="The kind of celebration — Birthday, Wedding… Every event is one occasion.",
     )
     package = models.ForeignKey(
         Package, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="events", verbose_name="Setup",
-        help_text="The setup from the website this event is built around, if any.",
+        related_name="events", verbose_name="Product",
+        help_text="The product from the website this event is built around, if any.",
     )
     time_slot = models.CharField(
         max_length=40, blank=True, verbose_name="Arrival window",
@@ -2362,7 +2389,7 @@ class Event(Timestamped):
     revenue = models.PositiveIntegerField(
         default=0,
         verbose_name="Revenue",
-        help_text="What the customer pays for the whole event (₹).",
+        help_text="What the customer pays for the whole event (Rs.).",
     )
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
@@ -2869,7 +2896,7 @@ class EventItem(PictureMixin, models.Model):
         validators=[MinValueValidator(Decimal("0.01"))],
     )
     unit_cost = models.PositiveIntegerField(
-        default=0, verbose_name="Unit cost", help_text="What one costs (₹).",
+        default=0, verbose_name="Unit cost", help_text="What one costs (Rs.).",
     )
     supplier = models.ForeignKey(
         Supplier, null=True, blank=True, on_delete=models.SET_NULL,
@@ -3038,9 +3065,9 @@ class EventItem(PictureMixin, models.Model):
     def cost_note(self):
         if self.is_reusable:
             if self.cost:
-                return f"{_units(self.cost_quantity)} written off at ₹{self.unit_cost:,}"
+                return f"{_units(self.cost_quantity)} written off at Rs. {self.unit_cost:,}"
             return "Comes back to stock"
-        return f"{_units(self.cost_quantity)} × ₹{self.unit_cost:,}"
+        return f"{_units(self.cost_quantity)} × Rs. {self.unit_cost:,}"
 
     # -- what the line is doing -------------------------------------------
 
@@ -3370,7 +3397,7 @@ class EventExpense(models.Model):
     name = models.CharField(max_length=120, verbose_name="Expense")
     category = models.CharField(max_length=12, choices=CATEGORY_CHOICES, default="other")
     amount = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)], help_text="In ₹.",
+        validators=[MinValueValidator(1)], help_text="In Rs.",
     )
     spent_on = models.DateField(default=timezone.localdate, verbose_name="Date")
     notes = models.CharField(max_length=240, blank=True)
@@ -3385,7 +3412,7 @@ class EventExpense(models.Model):
         verbose_name = "Event expense"
 
     def __str__(self):
-        return f"{self.name} · ₹{self.amount:,}"
+        return f"{self.name} · Rs. {self.amount:,}"
 
     @property
     def category_tone(self):
@@ -3397,7 +3424,7 @@ class EventPayment(models.Model):
 
     METHOD_CHOICES = [
         ("cash", "Cash"),
-        ("upi", "UPI"),
+        ("upi", "eSewa / Khalti"),
         ("bank", "Bank transfer"),
         ("card", "Card"),
         ("cheque", "Cheque"),
@@ -3406,13 +3433,13 @@ class EventPayment(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="payments")
     paid_on = models.DateField(default=timezone.localdate, verbose_name="Date")
     amount = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)], help_text="In ₹.",
+        validators=[MinValueValidator(1)], help_text="In Rs.",
     )
     method = models.CharField(
         max_length=10, choices=METHOD_CHOICES, default="cash", verbose_name="Paid by",
     )
     reference = models.CharField(
-        max_length=60, blank=True, help_text="UTR, cheque number or receipt number.",
+        max_length=60, blank=True, help_text="Transaction ID, cheque number or receipt number.",
     )
     notes = models.CharField(max_length=240, blank=True)
     received_by = models.ForeignKey(
@@ -3426,7 +3453,7 @@ class EventPayment(models.Model):
         verbose_name = "Event payment"
 
     def __str__(self):
-        return f"₹{self.amount:,} on {self.paid_on:%d %b %Y}"
+        return f"Rs. {self.amount:,} on {self.paid_on:%d %b %Y}"
 
 
 # ---------------------------------------------------------------------------

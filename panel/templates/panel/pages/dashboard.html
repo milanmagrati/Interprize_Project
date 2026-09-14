@@ -156,7 +156,7 @@
         <ol class="ranklist">
           {% for occasion in top_occasions %}
             <li>
-              <a href="{% url 'panel:events' %}?q={{ occasion.name|urlencode }}">
+              <a href="{% url 'panel:events' %}?occasion={{ occasion.slug|urlencode }}">
                 <img src="{{ occasion.image }}" alt="" width="44" height="34" loading="lazy">
                 <span class="ranklist__body">
                   <strong>{{ occasion.name }}</strong>
@@ -168,7 +168,7 @@
           {% endfor %}
         </ol>
       {% else %}
-        <p class="card__note">Give events an occasion and the best earners rank here.</p>
+        <p class="card__note">Once events are booked, the occasions they belong to rank here by what they earned.</p>
       {% endif %}
     </section>
   </div>

@@ -340,7 +340,7 @@
     var retail = $('[data-opening-retail]', card);
     if (!quantity || !summary) { return; }
 
-    function rupees(amount) { return '₹' + Math.round(amount).toLocaleString('en-IN'); }
+    function rupees(amount) { return 'Rs. ' + Math.round(amount).toLocaleString('en-IN'); }
 
     function refresh() {
       var units = parseFloat(quantity.value) || 0;
@@ -706,7 +706,7 @@
       var totals = $$('[data-total-out]', root);
 
       var rupees = function (value) {
-        return '₹' + Math.round(value).toLocaleString('en-IN');
+        return 'Rs. ' + Math.round(value).toLocaleString('en-IN');
       };
 
       var recalc = function () {
@@ -717,7 +717,7 @@
         var paid = parseFloat(tendered.value) || 0;
         var owing = paid > total;
 
-        discountOut.textContent = off ? '−' + rupees(off) : '₹0';
+        discountOut.textContent = off ? '−' + rupees(off) : 'Rs. 0';
         taxOut.textContent = rupees(taxed);
         totals.forEach(function (cell) { cell.textContent = rupees(total); });
 
@@ -988,7 +988,7 @@
 
       function recalc() {
         var total = (parseFloat(quantity.value) || 0) * (parseFloat(cost.value) || 0);
-        out.textContent = '₹' + Math.round(total).toLocaleString('en-IN');
+        out.textContent = 'Rs. ' + Math.round(total).toLocaleString('en-IN');
       }
       quantity.addEventListener('input', recalc);
       cost.addEventListener('input', recalc);

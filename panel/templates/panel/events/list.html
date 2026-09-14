@@ -8,7 +8,7 @@ would show with the search and date filters kept, so the numbers never lie.
 {% endcomment %}
 
 {% block subheading %}
-  <p class="topbar__sub">Every event you run — what it is worth, what it cost and what is still owed.</p>
+  <p class="topbar__sub">Every event you run — one customer, one date, one occasion — with what it is worth, what it cost and what is still owed.</p>
 {% endblock %}
 
 {% block content %}
@@ -96,6 +96,15 @@ would show with the search and date filters kept, so the numbers never lie.
     {% if sort %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
     {% if only_new %}<input type="hidden" name="new" value="1">{% endif %}
     <svg class="icon filters__icon" aria-hidden="true"><use href="#p-filter"></use></svg>
+    <label class="filters__one">
+      <span class="sr-only">Occasion</span>
+      <select name="occasion" data-submit>
+        <option value="">Any occasion</option>
+        {% for choice in occasions %}
+          <option value="{{ choice.slug }}"{% if occasion == choice.slug %} selected{% endif %}>{{ choice.name }}{% if not choice.is_active %} (retired){% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label class="filters__one">
       <span class="sr-only">Came from</span>
       <select name="source" data-submit>
@@ -255,7 +264,7 @@ would show with the search and date filters kept, so the numbers never lie.
       </span>
       {% if is_filtered %}
         <h2>Nothing matches that</h2>
-        <p>No events match the current search, status or dates.</p>
+        <p>No events match the current search, occasion, status or dates.</p>
         <a class="btn btn--ghost" href="{% url 'panel:events' %}">Clear the filters</a>
       {% else %}
         <h2>No events yet</h2>

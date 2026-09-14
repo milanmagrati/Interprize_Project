@@ -180,7 +180,7 @@ are enhancements on top of that, not the mechanism.
 
                   <label class="basket__price">
                     <span class="sr-only">Unit price for {{ line.item.name }}</span>
-                    <span aria-hidden="true">₹</span>
+                    <span aria-hidden="true">Rs. </span>
                     <input type="number" name="price" value="{{ line.price }}" min="0" step="1"
                            inputmode="numeric" data-price>
                   </label>
@@ -203,12 +203,12 @@ are enhancements on top of that, not the mechanism.
 
             <dl class="tally">
               <dt>Subtotal</dt><dd class="num" data-subtotal="{{ subtotal }}">{{ subtotal|money }}</dd>
-              <dt>Discount</dt><dd class="num" data-discount-out>₹0</dd>
-              <dt>Tax</dt><dd class="num" data-tax-out>₹0</dd>
+              <dt>Discount</dt><dd class="num" data-discount-out>Rs. 0</dd>
+              <dt>Tax</dt><dd class="num" data-tax-out>Rs. 0</dd>
               <dt class="tally__grand">To pay</dt>
               <dd class="num tally__grand" data-total-out>{{ subtotal|money }}</dd>
               <dt data-change-row hidden>Change</dt>
-              <dd class="num tally__change" data-change-out hidden>₹0</dd>
+              <dd class="num tally__change" data-change-out hidden>Rs. 0</dd>
             </dl>
 
             {% field form.payment_method %}

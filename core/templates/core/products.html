@@ -18,7 +18,7 @@
         </svg>
         {{ brand.products_page_eyebrow|default:"The full catalogue" }}
       </p>
-      <h1 class="prod-head__title">{{ brand.products_page_title|default:"Every setup we build" }}</h1>
+      <h1 class="prod-head__title">{{ brand.products_page_title|default:"Every product we offer" }}</h1>
       {% if brand.products_page_lead %}
         <p class="prod-head__lead">{{ brand.products_page_lead }}</p>
       {% endif %}
@@ -39,7 +39,7 @@
         <label class="field field--search prod-head__field">
           <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
           <span class="sr-only">Search products</span>
-          <input type="search" name="q" value="{{ term }}" placeholder="Search setups, themes, colours&hellip;"
+          <input type="search" name="q" value="{{ term }}" placeholder="Search products, themes, colours&hellip;"
                  autocomplete="off" data-live-search>
         </label>
         <button class="btn btn--primary" type="submit">Search</button>
@@ -119,11 +119,11 @@
                    min="{{ price_floor }}" max="{{ price_ceiling }}" step="100" value="{{ max_price }}">
           </div>
           <p class="range__out">
-            <strong data-range2-out>&#8377;{{ min_price|intcomma }} &ndash; &#8377;{{ max_price|intcomma }}</strong>
+            <strong data-range2-out>Rs.&nbsp;{{ min_price|intcomma }} &ndash; Rs.&nbsp;{{ max_price|intcomma }}</strong>
           </p>
           <p class="range__ends">
-            <span>&#8377;{{ price_floor|intcomma }}</span>
-            <span>&#8377;{{ price_ceiling|intcomma }}</span>
+            <span>Rs.&nbsp;{{ price_floor|intcomma }}</span>
+            <span>Rs.&nbsp;{{ price_ceiling|intcomma }}</span>
           </p>
         </fieldset>
 
@@ -146,7 +146,7 @@
           <label class="check check--wide">
             <input type="checkbox" name="deal" value="1"{% if deals_only %} checked{% endif %}>
             <span class="check__box" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-            <span class="check__label">Discounted setups</span>
+            <span class="check__label">Discounted products</span>
           </label>
           <label class="check check--wide">
             <input type="checkbox" name="featured" value="1"{% if featured_only %} checked{% endif %}>

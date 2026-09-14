@@ -28,7 +28,7 @@ class EventStockTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = get_user_model().objects.create_user("crew", password="x-Strong-pass-1")
-        cls.customer = Customer.objects.create(name="Asha Rao", phone="+91 98450 00000")
+        cls.customer = Customer.objects.create(name="Asha Rao", phone="+977 98450 00000")
 
     def setUp(self):
         self.chair = self.stock("Chair", 100, usage="reusable", cost=450)

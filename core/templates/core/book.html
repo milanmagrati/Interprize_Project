@@ -6,7 +6,7 @@
 {% comment %}
 The booking page. One ordinary form in five steps: it works top to bottom
 without JavaScript, and main.js (section 18) adds the live summary, filters the
-setups to the chosen occasion and marks each step done as it is filled.
+products to the chosen occasion and marks each step done as it is filled.
 It posts to `core:book`, which turns it into a draft event in the panel.
 {% endcomment %}
 
@@ -63,7 +63,7 @@ It posts to `core:book`, which turns it into a draft event in the panel.
             <span class="bookstep__num" aria-hidden="true"><span>1</span><svg class="icon"><use href="#i-check"></use></svg></span>
             <span class="bookstep__text">
               <strong>What are you celebrating?</strong>
-              <small>Pick one — it decides the setups we show you next.</small>
+              <small>Pick one — it decides the products we show you next.</small>
             </span>
           </legend>
           {% if errors.occasion %}<p class="field__error">{{ errors.occasion|first }}</p>{% endif %}
@@ -75,19 +75,19 @@ It posts to `core:book`, which turns it into a draft event in the panel.
                 <span class="occasion-tile__body">
                   <span class="occasion-tile__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ occasion.icon }}"></use></svg></span>
                   <span class="occasion-tile__name">{{ occasion.name }}</span>
-                  <span class="occasion-tile__from">from &#8377;{{ occasion.price_from|intcomma }}</span>
+                  <span class="occasion-tile__from">from Rs.&nbsp;{{ occasion.price_from|intcomma }}</span>
                 </span>
               </label>
             {% endfor %}
           </div>
         </fieldset>
 
-        {# ---------------------------------------------------------- 2. setup #}
+        {# -------------------------------------------------------- 2. product #}
         <fieldset class="bookstep{% if errors.package %} has-error{% endif %}" id="field-package" data-bookstep="package">
           <legend class="bookstep__head">
             <span class="bookstep__num" aria-hidden="true"><span>2</span><svg class="icon"><use href="#i-check"></use></svg></span>
             <span class="bookstep__text">
-              <strong>Pick a setup</strong>
+              <strong>Pick a product</strong>
               <small>A ready-made design at a fixed price — or leave it to us and we design one together.</small>
             </span>
           </legend>
@@ -101,7 +101,7 @@ It posts to `core:book`, which turns it into a draft event in the panel.
               </span>
               <span class="setup-card__body">
                 <span class="setup-card__title">Plan it with us</span>
-                <span class="setup-card__meta">A planner designs the setup and quotes it on the call</span>
+                <span class="setup-card__meta">A planner designs the decoration and quotes it on the call</span>
                 <span class="setup-card__price">Quote on the call</span>
               </span>
               <span class="setup-card__tick" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
@@ -117,7 +117,7 @@ It posts to `core:book`, which turns it into a draft event in the panel.
                 <span class="setup-card__body">
                   <span class="setup-card__title">{{ package.title }}</span>
                   <span class="setup-card__meta">{{ package.category.name }}{% if package.duration %} · {{ package.duration }}{% endif %}</span>
-                  <span class="setup-card__price">&#8377;{{ package.price|intcomma }}{% if package.saving %} <s>&#8377;{{ package.original_price|intcomma }}</s>{% endif %}</span>
+                  <span class="setup-card__price">Rs.&nbsp;{{ package.price|intcomma }}{% if package.saving %} <s>Rs.&nbsp;{{ package.original_price|intcomma }}</s>{% endif %}</span>
                 </span>
                 <span class="setup-card__tick" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
               </label>
@@ -204,7 +204,7 @@ It posts to `core:book`, which turns it into a draft event in the panel.
                          {% if extra.pk|stringformat:"s" in picked_extras %}checked{% endif %}>
                   <span class="extra__box" aria-hidden="true"><svg class="icon"><use href="#i-check"></use></svg></span>
                   <span class="extra__name">{{ extra.name }}</span>
-                  <span class="extra__price">+&#8377;{{ extra.price|intcomma }}</span>
+                  <span class="extra__price">+Rs.&nbsp;{{ extra.price|intcomma }}</span>
                 </label>
               {% endfor %}
             </div>
@@ -254,7 +254,7 @@ It posts to `core:book`, which turns it into a draft event in the panel.
           <p class="booksum__eyebrow">Your booking</p>
           <dl class="booksum__rows">
             <div><dt>Occasion</dt><dd data-sum="occasion">Not chosen yet</dd></div>
-            <div><dt>Setup</dt><dd data-sum="package">We plan it together</dd></div>
+            <div><dt>Product</dt><dd data-sum="package">We plan it together</dd></div>
             <div><dt>Date</dt><dd data-sum="date">Not chosen yet</dd></div>
             <div data-sum-row="slot" hidden><dt>Arrival</dt><dd data-sum="slot"></dd></div>
           </dl>

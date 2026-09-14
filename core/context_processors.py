@@ -8,7 +8,7 @@ from . import queries
 def site_chrome(request):
     settings_row = queries.brand()
     cities = queries.cities()
-    default_city = getattr(settings_row, "default_city", "Bengaluru")
+    default_city = getattr(settings_row, "default_city", "Kathmandu")
     return {
         "brand": settings_row,
         "nav_links": queries.nav_links(),

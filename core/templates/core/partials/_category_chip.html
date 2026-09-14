@@ -5,5 +5,5 @@ Occasion chip for the horizontal scroller.
 <a class="chip" href="{% url 'core:category_detail' category.slug %}">
   <svg class="icon chip__icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg>
   <span class="chip__label">{{ category.name }}</span>
-  <span class="chip__meta">from &#8377;{{ category.price_from }}</span>
+  <span class="chip__meta">from Rs.&nbsp;{{ category.price_from }}</span>
 </a>

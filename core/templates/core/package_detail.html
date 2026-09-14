@@ -51,9 +51,9 @@
       </div>
 
       <div class="detail__price">
-        <span class="price price--lg">&#8377;{{ package.price|intcomma }}</span>
-        <span class="price price--was"><s>&#8377;{{ package.original_price|intcomma }}</s></span>
-        <span class="price__save">You save &#8377;{{ package.saving|intcomma }} ({{ package.discount_percent }}%)</span>
+        <span class="price price--lg">Rs.&nbsp;{{ package.price|intcomma }}</span>
+        <span class="price price--was"><s>Rs.&nbsp;{{ package.original_price|intcomma }}</s></span>
+        <span class="price__save">You save Rs.&nbsp;{{ package.saving|intcomma }} ({{ package.discount_percent }}%)</span>
       </div>
 
       <p class="detail__desc">{{ package.description }}</p>
@@ -110,7 +110,7 @@
             {% for add_on in add_ons %}
               <label class="checkbox">
                 <input type="checkbox" name="add_ons" value="{{ add_on.pk }}" data-price="{{ add_on.price }}">
-                <span>{{ add_on.name }}<b>+&#8377;{{ add_on.price|intcomma }}</b></span>
+                <span>{{ add_on.name }}<b>+Rs.&nbsp;{{ add_on.price|intcomma }}</b></span>
               </label>
             {% endfor %}
           </fieldset>
@@ -119,7 +119,7 @@
         <div class="booking__foot">
           <div class="booking__total">
             <span class="booking__total-label">Estimated total</span>
-            <span class="booking__total-value" data-price-total>&#8377;{{ package.price|intcomma }}</span>
+            <span class="booking__total-value" data-price-total>Rs.&nbsp;{{ package.price|intcomma }}</span>
           </div>
           <button class="btn btn--accent btn--lg btn--block" type="submit">
             <svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg>
@@ -132,7 +132,7 @@
           Nothing to pay now — we call to confirm first.
         </p>
         <p class="booking__ask">
-          Not sure yet? <a href="{% url 'core:enquire' %}?package={{ package.slug }}">Ask about this setup</a>
+          Not sure yet? <a href="{% url 'core:enquire' %}?package={{ package.slug }}">Ask about this product</a>
         </p>
       </form>
     </div>
@@ -156,8 +156,8 @@
       <ul class="notes">
         <li><strong>Access</strong> Tell us about lifts, stairs and society permissions in the booking notes.</li>
         <li><strong>Walls</strong> Freestanding frames and removable clips by default. No adhesive unless you ask.</li>
-        <li><strong>Photos</strong> The decorator sends you photographs of the finished setup before leaving.</li>
-        <li><strong>Take-down</strong> Add next-morning clearing for &#8377;499 at checkout.</li>
+        <li><strong>Photos</strong> The decorator sends you photographs of the finished decoration before leaving.</li>
+        <li><strong>Take-down</strong> Add next-morning clearing for Rs.&nbsp;499 at checkout.</li>
       </ul>
       <a class="link-arrow" href="{% url 'core:how_it_works' %}">How the whole booking works <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg></a>
     </div>
@@ -231,8 +231,8 @@
 {# ------------------------------------------------- sticky mobile bar #}
 <div class="sticky-bar" data-sticky-bar hidden>
   <div class="sticky-bar__price">
-    <span class="price">&#8377;{{ package.price|intcomma }}</span>
-    <span class="sticky-bar__was"><s>&#8377;{{ package.original_price|intcomma }}</s> {{ package.discount_percent }}% off</span>
+    <span class="price">Rs.&nbsp;{{ package.price|intcomma }}</span>
+    <span class="sticky-bar__was"><s>Rs.&nbsp;{{ package.original_price|intcomma }}</s> {{ package.discount_percent }}% off</span>
   </div>
   <a class="btn btn--accent" href="#main" data-sticky-cta>Book now</a>
 </div>

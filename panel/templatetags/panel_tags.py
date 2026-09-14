@@ -30,8 +30,8 @@ def money(value):
         amount = int(value)
     except (TypeError, ValueError):
         return value
-    # A loss reads "−₹5,000", not "₹-5,000".
-    return f"−₹{-amount:,}" if amount < 0 else f"₹{amount:,}"
+    # A loss reads "−Rs. 5,000", not "Rs. -5,000".
+    return f"−Rs. {-amount:,}" if amount < 0 else f"Rs. {amount:,}"
 
 
 @register.filter

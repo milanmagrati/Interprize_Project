@@ -230,7 +230,7 @@ with an error in it.
                 <a class="booked__setup" href="{{ event.package.get_absolute_url }}" target="_blank" rel="noopener">
                   <img src="{{ event.package.image }}" alt="" width="112" height="84" loading="lazy">
                   <span>
-                    <small>{{ event.package.category.name }} setup</small>
+                    <small>{{ event.package.category.name }} product</small>
                     <strong>{{ event.package.title }}</strong>
                     <span>{{ event.package.price|money }} on the site today</span>
                   </span>
@@ -238,7 +238,7 @@ with an error in it.
               {% else %}
                 <p class="booked__custom">
                   <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>
-                  No ready-made setup picked — they want it planned with them.
+                  No product picked — they want the decoration planned with them.
                 </p>
               {% endif %}
               <ul class="booked__lines">
@@ -298,7 +298,7 @@ with an error in it.
               {% endfor %}
             </dd>
           </div>
-          <div><dt>Setup</dt><dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}" target="_blank" rel="noopener">{{ event.package.title }}</a>{% else %}Planned from scratch{% endif %}</dd></div>
+          <div><dt>Product</dt><dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}" target="_blank" rel="noopener">{{ event.package.title }}</a>{% else %}Planned from scratch{% endif %}</dd></div>
           <div class="facts__wide"><dt>Location</dt><dd>{{ event.location|default:"Not set yet" }}</dd></div>
           <div><dt>Created</dt><dd>{{ event.created_at|date:"j M Y, H:i" }}{% if event.created_by %} <span class="cell__hint">by {{ event.created_by.get_full_name|default:event.created_by.username }}</span>{% endif %}</dd></div>
           <div><dt>Last change</dt><dd>{{ event.updated_at|date:"j M Y, H:i" }}</dd></div>
@@ -497,7 +497,7 @@ with an error in it.
                   {% field external_form.unit_cost %}
                   <div class="field">
                     <span class="field__label">Total cost</span>
-                    <output class="totalout num" data-line-total-out>₹0</output>
+                    <output class="totalout num" data-line-total-out>Rs. 0</output>
                   </div>
                   {% field external_form.supplier %}
                   {% field external_form.vendor %}

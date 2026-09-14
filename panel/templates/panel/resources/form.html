@@ -238,8 +238,8 @@ grouped cards; anything else falls back to a single column of fields.
               {% for bound in opening_fields %}{% field bound %}{% endfor %}
             </div>
             <dl class="meta" data-opening-summary hidden>
-              <dt>Stock value</dt><dd data-opening-value>₹0</dd>
-              <dt>At retail</dt><dd data-opening-retail>₹0</dd>
+              <dt>Stock value</dt><dd data-opening-value>Rs. 0</dd>
+              <dt>At retail</dt><dd data-opening-retail>Rs. 0</dd>
             </dl>
           </div>
         {% endif %}
@@ -310,6 +310,25 @@ grouped cards; anything else falls back to a single column of fields.
           </div>
         {% endif %}
 
+        {% if resource.slug == "categories" and instance %}
+          {% with booked=instance.event_total products=instance.live_count %}
+          <div class="card">
+            <h2 class="card__title">Booked as {{ instance.name }}</h2>
+            <p class="card__note">
+              An occasion is the kind of celebration; each event is one real booking of it.
+              {{ products }} live product{{ products|pluralize }} and
+              {{ booked }} event{{ booked|pluralize }} belong to {{ instance.name }}.
+              {% if booked %}Switch Live off to retire it — those events keep it.{% endif %}
+            </p>
+            {% if booked %}
+              <a class="btn btn--ghost btn--block" href="{% url 'panel:events' %}?occasion={{ instance.slug|urlencode }}">
+                <svg class="icon" aria-hidden="true"><use href="#p-sparkles"></use></svg>See its events
+              </a>
+            {% endif %}
+          </div>
+          {% endwith %}
+        {% endif %}
+
         {% if sale %}
           <div class="card">
             <h2 class="card__title">This sale</h2>
@@ -377,7 +396,7 @@ grouped cards; anything else falls back to a single column of fields.
                        {% if stock_item.is_reusable %}min="1" step="1"{% else %}min="0.01" step="any"{% endif %}>
               </label>
               <label class="field">
-                <span class="field__label">Unit cost (₹) <span class="field__req">*</span></span>
+                <span class="field__label">Unit cost (Rs.) <span class="field__req">*</span></span>
                 <input class="field__input" type="number" name="unit_cost" min="0" step="1" required
                        value="{{ stock_item.cost_price }}">
               </label>

@@ -311,9 +311,9 @@ def dashboard(request):
 
     kpis = [
         {
-            "label": "Revenue this month", "value": f"₹{revenue_now:,}", "icon": "trending-up",
+            "label": "Revenue this month", "value": f"Rs. {revenue_now:,}", "icon": "trending-up",
             "trend": _trend(revenue_now, revenue_prev),
-            "foot": f"₹{revenue_prev:,} in the same stretch last month", "tone": "green",
+            "foot": f"Rs. {revenue_prev:,} in the same stretch last month", "tone": "green",
         },
         {
             "label": "Events this month", "value": count_now, "icon": "calendar",
@@ -321,7 +321,7 @@ def dashboard(request):
             "foot": f"{count_prev} last month", "tone": "blue",
         },
         {
-            "label": "Average event", "value": f"₹{aov_now:,}", "icon": "tag",
+            "label": "Average event", "value": f"Rs. {aov_now:,}", "icon": "tag",
             "trend": _trend(aov_now, aov_prev),
             "foot": "Value per event, cancellations excluded", "tone": "violet",
         },
@@ -1197,7 +1197,7 @@ def quick_search(request):
         ).select_related("category")[:5]:
             results.append({
                 "group": "Products", "label": package.title,
-                "meta": f"₹{package.price:,} · {package.category.name}",
+                "meta": f"Rs. {package.price:,} · {package.category.name}",
                 "url": reverse("panel:resource_edit", args=["packages", package.pk]),
             })
         for slide in HeroSlide.objects.filter(
@@ -1248,7 +1248,7 @@ def quick_search(request):
         )[:4]:
             results.append({
                 "group": "Counter sales", "label": f"{sale.reference} · {sale.customer_label}",
-                "meta": f"{sale.sold_label} · ₹{sale.total:,}",
+                "meta": f"{sale.sold_label} · Rs. {sale.total:,}",
                 "url": reverse("panel:counter_sale", args=[sale.pk]),
             })
         for enquiry in Enquiry.objects.filter(
@@ -1573,8 +1573,8 @@ def _counter_checkout(request, cart, back):
 
     _save_cart(request, {})
     log(request, "create", obj=sale, model_label="Counter sale",
-        detail=f"{len(lines)} lines, ₹{sale.total:,}")
-    messages.success(request, f"{sale.reference} rung up — ₹{sale.total:,}.")
+        detail=f"{len(lines)} lines, Rs. {sale.total:,}")
+    messages.success(request, f"{sale.reference} rung up — Rs. {sale.total:,}.")
     return redirect("panel:counter_sale", pk=sale.pk)
 
 
@@ -1658,18 +1658,18 @@ def stock_room(request):
 
     kpis = [
         {
-            "label": "Stock on hand", "value": f"₹{stock_value:,}", "icon": "package",
+            "label": "Stock on hand", "value": f"Rs. {stock_value:,}", "icon": "package",
             "trend": {"pct": None, "direction": "flat"},
-            "foot": f"{items.count()} items · worth ₹{retail_value:,} at retail",
+            "foot": f"{items.count()} items · worth Rs. {retail_value:,} at retail",
             "tone": "blue",
         },
         {
-            "label": "Counter takings", "value": f"₹{taken_now:,}", "icon": "trending-up",
+            "label": "Counter takings", "value": f"Rs. {taken_now:,}", "icon": "trending-up",
             "trend": _trend(taken_now, taken_prev),
-            "foot": f"₹{taken_prev:,} in the same stretch last month", "tone": "green",
+            "foot": f"Rs. {taken_prev:,} in the same stretch last month", "tone": "green",
         },
         {
-            "label": "Sold today", "value": f"₹{today_total:,}", "icon": "cart",
+            "label": "Sold today", "value": f"Rs. {today_total:,}", "icon": "cart",
             "trend": {"pct": None, "direction": "flat"},
             "foot": f"{sales.on(today).count()} sale{'s' if sales.on(today).count() != 1 else ''} so far",
             "tone": "violet",
@@ -1699,7 +1699,7 @@ def stock_room(request):
         chart.append({
             "day": day,
             "label": day.strftime("%d %b"),
-            "value": f"₹{value:,}",
+            "value": f"Rs. {value:,}",
             "height": max(round(value * 100 / peak), 4 if value else 2),
             "is_today": day == today,
         })
@@ -1755,7 +1755,7 @@ def stock_room(request):
         title="Stock room",
         kpis=kpis,
         chart=chart,
-        chart_total=f"₹{_money(sum(per_day.values())):,}",
+        chart_total=f"Rs. {_money(sum(per_day.values())):,}",
         low=low,
         low_total=low_total,
         best=best,

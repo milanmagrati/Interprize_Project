@@ -81,12 +81,12 @@ CONTENT_MODELS = [
 ]
 
 FIRST_NAMES = [
-    "Ananya", "Vikram", "Meera", "Rohan", "Priya", "Arjun", "Fatima", "Sanjay",
-    "Neha", "Imran", "Kavya", "Dev", "Ishita", "Nikhil", "Aisha", "Rahul",
+    "Aarav", "Bibek", "Sujata", "Rohan", "Sabin", "Anish", "Kritika", "Sameer",
+    "Saru", "Prabin", "Sunita", "Dipesh", "Anjali", "Nischal", "Sristi", "Bishal",
 ]
 LAST_NAMES = [
-    "Raghavan", "Sethi", "Joshi", "Nair", "Deshmukh", "Malhotra", "Sheikh",
-    "Krishnan", "Bansal", "Qureshi", "Iyer", "Kapoor", "Menon", "Verma",
+    "Shrestha", "Thapa", "Gurung", "Rai", "Maharjan", "Karki", "Tamang",
+    "Basnet", "Poudel", "Adhikari", "Magar", "Lama", "Khadka", "Bhattarai",
 ]
 #: (group, tone) — how the demo store room is divided up.
 STOCK_GROUPS = [
@@ -98,8 +98,8 @@ STOCK_GROUPS = [
 ]
 
 SUPPLIERS = [
-    ("Metro Party Supplies", "Rakesh Menon", 2),
-    ("Green Valley Florists", "Sundari Devi", 1),
+    ("Metro Party Supplies", "Rajesh Shrestha", 2),
+    ("Green Valley Florists", "Sundari Gurung", 1),
     ("Drape House Textiles", "Imtiaz Khan", 5),
 ]
 
@@ -334,8 +334,8 @@ class Command(BaseCommand):
                 defaults={
                     "city": row["city"],
                     "rating": row["rating"],
-                    "occasion": row["occasion"],
-                    "package": by_title.get(row["occasion"]),
+                    "booked": row["booked"],
+                    "package": by_title.get(row["booked"]),
                     "date": row["date"],
                     "position": position,
                 },
@@ -353,7 +353,7 @@ class Command(BaseCommand):
             StaffMember.objects.get_or_create(
                 name=name,
                 defaults={
-                    "phone": f"+9198{random.randint(10000000, 99999999)}",
+                    "phone": f"+97798{random.randint(10000000, 99999999)}",
                     "city": metros[index % len(metros)],
                     "category": decorator_type,
                     "employment": random.choice(["inhouse", "freelance", "vendor"]),
@@ -370,7 +370,7 @@ class Command(BaseCommand):
             return
         occasions = [c.name for c in categories.values()]
         messages = [
-            "Do you cover Whitefield on a Sunday morning?",
+            "Do you cover Baneshwor on a Sunday morning?",
             "Looking for a corporate launch setup for about 80 guests.",
             "Can the balloon wall be done in navy and silver instead?",
             "Is same-day booking possible for tomorrow evening?",
@@ -381,7 +381,7 @@ class Command(BaseCommand):
             row = Enquiry.objects.create(
                 name=f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}",
                 email=f"enquiry{index}@example.com",
-                phone=f"+9198{random.randint(10000000, 99999999)}",
+                phone=f"+97798{random.randint(10000000, 99999999)}",
                 city=random.choice(list(data.CITIES))["name"],
                 occasion=random.choice(occasions),
                 event_date=timezone.localdate() + timedelta(days=random.randint(3, 40)),
@@ -418,7 +418,7 @@ class Command(BaseCommand):
                 defaults={
                     "contact_name": contact,
                     "lead_time_days": lead,
-                    "phone": f"+9180{random.randint(10000000, 99999999)}",
+                    "phone": f"+97701{random.randint(10000000, 99999999)}",
                     "email": f"orders@{name.split()[0].lower()}.example",
                 },
             )
@@ -454,7 +454,7 @@ class Command(BaseCommand):
                         f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}"
                         if random.random() > 0.35 else ""
                     ),
-                    phone=f"+9198{random.randint(10000000, 99999999)}",
+                    phone=f"+97798{random.randint(10000000, 99999999)}",
                     sold_at=now - timedelta(days=day_back, hours=random.randint(0, 8)),
                     served_by=random.choice(staff) if staff else None,
                     payment_method=random.choice(["cash", "cash", "upi", "upi", "card"]),
@@ -499,7 +499,7 @@ class Command(BaseCommand):
         customers = [
             Customer.objects.create(
                 name=f"{first} {last}",
-                phone=f"+9198{random.randint(10000000, 99999999)}",
+                phone=f"+97798{random.randint(10000000, 99999999)}",
                 email=f"{first.lower()}.{last.lower()}@example.com",
             )
             for first, last in [

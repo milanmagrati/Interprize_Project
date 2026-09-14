@@ -21,7 +21,7 @@
      15. Hero slider (images + autoplaying video)
      16. Products drop-down in the header
      17. Products listing: filters, live search, layout, paging
-     18. Booking: the /book/ form, the setup page estimate, a booking's page
+     18. Booking: the /book/ form, the product page estimate, a booking's page
    ========================================================================== */
 
 (function () {
@@ -34,8 +34,7 @@
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   var rupees = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-  // Escaped rather than a literal glyph, so the file survives re-encoding.
-  var RUPEE = String.fromCharCode(0x20b9);
+  var RUPEE = "Rs. ";
   function money(value) { return RUPEE + rupees.format(Math.round(value)); }
 
   function debounce(fn, wait) {
@@ -727,7 +726,7 @@
 
     function digitsOnly(str) { return (str || "").replace(/\D/g, ""); }
 
-    var selectedCountryCode = "91";
+    var selectedCountryCode = "977";
 
     function currentDialCode() {
       if (!selectedCountryCode) return digitsOnly(dialcodeInput ? dialcodeInput.value : "");
@@ -1624,7 +1623,7 @@
   })();
 
   /* --------------------------------------------------------------- 18. */
-  // The setup page: the estimate follows the add-ons ticked.
+  // The product page: the estimate follows the add-ons ticked.
   (function setupEstimate() {
     var form = $("[data-price-form]");
     if (!form) return;
@@ -1641,7 +1640,7 @@
     update();
   })();
 
-  // The booking form: live summary, setups for the chosen occasion, steps
+  // The booking form: live summary, products for the chosen occasion, steps
   // ticked off as they are filled.
   (function bookingFlow() {
     var form = $("[data-bookflow]");
@@ -1672,7 +1671,7 @@
       el.classList.toggle("is-empty", !text);
     }
 
-    // Only the chosen occasion's setups, plus the "plan it with us" card.
+    // Only the chosen occasion's products, plus the "plan it with us" card.
     function filterSetups(fromUser) {
       if (!setupsBox) return;
       var occasion = checked("occasion");
@@ -1684,7 +1683,7 @@
         if (match) shown += 1;
         var radio = $("input", card);
         if (!match && radio.checked) {
-          // A setup from another occasion cannot stay picked.
+          // A product from another occasion cannot stay picked.
           radio.checked = false;
           var custom = $(".setup-card--custom input", setupsBox);
           if (custom) custom.checked = true;
@@ -1693,7 +1692,7 @@
       if (setupNote) {
         setupNote.hidden = !slug || shown > 0;
         setupNote.textContent = occasion
-          ? "No ready-made " + occasion.getAttribute("data-name").toLowerCase() + " setups yet — a planner will design one with you."
+          ? "No ready-made " + occasion.getAttribute("data-name").toLowerCase() + " products yet — a planner will design the decoration with you."
           : "";
       }
       if (fromUser && setupsBox.scrollTop) setupsBox.scrollTop = 0;
@@ -1744,7 +1743,7 @@
       if (total) {
         var quote = base === 0;
         total.textContent = quote
-          ? (extrasTotal ? money(extrasTotal) + " + setup quote" : "Quote on the call")
+          ? (extrasTotal ? money(extrasTotal) + " + quote on the call" : "Quote on the call")
           : money(base + extrasTotal);
         total.classList.toggle("is-quote", quote);
       }
@@ -1782,7 +1781,7 @@
     filterSetups(false);
     refresh();
 
-    // Open on the first problem, or on the picked setup.
+    // Open on the first problem, or on the picked product.
     var errors = $("[data-bookflow-errors]", form);
     if (errors) {
       errors.focus({ preventScroll: true });

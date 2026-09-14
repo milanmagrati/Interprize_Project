@@ -12,8 +12,10 @@
       <span class="quote__where">{{ testimonial.city }} &middot; {{ testimonial.date }}</span>
     </span>
   </figcaption>
-  <p class="quote__pkg">
-    <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
-    Booked {{ testimonial.occasion }}
-  </p>
+  {% if testimonial.booked %}
+    <p class="quote__pkg">
+      <svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg>
+      Booked {{ testimonial.booked }}
+    </p>
+  {% endif %}
 </figure>

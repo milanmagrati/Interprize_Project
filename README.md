@@ -153,6 +153,30 @@ panel/                          the staff control panel
 
 `/manage/`. Sign in with a staff account; everything below is behind that.
 
+### Occasions, products and events
+
+Three words, three different things. Keep them apart:
+
+| | Occasion | Product | Event |
+| --- | --- | --- | --- |
+| What it is | A *kind* of celebration — Birthday, Wedding, Tihar | A ready-made decoration design for one occasion, at a fixed price | *One real job* for one customer, on one date, at one venue |
+| Model | `Category` | `Package` | `Event` |
+| In the panel | Catalogue → Occasions | Catalogue → Products | Events |
+| On the site | browsed: `/occasions/`, menus, filters | browsed and picked: `/products/`, `/package/<slug>/` | booked at `/book/`, followed at `/bookings/EVT-…` |
+| Lifetime | Permanent. Retired by switching *Live* off | Published or unpublished | Draft → Confirmed → In progress → Completed / Cancelled |
+
+An occasion has many products and many events. **Every event is of exactly one
+occasion** and may use one product of that occasion — pick a product and its occasion
+is filled in. An occasion that has events cannot be deleted (their history would
+lose what they were); switch it off instead. The Events list filters by occasion,
+each occasion's page in the panel links to its events, and the dashboard ranks
+occasions by what their events earned.
+
+The code and URLs call a product a `Package` (`/package/<slug>/`); everything a
+person reads says **product**. The word *setup* is kept only for the act of
+setting up — "delivery, setup and clean-up", "Setup time". What arrives on site
+is the *decoration*, and what sits on a shelf is a *stock item*.
+
 ### What it manages
 
 | Group | Sections |
@@ -247,8 +271,8 @@ sidebar group next to **Customers**.
 #### Booked from the website
 
 An **occasion** (Birthday, Wedding…) is the kind of event; an **event** is one
-booking of it. Visitors book at `/book/` — occasion, an optional ready-made
-setup, date, arrival window, venue, extras and their details — and that becomes
+booking of it (see *Occasions, products and events* above). Visitors book at
+`/book/` — occasion, an optional product, date, arrival window, venue, extras and their details — and that becomes
 a **draft event** marked *New* on the Events page (and counted in the sidebar),
 with the customer matched by phone number or added. Nothing is charged online:
 the team calls, presses *Confirm event*, and the customer's page at
@@ -257,7 +281,7 @@ directly; anyone else needs the number and the phone. A request can be
 withdrawn online until it is confirmed.
 
 Visitors not ready to book use **Ask a question** (`/enquire/`, and the form on
-the home, contact, occasion and setup pages). Enquiries land under
+the home, contact, occasion and product pages). Enquiries land under
 Operations → Enquiries, where *Create event* opens a new event already filled
 in from the enquiry and links the two. Tests: `core/test_booking.py`.
 
@@ -390,11 +414,11 @@ database arrived.
 | Model | Notes |
 | --- | --- |
 | `SiteSettings` | Singleton. Brand, contact, socials, checkout numbers, announcement, maintenance mode |
-| `Category` | The occasions. `live_count` counts published packages |
+| `Category` | The occasions. `live_count` counts published packages, `event_total` the events booked as it |
 | `Package` | `includes_text` is one bullet per line; `discount_percent`, `saving`, `gallery` are derived |
 | `PackageImage` | Detail-page gallery, ordered |
 | `HeroSlide` | The homepage deck, with scheduling |
-| `Testimonial` | Attach one to a package and it also shows on that package's page |
+| `Testimonial` | Attach one to a package and it also shows on that package's page. `booked` is the product shown as "Booked …", filled from the package |
 | `FAQ` `Feature` `HowItWorksStep` `PricingRow` `TrustBadge` `NavLink` | Homepage copy blocks |
 | `City` `TimeSlot` `AddOn` | Booking options |
 | `Customer` `Event` | The operational record: who, what, when, the crew, and the money. See *Events* above |
@@ -463,7 +487,7 @@ out if its markup is absent:
 - scroll reveal via `IntersectionObserver`
 - package gallery with thumbnails and a keyboard-navigable lightbox
 - sticky mobile booking bar, listing filter drawer, budget slider
-- the booking form — live summary and estimate, setups filtered to the occasion
+- the booking form — live summary and estimate, products filtered to the occasion
 - the header's Products drop-down — hover intent, keyboard focus, Escape to close
 - the products listing — live search, instant facets, a two-thumb budget slider,
   grid/list layout, and paging that swaps results in over `fetch` with history

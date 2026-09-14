@@ -18,8 +18,8 @@
       </p>
       <h1 class="page-head__title">What are you celebrating?</h1>
       <p class="page-head__lead">
-        Start with the occasion. Each one opens onto setups you can book at a fixed price
-        in {{ active_city }} — or book the event straight away and plan the setup with us.
+        Start with the occasion. Each one opens onto products you can book at a fixed price
+        in {{ active_city }} — or book the event straight away and plan the decoration with us.
       </p>
       <p class="page-head__actions">
         <a class="btn btn--primary" href="{% url 'core:book' %}">
@@ -29,7 +29,7 @@
       </p>
     </div>
     <ul class="page-head__stats">
-      <li><strong>500+</strong><span>setups listed</span></li>
+      <li><strong>500+</strong><span>products listed</span></li>
       <li><strong>{{ cities|length }}</strong><span>cities live</span></li>
       <li><strong>4.8</strong><span>average rating</span></li>
     </ul>
@@ -43,15 +43,15 @@
       {% for category in category_rows %}
         <a class="cat-card" href="{% url 'core:category_detail' category.slug %}">
           <span class="cat-card__media">
-            <img src="{{ category.image }}" alt="{{ category.name }} decoration setup" width="600" height="450" loading="lazy" decoding="async">
+            <img src="{{ category.image }}" alt="{{ category.name }} decoration" width="600" height="450" loading="lazy" decoding="async">
             <span class="cat-card__icon"><svg class="icon" aria-hidden="true"><use href="#i-{{ category.icon }}"></use></svg></span>
           </span>
           <span class="cat-card__body">
             <span class="cat-card__title">{{ category.name }}</span>
             <span class="cat-card__blurb">{{ category.blurb }}</span>
             <span class="cat-card__foot">
-              <span class="cat-card__count">{{ category.display_count }} setup{{ category.display_count|pluralize }}</span>
-              <span class="cat-card__price">from &#8377;{{ category.price_from }}</span>
+              <span class="cat-card__count">{{ category.display_count }} product{{ category.display_count|pluralize }}</span>
+              <span class="cat-card__price">from Rs.&nbsp;{{ category.price_from }}</span>
             </span>
           </span>
         </a>
@@ -64,9 +64,9 @@
   <div class="wrap band-cta__inner">
     <div>
       <h2 class="band-cta__title">Cannot find your occasion?</h2>
-      <p class="band-cta__text">Housewarmings, retirements, graduations, farewells. Describe it and we will design a setup around it.</p>
+      <p class="band-cta__text">Housewarmings, retirements, graduations, farewells. Describe it and we will design a decoration around it.</p>
     </div>
-    <a class="btn btn--gold btn--lg" href="{% url 'core:contact' %}">Ask for a custom setup</a>
+    <a class="btn btn--gold btn--lg" href="{% url 'core:contact' %}">Ask for a custom decoration</a>
   </div>
 </section>
 {% endblock %}

@@ -67,7 +67,7 @@ so every status change made there shows up here on the next visit.
             <div><dt><svg class="icon" aria-hidden="true"><use href="#i-{{ event.occasion.icon }}"></use></svg>Occasion</dt><dd>{{ event.occasion.name }}</dd></div>
           {% endif %}
           <div>
-            <dt><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Setup</dt>
+            <dt><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Product</dt>
             <dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}">{{ event.package.title }}</a>{% else %}Planned together with you{% endif %}</dd>
           </div>
           <div>
@@ -90,19 +90,19 @@ so every status change made there shows up here on the next visit.
       <div class="card card--pad bstatus__card">
         <h2 class="card__title">Price</h2>
         <ul class="pricelist">
-          <li><span>{% if event.package %}{{ event.package.title }}{% else %}Setup{% endif %}</span><span>{% if base_price %}&#8377;{{ base_price|intcomma }}{% else %}Quoted on the call{% endif %}</span></li>
+          <li><span>{% if event.package %}{{ event.package.title }}{% else %}Custom decoration{% endif %}</span><span>{% if base_price %}Rs.&nbsp;{{ base_price|intcomma }}{% else %}Quoted on the call{% endif %}</span></li>
           {% for extra in extras %}
-            <li><span>{{ extra.name }}</span><span>+&#8377;{{ extra.price|intcomma }}</span></li>
+            <li><span>{{ extra.name }}</span><span>+Rs.&nbsp;{{ extra.price|intcomma }}</span></li>
           {% endfor %}
         </ul>
         <div class="pricelist__total">
           <span>{% if event.status == "draft" %}Estimated total{% else %}Total{% endif %}</span>
-          <strong>{% if event.revenue %}&#8377;{{ event.revenue|intcomma }}{% else %}To be quoted{% endif %}</strong>
+          <strong>{% if event.revenue %}Rs.&nbsp;{{ event.revenue|intcomma }}{% else %}To be quoted{% endif %}</strong>
         </div>
         {% if event.paid %}
           <ul class="pricelist pricelist--paid">
-            <li><span>Paid so far</span><span>&#8377;{{ event.paid|intcomma }}</span></li>
-            <li><span>Still to pay</span><span>&#8377;{{ event.remaining|intcomma }}</span></li>
+            <li><span>Paid so far</span><span>Rs.&nbsp;{{ event.paid|intcomma }}</span></li>
+            <li><span>Still to pay</span><span>Rs.&nbsp;{{ event.remaining|intcomma }}</span></li>
           </ul>
         {% elif event.status == "draft" %}
           <p class="card__note">The final price is agreed on the call. Nothing is charged until then.</p>

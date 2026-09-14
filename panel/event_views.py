@@ -25,6 +25,7 @@ from django.views.decorators.http import require_POST
 
 from core.models import (
     ActivityLog,
+    Category,
     Customer,
     Enquiry,
     Event,
@@ -139,7 +140,7 @@ ARRIVES_AT = {
 
 
 def _rupees(amount):
-    return f"−₹{-amount:,}" if amount < 0 else f"₹{amount:,}"
+    return f"−Rs. {-amount:,}" if amount < 0 else f"Rs. {amount:,}"
 
 
 def _can_write(request):
@@ -218,8 +219,8 @@ def _event_or_404(pk):
 # ---------------------------------------------------------------------------
 
 
-def _filter_events(queryset, request, today):
-    """Search and date filters, shared by the table and the status tab counts."""
+def _filter_events(queryset, request, today, occasion=None):
+    """Search, occasion and date filters, shared by the table and the status tab counts."""
     term = request.GET.get("q", "").strip()
     if term:
         queryset = queryset.filter(
@@ -227,6 +228,8 @@ def _filter_events(queryset, request, today):
             | Q(customer__name__icontains=term) | Q(customer__phone__icontains=term)
             | Q(location__icontains=term) | Q(occasion__name__icontains=term)
         )
+    if occasion is not None:
+        queryset = queryset.filter(occasion=occasion)
 
     when = request.GET.get("when", "")
     if when == "upcoming":
@@ -251,12 +254,19 @@ def _filter_events(queryset, request, today):
 def event_list(request):
     today = timezone.localdate()
 
+    # Every occasion, retired ones too: their past events still need finding.
+    occasions = list(Category.objects.order_by("position", "name"))
+    chosen_occasion = next(
+        (o for o in occasions if o.slug == request.GET.get("occasion", "")), None
+    )
+
     events, term, when, date_from, date_to = _filter_events(
-        Event.objects.select_related("customer", "occasion").with_paid(), request, today
+        Event.objects.select_related("customer", "occasion").with_paid(),
+        request, today, chosen_occasion,
     )
 
     # The tabs count what each would show with the other filters kept.
-    counted, *_ = _filter_events(Event.objects.all(), request, today)
+    counted, *_ = _filter_events(Event.objects.all(), request, today, chosen_occasion)
     per_status = dict(
         counted.order_by().values_list("status").annotate(n=Count("id")).values_list("status", "n")
     )
@@ -318,17 +328,17 @@ def event_list(request):
             "foot": f"{events.filter(status__in=Event.OPEN_STATUSES, event_date__gte=today).count()} still to come",
         },
         {
-            "label": "Revenue", "value": f"₹{revenue:,}", "icon": "trending-up", "tone": "green",
+            "label": "Revenue", "value": f"Rs. {revenue:,}", "icon": "trending-up", "tone": "green",
             "foot": f"Across {live_count} event{'s' if live_count != 1 else ''}, cancellations excluded",
         },
         {
-            "label": "Collected", "value": f"₹{collected:,}", "icon": "receipt", "tone": "violet",
-            "foot": f"₹{max(revenue - collected, 0):,} still to collect",
+            "label": "Collected", "value": f"Rs. {collected:,}", "icon": "receipt", "tone": "violet",
+            "foot": f"Rs. {max(revenue - collected, 0):,} still to collect",
         },
         {
             "label": "Profit", "value": _rupees(revenue - cost), "icon": "activity",
             "tone": "green" if revenue >= cost else "red",
-            "foot": f"After ₹{cost:,} of items and expenses",
+            "foot": f"After Rs. {cost:,} of items and expenses",
         },
     ]
 
@@ -346,7 +356,10 @@ def event_list(request):
         event.next_action = next((a for a in actions if a["key"] != "cancel"), None)
         event.cancel_action = next((a for a in actions if a["key"] == "cancel"), None)
 
-    is_filtered = bool(term or when or date_from or date_to or status or payment or source or only_new)
+    is_filtered = bool(
+        term or chosen_occasion or when or date_from or date_to
+        or status or payment or source or only_new
+    )
     return render(request, "panel/events/list.html", panel_context(
         request,
         title="Events",
@@ -361,6 +374,8 @@ def event_list(request):
         only_new=only_new,
         new_count=Event.objects.filter(is_new=True).count(),
         source_choices=Event.SOURCE_CHOICES,
+        occasions=occasions,
+        occasion=chosen_occasion.slug if chosen_occasion else "",
         payment=payment,
         when=when,
         date_from=date_from.isoformat() if date_from else "",
@@ -895,8 +910,8 @@ def event_add_expense(request, pk):
     expense.created_by = request.user
     expense.save()
     log(request, "update", obj=event, model_label="Event",
-        detail=f"expense {expense.name} ₹{expense.amount:,}")
-    messages.success(request, f"Expense added — {expense.name}, ₹{expense.amount:,}.")
+        detail=f"expense {expense.name} Rs. {expense.amount:,}")
+    messages.success(request, f"Expense added — {expense.name}, Rs. {expense.amount:,}.")
     return _back(event, "expenses")
 
 
@@ -934,8 +949,8 @@ def event_add_payment(request, pk):
     payment.received_by = request.user
     payment.save()
     log(request, "update", obj=event, model_label="Event",
-        detail=f"payment ₹{payment.amount:,} by {payment.get_method_display()}")
-    messages.success(request, f"Payment of ₹{payment.amount:,} recorded.")
+        detail=f"payment Rs. {payment.amount:,} by {payment.get_method_display()}")
+    messages.success(request, f"Payment of Rs. {payment.amount:,} recorded.")
     return _back(event, "payments")
 
 

@@ -37,8 +37,8 @@ from .models import (
 FALLBACK_BRAND = {
     "name": "Barahi Florist & Events",
     "tagline": "Florist and Event Decorators",
-    "phone": "+91 98765 43210",
-    "phone_href": "+919876543210",
+    "phone": "+977 985-1234567",
+    "phone_href": "+9779851234567",
     "email": "hello@barahiflorist.com",
     "address": "",
     "hours": "",

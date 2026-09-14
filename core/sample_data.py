@@ -14,7 +14,7 @@ templates never had to change when the database arrived:
     Package   -> id, title, slug, image, gallery, price, original_price,
                  discount_percent, rating, review_count, category,
                  category_name, includes, description, duration, badge
-    Testimonial -> name, city, rating, text, occasion, avatar, date
+    Testimonial -> name, city, rating, text, booked, avatar, date
     City      -> name, slug, state, is_metro
     FAQ       -> question, answer
 
@@ -31,11 +31,11 @@ from django.urls import reverse
 BRAND = {
     "name": "Barahi Florist & Events",
     "tagline": "Celebrations, Beautifully Delivered",
-    "phone": "+91 98765 43210",
-    "phone_href": "+919876543210",
-    "whatsapp": "+91 98765 43210",
-    "email": "hello@celebra.in",
-    "address": "4th Floor, Lumen House, 12 Residency Road, Bengaluru 560025",
+    "phone": "+977 985-1234567",
+    "phone_href": "+9779851234567",
+    "whatsapp": "+977 985-1234567",
+    "email": "hello@celebra.com.np",
+    "address": "4th Floor, Lumen House, Durbar Marg, Kathmandu 44600",
     "hours": "Bookings 9 AM – 11 PM, all seven days",
     "founded_year": 2019,
     "instagram": "https://instagram.com/",
@@ -56,7 +56,7 @@ NAV_LINKS = [
 TRUST_BADGES = [
     {"value": "5+", "label": "Years decorating"},
     {"value": "100+", "label": "Cities covered"},
-    {"value": "5,000+", "label": "Setups every month"},
+    {"value": "5,000+", "label": "Events every month"},
     {"value": "4.8", "label": "Average rating"},
 ]
 
@@ -85,16 +85,16 @@ HERO_SLIDES = [
         "heading": "Someone else can",
         "heading_accent": "hang the balloons.",
         "description": (
-            "Pick a setup, pick a slot, and a Celebra decorator arrives with everything "
+            "Pick a product, pick a slot, and a Celebra decorator arrives with everything "
             "in the van — builds it, photographs it, and takes the packaging away."
         ),
-        "meta": "148 birthday setups · from ₹1,499",
+        "meta": "148 birthday products · from Rs. 1,499",
         "alt": "A pastel balloon arch built around a cake table in a living room",
         "image_seed": "celebra-hero-birthday",
         "video_mp4": None,
         "video_webm": None,
         "duration": 6500,
-        "cta_label": "Browse birthday setups",
+        "cta_label": "Browse birthday products",
         "cta_url_name": "core:category_detail",
         "cta_url_arg": "birthday",
         "cta2_label": "See how it works",
@@ -114,7 +114,7 @@ HERO_SLIDES = [
             "Haldi, mehendi, sangeet and reception stages, built by a crew that has done "
             "it four hundred times. One planner from the first call to the clean-up."
         ),
-        "meta": "58 wedding setups · from ₹7,999",
+        "meta": "58 wedding products · from Rs. 7,999",
         "alt": "Decorators assembling a floral wedding stage in a banquet hall",
         "image_seed": "celebra-hero-wedding",
         "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
@@ -140,7 +140,7 @@ HERO_SLIDES = [
             "Proposals, anniversaries and quiet dinners for two. We set up while you are "
             "still at work and come back the next morning to take it all down."
         ),
-        "meta": "87 romantic setups · from ₹2,199",
+        "meta": "87 romantic products · from Rs. 2,199",
         "alt": "A candlelit table for two set up on a terrace at dusk",
         "image_seed": "celebra-hero-romantic",
         "video_mp4": None,
@@ -166,7 +166,7 @@ HERO_SLIDES = [
             "Jungle, space, unicorn or under-the-sea — themed head to toe, props included, "
             "and photographed before we leave so you have the room at its best."
         ),
-        "meta": "112 themed setups · from ₹2,999",
+        "meta": "112 themed products · from Rs. 2,999",
         "alt": "A jungle-themed birthday corner with balloon animals and a photo backdrop",
         "image_seed": "celebra-hero-kids",
         "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
@@ -193,7 +193,7 @@ HERO_SLIDES = [
             "Everything the afternoon needs, priced as one number — materials, labour, "
             "travel inside city limits and clean-up all included."
         ),
-        "meta": "64 baby shower setups · from ₹2,499",
+        "meta": "64 baby shower products · from Rs. 2,499",
         "alt": "A pastel balloon arch and photo corner set for a baby shower",
         "image_seed": "celebra-hero-baby",
         "video_mp4": None,
@@ -228,7 +228,7 @@ CATEGORIES = [
         "name": "Anniversary",
         "slug": "anniversary",
         "icon": "heart",
-        "blurb": "Warm, grown-up setups built around the two of you.",
+        "blurb": "Warm, grown-up decorations built around the two of you.",
         "price_from": 1999,
         "package_count": 96,
     },
@@ -284,7 +284,7 @@ CATEGORIES = [
         "name": "Festival",
         "slug": "festival",
         "icon": "sun",
-        "blurb": "Diwali, Christmas, Eid and Onam decor for home or office.",
+        "blurb": "Dashain, Tihar, Christmas and Eid decor for home or office.",
         "price_from": 2499,
         "package_count": 52,
     },
@@ -485,11 +485,11 @@ _PACKAGES = [
         "rating": 4.7,
         "review_count": 64,
         "duration": "Full day, team of three",
-        "badge": "GST invoice",
+        "badge": "VAT invoice",
         "is_featured": True,
         "description": (
             "A branded step-and-repeat wall, balloon columns in your brand colours "
-            "and a ribbon-cutting station. Comes with a GST invoice and a named "
+            "and a ribbon-cutting station. Comes with a VAT invoice and a named "
             "account manager."
         ),
         "includes": [
@@ -498,13 +498,13 @@ _PACKAGES = [
             "Ribbon-cutting station with brass scissors",
             "Reception table styling and signage",
             "Setup completed before 8 AM",
-            "GST invoice and account manager",
+            "VAT invoice and account manager",
         ],
     },
     {
         "id": 9,
-        "title": "Diwali Doorway Rangoli & Diyas",
-        "slug": "diwali-doorway-rangoli-and-diyas",
+        "title": "Tihar Doorway Rangoli & Diyas",
+        "slug": "tihar-doorway-rangoli-and-diyas",
         "category": "festival",
         "price": 3999,
         "original_price": 5499,
@@ -761,7 +761,7 @@ _PACKAGES = [
         "rating": 4.6,
         "review_count": 158,
         "duration": "90 minutes on site",
-        "badge": "Under ₹2,500",
+        "badge": "Under Rs. 2,500",
         "is_featured": False,
         "description": (
             "Balloons, a lit sign and a cake stand fitted into your car boot in the "
@@ -823,7 +823,7 @@ _PACKAGES = [
             "Reception desk styling and signage",
             "Milestone number foils",
             "Setup completed before 8 AM",
-            "GST invoice",
+            "VAT invoice",
         ],
     },
     {
@@ -853,8 +853,8 @@ _PACKAGES = [
     },
     {
         "id": 23,
-        "title": "Onam Pookalam & Pandal",
-        "slug": "onam-pookalam-and-pandal",
+        "title": "Losar Mandala & Doorway Display",
+        "slug": "losar-mandala-and-doorway-display",
         "category": "festival",
         "price": 5999,
         "original_price": 7999,
@@ -864,22 +864,22 @@ _PACKAGES = [
         "badge": "",
         "is_featured": False,
         "description": (
-            "A fresh-flower pookalam laid at dawn with a banana-leaf entrance and "
-            "traditional lamp arrangement."
+            "A hand-laid rice and flower mandala at the entrance, prayer flags strung "
+            "across the doorway and butter lamps lit before dawn."
         ),
         "includes": [
-            "Fresh flower pookalam, up to 6ft",
-            "Banana-leaf and tender-coconut entrance",
-            "Nilavilakku lamp arrangement",
-            "Sadhya table styling",
-            "Traditional umbrella props",
+            "Hand-laid rice and flower mandala, up to 6ft",
+            "Marigold and pine doorway toran",
+            "Prayer-flag string across the entrance",
+            "Butter lamps, lit and placed",
+            "Traditional khada scarf display",
             "Dawn setup, complete by 9 AM",
         ],
     },
     {
         "id": 24,
-        "title": "Half-Saree Ceremony Stage",
-        "slug": "half-saree-ceremony-stage",
+        "title": "Bratabandha Ceremony Stage",
+        "slug": "bratabandha-ceremony-stage",
         "category": "wedding",
         "price": 13999,
         "original_price": 17999,
@@ -890,7 +890,7 @@ _PACKAGES = [
         "is_featured": False,
         "description": (
             "A traditional stage with fresh florals, a decorated seat and a "
-            "photo-ready entrance for the ceremony."
+            "photo-ready entrance for the sacred-thread ceremony."
         ),
         "includes": [
             "Stage backdrop with fresh florals",
@@ -911,7 +911,7 @@ _PACKAGES = [
         "rating": 4.5,
         "review_count": 291,
         "duration": "2 hours on site",
-        "badge": "Under ₹2,000",
+        "badge": "Under Rs. 2,000",
         "is_featured": False,
         "description": (
             "The entry-level setup: a ceiling balloon drop net, a message wall and "
@@ -1078,8 +1078,8 @@ _PACKAGES = [
     },
     {
         "id": 32,
-        "title": "Bollywood Theme Birthday Stage",
-        "slug": "bollywood-theme-birthday-stage",
+        "title": "Kollywood Theme Birthday Stage",
+        "slug": "kollywood-theme-birthday-stage",
         "category": "birthday",
         "price": 7999,
         "original_price": 10499,
@@ -1264,7 +1264,7 @@ def _decorate(package):
             {
                 "url": f"https://picsum.photos/seed/{slug}-{i}/1200/900",
                 "thumb": f"https://picsum.photos/seed/{slug}-{i}/240/180",
-                "alt": f"{package['title']} — setup photo {i}",
+                "alt": f"{package['title']} — photo {i}",
             }
             for i in range(1, 6)
         ],
@@ -1273,7 +1273,7 @@ def _decorate(package):
     package["discount_percent"] = round(saving * 100 / package["original_price"])
     package["saving"] = saving
     package["category_name"] = CATEGORY_BY_SLUG[package["category"]]["name"]
-    package["alt"] = f"{package['title']} decoration setup by Celebra"
+    package["alt"] = f"{package['title']} decoration by Celebra"
     return package
 
 
@@ -1287,10 +1287,10 @@ PACKAGE_BY_SLUG = {p["slug"]: p for p in PACKAGES}
 
 TESTIMONIALS = [
     {
-        "name": "Ananya Raghavan",
-        "city": "Bengaluru",
+        "name": "Anisha Shrestha",
+        "city": "Kathmandu",
         "rating": 5,
-        "occasion": "Golden Hour Birthday Balloon Wall",
+        "booked": "Golden Hour Birthday Balloon Wall",
         "date": "March 2026",
         "text": (
             "The decorator reached at 4 PM for a 7 PM party and was done with an "
@@ -1299,10 +1299,10 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Vikram Sethi",
-        "city": "Pune",
+        "name": "Bikash Thapa",
+        "city": "Pokhara",
         "rating": 5,
-        "occasion": "Rooftop Proposal Setup",
+        "booked": "Rooftop Proposal Setup",
         "date": "February 2026",
         "text": (
             "I was terrified they'd ring the doorbell and ruin the surprise. They "
@@ -1311,10 +1311,10 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Meera Joshi",
-        "city": "Mumbai",
+        "name": "Sunita Gurung",
+        "city": "Lalitpur",
         "rating": 4,
-        "occasion": "Cloud Nine Baby Shower Arch",
+        "booked": "Cloud Nine Baby Shower Arch",
         "date": "January 2026",
         "text": (
             "Beautiful setup and the mum-to-be chair was genuinely comfortable. "
@@ -1323,22 +1323,22 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Rohan Nair",
-        "city": "Kochi",
+        "name": "Rohit Gurung",
+        "city": "Biratnagar",
         "rating": 5,
-        "occasion": "Onam Pookalam & Pandal",
+        "booked": "Losar Mandala & Doorway Display",
         "date": "September 2025",
         "text": (
-            "They started at 5:30 AM so the pookalam was finished before the family "
+            "They started at 5:30 AM so the mandala was finished before the family "
             "woke up. My mother, who has laid one every year for thirty years, "
             "approved. That is the highest rating available in this house."
         ),
     },
     {
-        "name": "Priya Deshmukh",
-        "city": "Hyderabad",
+        "name": "Priya Maharjan",
+        "city": "Butwal",
         "rating": 5,
-        "occasion": "Little Explorer Dinosaur Party",
+        "booked": "Little Explorer Dinosaur Party",
         "date": "March 2026",
         "text": (
             "The fossil dig kept nine children occupied for over an hour, which "
@@ -1347,22 +1347,22 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Arjun Malhotra",
-        "city": "Delhi",
+        "name": "Arjun Karki",
+        "city": "Kathmandu",
         "rating": 4,
-        "occasion": "Milestone Launch Backdrop",
+        "booked": "Milestone Launch Backdrop",
         "date": "December 2025",
         "text": (
-            "Branded wall matched our colour codes exactly and the GST invoice came "
+            "Branded wall matched our colour codes exactly and the VAT invoice came "
             "the same day, which finance appreciated more than the balloons. Setup "
             "ran fifteen minutes past the promised time."
         ),
     },
     {
-        "name": "Fatima Sheikh",
-        "city": "Ahmedabad",
+        "name": "Sarita Tamang",
+        "city": "Bharatpur",
         "rating": 5,
-        "occasion": "Welcome Home Little One",
+        "booked": "Welcome Home Little One",
         "date": "February 2026",
         "text": (
             "Booked at 11 AM on the day we were discharged. The doorway was done by "
@@ -1371,10 +1371,10 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Sanjay Krishnan",
-        "city": "Chennai",
+        "name": "Sanjay Rai",
+        "city": "Dharan",
         "rating": 5,
-        "occasion": "Silver Jubilee Stage Decor",
+        "booked": "Silver Jubilee Stage Decor",
         "date": "November 2025",
         "text": (
             "Twenty-five years of photographs on a timeline wall, and my parents "
@@ -1383,10 +1383,10 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Neha Bansal",
-        "city": "Jaipur",
+        "name": "Neha Basnet",
+        "city": "Nepalgunj",
         "rating": 5,
-        "occasion": "Private Cabana Candlelight Dinner",
+        "booked": "Private Cabana Candlelight Dinner",
         "date": "January 2026",
         "text": (
             "The projector slideshow was the detail that got me. They loaded my "
@@ -1395,10 +1395,10 @@ TESTIMONIALS = [
         ),
     },
     {
-        "name": "Imran Qureshi",
-        "city": "Lucknow",
+        "name": "Sunil Yadav",
+        "city": "Janakpur",
         "rating": 4,
-        "occasion": "Diwali Doorway Rangoli & Diyas",
+        "booked": "Tihar Doorway Rangoli & Diyas",
         "date": "October 2025",
         "text": (
             "Rangoli was hand-drawn, not a sticker, which is what I was worried "
@@ -1413,58 +1413,56 @@ TESTIMONIALS = [
 # ---------------------------------------------------------------------------
 
 _CITY_ROWS = [
-    ("Bengaluru", "Karnataka", True),
-    ("Mumbai", "Maharashtra", True),
-    ("Delhi", "Delhi NCR", True),
-    ("Gurugram", "Delhi NCR", True),
-    ("Noida", "Delhi NCR", True),
-    ("Hyderabad", "Telangana", True),
-    ("Chennai", "Tamil Nadu", True),
-    ("Pune", "Maharashtra", True),
-    ("Kolkata", "West Bengal", True),
-    ("Ahmedabad", "Gujarat", True),
-    ("Jaipur", "Rajasthan", False),
-    ("Kochi", "Kerala", False),
-    ("Thiruvananthapuram", "Kerala", False),
-    ("Kozhikode", "Kerala", False),
-    ("Coimbatore", "Tamil Nadu", False),
-    ("Madurai", "Tamil Nadu", False),
-    ("Tiruchirappalli", "Tamil Nadu", False),
-    ("Mysuru", "Karnataka", False),
-    ("Mangaluru", "Karnataka", False),
-    ("Hubballi", "Karnataka", False),
-    ("Vijayawada", "Andhra Pradesh", False),
-    ("Visakhapatnam", "Andhra Pradesh", False),
-    ("Guntur", "Andhra Pradesh", False),
-    ("Warangal", "Telangana", False),
-    ("Nagpur", "Maharashtra", False),
-    ("Nashik", "Maharashtra", False),
-    ("Aurangabad", "Maharashtra", False),
-    ("Thane", "Maharashtra", False),
-    ("Surat", "Gujarat", False),
-    ("Vadodara", "Gujarat", False),
-    ("Rajkot", "Gujarat", False),
-    ("Indore", "Madhya Pradesh", False),
-    ("Bhopal", "Madhya Pradesh", False),
-    ("Lucknow", "Uttar Pradesh", False),
-    ("Kanpur", "Uttar Pradesh", False),
-    ("Varanasi", "Uttar Pradesh", False),
-    ("Agra", "Uttar Pradesh", False),
-    ("Ghaziabad", "Delhi NCR", False),
-    ("Faridabad", "Delhi NCR", False),
-    ("Chandigarh", "Punjab", False),
-    ("Ludhiana", "Punjab", False),
-    ("Amritsar", "Punjab", False),
-    ("Dehradun", "Uttarakhand", False),
-    ("Patna", "Bihar", False),
-    ("Ranchi", "Jharkhand", False),
-    ("Bhubaneswar", "Odisha", False),
-    ("Raipur", "Chhattisgarh", False),
-    ("Guwahati", "Assam", False),
-    ("Goa", "Goa", False),
-    ("Udaipur", "Rajasthan", False),
-    ("Jodhpur", "Rajasthan", False),
-    ("Siliguri", "West Bengal", False),
+    ("Kathmandu", "Bagmati Province", True),
+    ("Lalitpur", "Bagmati Province", True),
+    ("Bhaktapur", "Bagmati Province", True),
+    ("Pokhara", "Gandaki Province", True),
+    ("Biratnagar", "Koshi Province", True),
+    ("Birgunj", "Madhesh Province", True),
+    ("Bharatpur", "Bagmati Province", True),
+    ("Dharan", "Koshi Province", True),
+    ("Butwal", "Lumbini Province", True),
+    ("Nepalgunj", "Lumbini Province", True),
+    ("Hetauda", "Bagmati Province", False),
+    ("Janakpur", "Madhesh Province", False),
+    ("Itahari", "Koshi Province", False),
+    ("Dhangadhi", "Sudurpashchim Province", False),
+    ("Kirtipur", "Bagmati Province", False),
+    ("Tulsipur", "Lumbini Province", False),
+    ("Ghorahi", "Lumbini Province", False),
+    ("Siddharthanagar", "Lumbini Province", False),
+    ("Tikapur", "Sudurpashchim Province", False),
+    ("Ilam", "Koshi Province", False),
+    ("Damak", "Koshi Province", False),
+    ("Rajbiraj", "Madhesh Province", False),
+    ("Gaur", "Madhesh Province", False),
+    ("Kalaiya", "Madhesh Province", False),
+    ("Baglung", "Gandaki Province", False),
+    ("Gorkha", "Gandaki Province", False),
+    ("Tansen", "Lumbini Province", False),
+    ("Dhankuta", "Koshi Province", False),
+    ("Lahan", "Madhesh Province", False),
+    ("Malangwa", "Madhesh Province", False),
+    ("Damauli", "Gandaki Province", False),
+    ("Waling", "Gandaki Province", False),
+    ("Banepa", "Bagmati Province", False),
+    ("Panauti", "Bagmati Province", False),
+    ("Dhulikhel", "Bagmati Province", False),
+    ("Dipayal", "Sudurpashchim Province", False),
+    ("Bhimdatta", "Sudurpashchim Province", False),
+    ("Jumla", "Karnali Province", False),
+    ("Surkhet", "Karnali Province", False),
+    ("Dailekh", "Karnali Province", False),
+    ("Bhadrapur", "Koshi Province", False),
+    ("Bardibas", "Madhesh Province", False),
+    ("Siraha", "Madhesh Province", False),
+    ("Inaruwa", "Koshi Province", False),
+    ("Kohalpur", "Lumbini Province", False),
+    ("Lekhnath", "Gandaki Province", False),
+    ("Besisahar", "Gandaki Province", False),
+    ("Ratnanagar", "Bagmati Province", False),
+    ("Triyuga", "Koshi Province", False),
+    ("Putalibazar", "Gandaki Province", False),
 ]
 
 CITIES = [
@@ -1478,7 +1476,7 @@ CITIES = [
 ]
 
 POPULAR_CITIES = [c for c in CITIES if c["is_metro"]]
-DEFAULT_CITY = "Bengaluru"
+DEFAULT_CITY = "Kathmandu"
 
 # ---------------------------------------------------------------------------
 # How it works / features / pricing / FAQs
@@ -1487,10 +1485,10 @@ DEFAULT_CITY = "Bengaluru"
 HOW_IT_WORKS = [
     {
         "step": 1,
-        "title": "Choose your package",
+        "title": "Choose your product",
         "icon": "gift",
         "text": (
-            "Browse by occasion and pick a setup at a price that's already final. "
+            "Browse by occasion and pick a product at a price that's already final. "
             "Every listing shows exactly what arrives with the decorator."
         ),
     },
@@ -1532,15 +1530,15 @@ FEATURES = [
     {
         "title": "Verified decorators",
         "icon": "shield",
-        "text": "Every decorator is background-checked, trained on our setups and rated by customers after each booking.",
+        "text": "Every decorator is background-checked, trained on our products and rated by customers after each booking.",
     },
     {
         "title": "On-time guarantee",
         "icon": "clock",
-        "text": "If the setup isn't finished by the end of your arrival window, that booking is 25% off, applied automatically.",
+        "text": "If the decoration isn't finished by the end of your arrival window, that booking is 25% off, applied automatically.",
     },
     {
-        "title": "Real setup photos",
+        "title": "Real decoration photos",
         "icon": "camera",
         "text": "Listing photos come from bookings we actually delivered, not stock libraries or renders.",
     },
@@ -1552,20 +1550,20 @@ FEATURES = [
     {
         "title": "Same-day booking",
         "icon": "zap",
-        "text": "Book before 2 PM for an evening setup in any metro. Selected packages go out in ninety minutes.",
+        "text": "Book before 2 PM for same-evening decoration in any metro. Selected products go out in ninety minutes.",
     },
 ]
 
 PRICING_ROWS = [
-    {"category": "Birthday", "slug": "birthday", "range": "₹1,899 – ₹8,999", "popular": "₹3,499", "setup_time": "2–4 hrs"},
-    {"category": "Anniversary", "slug": "anniversary", "range": "₹2,199 – ₹15,999", "popular": "₹4,999", "setup_time": "3–5 hrs"},
-    {"category": "Baby Shower", "slug": "baby-shower", "range": "₹2,499 – ₹9,999", "popular": "₹5,299", "setup_time": "3–5 hrs"},
-    {"category": "Kids Theme", "slug": "kids-theme", "range": "₹2,999 – ₹11,999", "popular": "₹5,199", "setup_time": "3–4 hrs"},
-    {"category": "Wedding", "slug": "wedding", "range": "₹7,999 – ₹45,000", "popular": "₹16,999", "setup_time": "Full day"},
-    {"category": "Romantic", "slug": "romantic", "range": "₹2,199 – ₹12,999", "popular": "₹5,499", "setup_time": "2–4 hrs"},
-    {"category": "Newborn Welcome", "slug": "newborn-welcome", "range": "₹1,799 – ₹7,999", "popular": "₹3,299", "setup_time": "2–3 hrs"},
-    {"category": "Corporate", "slug": "corporate", "range": "₹5,999 – ₹60,000", "popular": "₹18,999", "setup_time": "Before hours"},
-    {"category": "Festival", "slug": "festival", "range": "₹2,499 – ₹14,999", "popular": "₹5,999", "setup_time": "3–5 hrs"},
+    {"category": "Birthday", "slug": "birthday", "range": "Rs. 1,899 – Rs. 8,999", "popular": "Rs. 3,499", "setup_time": "2–4 hrs"},
+    {"category": "Anniversary", "slug": "anniversary", "range": "Rs. 2,199 – Rs. 15,999", "popular": "Rs. 4,999", "setup_time": "3–5 hrs"},
+    {"category": "Baby Shower", "slug": "baby-shower", "range": "Rs. 2,499 – Rs. 9,999", "popular": "Rs. 5,299", "setup_time": "3–5 hrs"},
+    {"category": "Kids Theme", "slug": "kids-theme", "range": "Rs. 2,999 – Rs. 11,999", "popular": "Rs. 5,199", "setup_time": "3–4 hrs"},
+    {"category": "Wedding", "slug": "wedding", "range": "Rs. 7,999 – Rs. 45,000", "popular": "Rs. 16,999", "setup_time": "Full day"},
+    {"category": "Romantic", "slug": "romantic", "range": "Rs. 2,199 – Rs. 12,999", "popular": "Rs. 5,499", "setup_time": "2–4 hrs"},
+    {"category": "Newborn Welcome", "slug": "newborn-welcome", "range": "Rs. 1,799 – Rs. 7,999", "popular": "Rs. 3,299", "setup_time": "2–3 hrs"},
+    {"category": "Corporate", "slug": "corporate", "range": "Rs. 5,999 – Rs. 60,000", "popular": "Rs. 18,999", "setup_time": "Before hours"},
+    {"category": "Festival", "slug": "festival", "range": "Rs. 2,499 – Rs. 14,999", "popular": "Rs. 5,999", "setup_time": "3–5 hrs"},
 ]
 
 FAQS = [
@@ -1574,7 +1572,7 @@ FAQS = [
         "answer": (
             "Three days is comfortable and gets you the widest choice of slots. "
             "Same-day booking is available in every metro if you order before 2 PM, "
-            "and a handful of compact setups go out in ninety minutes."
+            "and a handful of compact products go out in ninety minutes."
         ),
     },
     {
@@ -1589,7 +1587,7 @@ FAQS = [
         "question": "What if my venue has rules about walls and adhesive?",
         "answer": (
             "Tell us in the booking notes and the decorator switches to freestanding "
-            "frames, weighted bases and removable clips. Most of our setups already "
+            "frames, weighted bases and removable clips. Most of our products already "
             "work this way — we decorate a lot of rented flats and hotel rooms."
         ),
     },
@@ -1605,7 +1603,7 @@ FAQS = [
         "question": "Who takes down the decoration afterwards?",
         "answer": (
             "You can keep it up as long as you like — balloons hold three to five "
-            "days indoors. Add next-morning take-down at checkout for ₹499 and a "
+            "days indoors. Add next-morning take-down at checkout for Rs. 499 and a "
             "decorator returns to clear everything."
         ),
     },
@@ -1618,7 +1616,7 @@ FAQS = [
         ),
     },
     {
-        "question": "Will the setup look like the photos?",
+        "question": "Will the decoration look like the photos?",
         "answer": (
             "Listing photos are from bookings we delivered. Fresh flowers and foil "
             "colours vary a little by city and season; if a substitution is needed "
@@ -1628,9 +1626,9 @@ FAQS = [
     {
         "question": "How do payments work?",
         "answer": (
-            "Thirty percent confirms the slot. The rest is due after the setup is "
-            "finished and you've seen it, by UPI, card or net banking. Corporate "
-            "bookings can be invoiced with GST on request."
+            "Thirty percent confirms the slot. The rest is due after the decoration is "
+            "finished and you've seen it, by eSewa, Khalti, card or bank transfer. "
+            "Corporate bookings can be invoiced with VAT on request."
         ),
     },
 ]
@@ -1661,7 +1659,7 @@ CART_ITEMS = [
         "id": 1,
         "package": PACKAGE_BY_SLUG["golden-hour-birthday-balloon-wall"],
         "quantity": 1,
-        "city": "Bengaluru",
+        "city": "Kathmandu",
         "date": "22 August 2026",
         "slot": "4 PM – 6 PM",
         "add_ons": [{"name": "Custom name signage", "price": 649}],
@@ -1670,7 +1668,7 @@ CART_ITEMS = [
         "id": 2,
         "package": PACKAGE_BY_SLUG["car-boot-surprise-setup"],
         "quantity": 2,
-        "city": "Bengaluru",
+        "city": "Kathmandu",
         "date": "22 August 2026",
         "slot": "8 PM – 10 PM",
         "add_ons": [],
@@ -1766,8 +1764,8 @@ def related_packages(package, limit=6):
 
 def reviews_for(package, limit=5):
     """Reviews attached to a package. Stand-in for package.reviews.all()."""
-    matching = [t for t in TESTIMONIALS if t["occasion"] == package["title"]]
-    filler = [t for t in TESTIMONIALS if t["occasion"] != package["title"]]
+    matching = [t for t in TESTIMONIALS if t["booked"] == package["title"]]
+    filler = [t for t in TESTIMONIALS if t["booked"] != package["title"]]
     return (matching + filler)[:limit]
 
 

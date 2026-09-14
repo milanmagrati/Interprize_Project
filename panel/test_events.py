@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import (
+    Category,
     CounterSale,
     Customer,
     Event,
@@ -24,6 +25,7 @@ from core.models import (
     InventoryItem,
     StaffProfile,
     StockMovement,
+    Testimonial,
 )
 
 
@@ -39,7 +41,8 @@ class EventPanelTestCase(TestCase):
         cls.editor = make_login("editor", "editor")
         cls.viewer = make_login("viewer", "viewer")
         cls.admin = make_login("boss", "admin")
-        cls.customer = Customer.objects.create(name="Asha Rao", phone="+91 98450 00000")
+        cls.customer = Customer.objects.create(name="Asha Rao", phone="+977 98450 00000")
+        cls.wedding = Category.objects.create(name="Wedding", blurb="Stages and mandaps")
 
     def setUp(self):
         self.client.force_login(self.editor)
@@ -52,7 +55,7 @@ class EventPanelTestCase(TestCase):
         )
         self.speaker.record_movement(10, kind="opening")
         self.event = Event.objects.create(
-            name="Rao wedding", customer=self.customer, revenue=250000,
+            name="Rao wedding", customer=self.customer, revenue=250000, occasion=self.wedding,
             event_date=timezone.localdate() + timedelta(days=5), location="Palace Grounds",
         )
 
@@ -111,9 +114,9 @@ class PageTests(EventPanelTestCase):
         EventPayment.objects.create(event=self.event, amount=100000)
         response = self.client.get(self.url("events"))
         self.assertContains(response, self.event.number)
-        self.assertContains(response, "₹250,000")
+        self.assertContains(response, "Rs. 250,000")
         self.assertContains(response, "Part paid")
-        self.assertContains(response, "₹150,000 due")
+        self.assertContains(response, "Rs. 150,000 due")
 
     def test_search_and_status_filter(self):
         other = Event.objects.create(
@@ -147,8 +150,9 @@ class CreateTests(EventPanelTestCase):
     def test_create_event_with_a_new_customer(self):
         response = self.client.post(self.url("event_create"), {
             "name": "Mehta anniversary",
+            "occasion": self.wedding.pk,
             "new_customer_name": "Ravi Mehta",
-            "new_customer_phone": "+91 90000 11111",
+            "new_customer_phone": "+977 90000 11111",
             "event_date": (timezone.localdate() + timedelta(days=20)).isoformat(),
             "location": "Rooftop",
             "guests": 80,
@@ -158,7 +162,7 @@ class CreateTests(EventPanelTestCase):
         event = Event.objects.get(name="Mehta anniversary")
         self.assertRedirects(response, event.get_absolute_url() + "#items", fetch_redirect_response=False)
         self.assertEqual(event.customer.name, "Ravi Mehta")
-        self.assertEqual(event.customer.phone, "+91 90000 11111")
+        self.assertEqual(event.customer.phone, "+977 90000 11111")
         self.assertEqual(event.status, "draft")
         self.assertEqual(event.created_by, self.editor)
         self.assertRegex(event.number, r"^EVT-\d{5}$")
@@ -175,7 +179,7 @@ class CreateTests(EventPanelTestCase):
 
     def test_edit_event(self):
         response = self.client.post(self.url("event_edit", self.event.pk), {
-            "name": "Rao wedding reception", "customer": self.customer.pk,
+            "name": "Rao wedding reception", "customer": self.customer.pk, "occasion": self.wedding.pk,
             "event_date": self.event.event_date.isoformat(), "location": "Palace Grounds",
             "guests": 300, "revenue": 275000, "notes": "Stage on the left",
         })
@@ -462,7 +466,7 @@ class WorkflowTests(EventPanelTestCase):
         self.act("cancel")
         response = self.client.get(self.event.get_absolute_url())
         self.assertContains(response, "Not earned")
-        self.assertNotContains(response, "₹250,000 still owed")
+        self.assertNotContains(response, "Rs. 250,000 still owed")
         self.assertNotContains(response, "100% margin")
 
     def test_cancel_releases_through_the_panel(self):
@@ -493,7 +497,7 @@ class WorkflowTests(EventPanelTestCase):
             "amount": "300000", "paid_on": timezone.localdate().isoformat(), "method": "cash",
         })
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "more than the ₹250,000 still owed")
+        self.assertContains(response, "more than the Rs. 250,000 still owed")
         self.assertFalse(EventPayment.objects.exists())
 
     def test_remove_expense_and_payment(self):
@@ -648,7 +652,7 @@ class DashboardAndScheduleTests(EventPanelTestCase):
         self.assertContains(response, "Open events")
         self.assertContains(response, "1 past their date")
         self.assertContains(response, self.late.number)
-        self.assertContains(response, "₹250,000")            # on the upcoming list
+        self.assertContains(response, "Rs. 250,000")            # on the upcoming list
         self.assertNotContains(response, "99,999")          # cancelled events earn nothing
         self.assertContains(response, "Studio Marigold")     # the crew on the upcoming list
         self.assertNotContains(response, "/manage/bookings/")
@@ -664,7 +668,7 @@ class DashboardAndScheduleTests(EventPanelTestCase):
         form = self.client.get(self.url("event_edit", self.event.pk))
         self.assertContains(form, "Studio Marigold · Decorator")
         response = self.client.post(self.url("event_create"), {
-            "name": "Crewed party", "customer": self.customer.pk,
+            "name": "Crewed party", "customer": self.customer.pk, "occasion": self.wedding.pk,
             "event_date": (self.today + timedelta(days=4)).isoformat(),
             "guests": 10, "revenue": 5000, "crew": [self.crew.pk],
         })
@@ -683,3 +687,85 @@ class DashboardAndScheduleTests(EventPanelTestCase):
         search = self.client.get(self.url("search") + "?q=Rao").json()["results"]
         self.assertIn("Events", {row["group"] for row in search})
         self.assertNotIn("Bookings", {row["group"] for row in search})
+
+class OccasionTests(EventPanelTestCase):
+    """An occasion is the kind of celebration; an event is one booking of it."""
+
+    def setUp(self):
+        super().setUp()
+        self.birthday = Category.objects.create(name="Birthday", blurb="Balloons and cake tables")
+        self.party = Event.objects.create(
+            name="Aarav turns five", customer=self.customer, occasion=self.birthday,
+            event_date=timezone.localdate() + timedelta(days=9),
+        )
+
+    def test_an_event_needs_an_occasion(self):
+        response = self.client.post(self.url("event_create"), {
+            "name": "Kind unknown", "customer": self.customer.pk,
+            "event_date": timezone.localdate().isoformat(), "guests": 0, "revenue": 0,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "every event is one")
+        self.assertFalse(Event.objects.filter(name="Kind unknown").exists())
+
+    def test_a_setup_alone_says_which_occasion(self):
+        from core.models import Package
+
+        cake = Package.objects.create(
+            title="Cake table", category=self.birthday, price=5000, original_price=6000,
+            description="Balloons over the cake.",
+        )
+        self.client.post(self.url("event_create"), {
+            "name": "Cake only", "customer": self.customer.pk, "package": cake.pk,
+            "event_date": timezone.localdate().isoformat(), "guests": 0, "revenue": 0,
+        })
+        self.assertEqual(Event.objects.get(name="Cake only").occasion, self.birthday)
+
+    def test_events_filter_by_occasion(self):
+        response = self.client.get(self.url("events") + "?occasion=birthday")
+        self.assertContains(response, self.party.number)
+        self.assertNotContains(response, self.event.number)
+        self.assertContains(response, '<option value="birthday" selected>Birthday</option>', html=False)
+        # The status tabs count inside the chosen occasion too.
+        self.assertEqual(
+            [tab["count"] for tab in response.context["tabs"] if tab["value"] == ""], [1]
+        )
+        # An unknown slug is ignored rather than emptying the list.
+        response = self.client.get(self.url("events") + "?occasion=nope")
+        self.assertContains(response, self.party.number)
+        self.assertContains(response, self.event.number)
+
+    def test_occasions_show_their_events(self):
+        listing = self.client.get(self.url("resource_list", "categories") + "?sort=-event_count")
+        self.assertEqual(listing.status_code, 200)
+        self.assertContains(listing, "every event is booked as one")
+        edit = self.client.get(self.url("resource_edit", "categories", self.birthday.pk))
+        self.assertContains(edit, f'{self.url("events")}?occasion=birthday')
+        dashboard = self.client.get(self.url("dashboard"))
+        self.assertContains(dashboard, f'{self.url("events")}?occasion=wedding')
+
+    def test_an_occasion_with_events_is_retired_not_deleted(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(self.url("resource_delete", "categories", self.birthday.pk))
+        self.assertRedirects(
+            response, self.url("resource_delete", "categories", self.birthday.pk),
+            fetch_redirect_response=False,
+        )
+        self.assertTrue(Category.objects.filter(pk=self.birthday.pk).exists())
+        self.party.refresh_from_db()
+        self.assertEqual(self.party.occasion, self.birthday)
+
+    def test_a_review_remembers_what_was_booked(self):
+        from core.models import Package
+
+        cake = Package.objects.create(
+            title="Cake table", category=self.birthday, price=5000, original_price=6000,
+            description="Balloons over the cake.",
+        )
+        response = self.client.post(self.url("resource_create", "testimonials"), {
+            "name": "Maya", "city": "Lalitpur", "rating": 5, "package": cake.pk,
+            "booked": "", "date": "May 2026", "text": "Lovely.", "is_published": "on",
+            "position": 0,
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Testimonial.objects.get(name="Maya").booked, "Cake table")
