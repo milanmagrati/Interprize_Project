@@ -1648,6 +1648,8 @@
 
     var setupsBox = $("[data-setups]", form);
     var setupNote = $("[data-setups-note]", form);
+    var askLink = $("[data-ask-link]", form);
+    var askLinkBase = askLink ? askLink.getAttribute("href") : "";
     var sum = function (key) { return $('[data-sum="' + key + '"]', form); };
     var dateFormat = new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
@@ -1766,6 +1768,20 @@
       });
       var bar = sum("progress");
       if (bar) bar.style.setProperty("--done", Math.round((count / (steps.length || 1)) * 100) + "%");
+
+      if (askLink) {
+        var params = new URLSearchParams();
+        if (pkg && pkg.value) params.set("package", pkg.value);
+        if (occasion) params.set("occasion", occasion.value);
+        var citySelect = form.elements.city;
+        if (citySelect && citySelect.value) {
+          var cityOption = citySelect.options[citySelect.selectedIndex];
+          params.set("city", cityOption ? cityOption.textContent : citySelect.value);
+        }
+        if (value("event_date")) params.set("event_date", value("event_date"));
+        var query = params.toString();
+        askLink.setAttribute("href", askLinkBase + (query ? "?" + query : ""));
+      }
     }
 
     function hasFullPhone(phone) {
