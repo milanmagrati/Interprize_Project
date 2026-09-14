@@ -225,13 +225,13 @@ grouped cards; anything else falls back to a single column of fields.
         {% endif %}
 
         {% if stock_item %}
-          <div class="card">
-            <h2 class="card__title">On the shelf</h2>
-            <p class="kpi__value">{{ stock_item.quantity_label }}</p>
-            <p>
+          <div class="card card--shelf">
+            <div class="card__head">
+              <h2 class="card__title">On the shelf</h2>
               <span class="pill pill--{{ stock_item.stock_tone }}">{{ stock_item.stock_state }}</span>
-              <span class="card__note">{{ stock_item.reorder_label }}</span>
-            </p>
+            </div>
+            <p class="kpi__value">{{ stock_item.quantity_label }}</p>
+            <p class="card__note">{{ stock_item.reorder_label }}</p>
             <dl class="meta">
               <dt>Kind</dt><dd>{{ stock_item.usage_label }}</dd>
               <dt>Reserved for events</dt><dd>{{ stock_item.reserved_quantity|qty }} {{ stock_item.unit_label }}</dd>
@@ -248,14 +248,12 @@ grouped cards; anything else falls back to a single column of fields.
             </p>
             {% if can_write %}
               <div class="stack">
-                <a class="btn btn--ghost btn--block btn--sm"
-                   href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}&amp;kind=purchase">
+                <button class="btn btn--primary btn--block btn--sm" type="button" data-modal-open="modal-receive">
                   <svg class="icon" aria-hidden="true"><use href="#p-plus"></use></svg>Receive stock
-                </a>
-                <a class="btn btn--quiet btn--block btn--sm"
-                   href="{% url 'panel:resource_create' 'stock-ledger' %}?item={{ stock_item.pk }}&amp;kind=adjustment">
+                </button>
+                <button class="btn btn--quiet btn--block btn--sm" type="button" data-modal-open="modal-adjust">
                   <svg class="icon" aria-hidden="true"><use href="#p-clipboard"></use></svg>Correct the count
-                </a>
+                </button>
               </div>
             {% endif %}
           </div>
@@ -331,5 +329,105 @@ grouped cards; anything else falls back to a single column of fields.
       </aside>
     </div>
   </form>
+
+  {% if stock_item and can_write %}
+    {# Two focused dialogs instead of a detour to the ledger's own create page —
+       receiving stock or fixing a miscount both start and end right here. #}
+    <div class="modal" data-modal="modal-receive" hidden>
+      <div class="modal__scrim" data-modal-close></div>
+      <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modal-receive-title">
+        <form method="post" action="{% url 'panel:resource_create' 'stock-ledger' %}" data-once>
+          {% csrf_token %}
+          <input type="hidden" name="item" value="{{ stock_item.pk }}">
+          <input type="hidden" name="kind" value="purchase">
+          <div class="modal__head">
+            <h2 id="modal-receive-title">Receive stock</h2>
+            <button class="icon-btn" type="button" data-modal-close aria-label="Close">
+              <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+            </button>
+          </div>
+          <div class="modal__body">
+            <p class="card__note">
+              Adds to <strong>{{ stock_item.name }}</strong> — {{ stock_item.quantity_label }} on the shelf now.
+            </p>
+            <div class="grid grid--tight">
+              <label class="field field--wide">
+                <span class="field__label">Quantity received <span class="field__req">*</span></span>
+                <input class="field__input" type="number" name="change" min="0.01" step="any" required autofocus>
+              </label>
+              <label class="field">
+                <span class="field__label">Unit cost (₹) <span class="field__req">*</span></span>
+                <input class="field__input" type="number" name="unit_cost" min="0" step="1" required
+                       value="{{ stock_item.cost_price|default:0|floatformat:'0' }}">
+              </label>
+              <label class="field">
+                <span class="field__label">Supplier</span>
+                <select class="field__input field__input--select" name="supplier">
+                  <option value="">Not from a supplier</option>
+                  {% for supplier in suppliers %}
+                    <option value="{{ supplier.pk }}"{% if stock_item.supplier_id == supplier.pk %} selected{% endif %}>{{ supplier.name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="field field--wide">
+                <span class="field__label">Reference</span>
+                <input class="field__input" type="text" name="reference" maxlength="40" placeholder="Invoice or delivery-note number">
+              </label>
+              <label class="field field--wide">
+                <span class="field__label">Note</span>
+                <input class="field__input" type="text" name="note" maxlength="200">
+              </label>
+            </div>
+          </div>
+          <div class="modal__foot">
+            <button class="btn btn--quiet" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn--primary" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#p-check"></use></svg>Receive stock
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal" data-modal="modal-adjust" hidden>
+      <div class="modal__scrim" data-modal-close></div>
+      <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modal-adjust-title">
+        <form method="post" action="{% url 'panel:resource_create' 'stock-ledger' %}" data-once>
+          {% csrf_token %}
+          <input type="hidden" name="item" value="{{ stock_item.pk }}">
+          <input type="hidden" name="kind" value="adjustment">
+          <input type="hidden" name="unit_cost" value="0">
+          <div class="modal__head">
+            <h2 id="modal-adjust-title">Correct the count</h2>
+            <button class="icon-btn" type="button" data-modal-close aria-label="Close">
+              <svg class="icon" aria-hidden="true"><use href="#p-x"></use></svg>
+            </button>
+          </div>
+          <div class="modal__body">
+            <p class="card__note">
+              {{ stock_item.name }} shows <strong>{{ stock_item.quantity_label }}</strong> now. Type what changes
+              it by — a minus for a loss.
+            </p>
+            <div class="grid grid--tight">
+              <label class="field field--wide">
+                <span class="field__label">Adjustment (+/&minus;) <span class="field__req">*</span></span>
+                <input class="field__input" type="number" name="change" step="any" required autofocus placeholder="e.g. -2 or 5">
+              </label>
+              <label class="field field--wide">
+                <span class="field__label">Note</span>
+                <input class="field__input" type="text" name="note" maxlength="200" placeholder="Why the count changed">
+              </label>
+            </div>
+          </div>
+          <div class="modal__foot">
+            <button class="btn btn--quiet" type="button" data-modal-close>Cancel</button>
+            <button class="btn btn--primary" type="submit">
+              <svg class="icon" aria-hidden="true"><use href="#p-clipboard"></use></svg>Save correction
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

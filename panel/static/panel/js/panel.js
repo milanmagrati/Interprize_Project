@@ -288,6 +288,44 @@
     });
   }());
 
+  /* --------------------------------------------------------------- 5b. modals */
+
+  (function modals() {
+    var triggers = $$('[data-modal-open]');
+    if (!triggers.length) { return; }
+
+    var openModal = null;
+    var lastFocus = null;
+
+    function open(id) {
+      var modal = $('[data-modal="' + id + '"]');
+      if (!modal) { return; }
+      lastFocus = document.activeElement;
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      openModal = modal;
+      var first = $('input, select, textarea', modal);
+      if (first) { first.focus(); }
+    }
+
+    function close() {
+      if (!openModal) { return; }
+      openModal.hidden = true;
+      document.body.style.overflow = '';
+      if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+      openModal = null;
+    }
+
+    triggers.forEach(function (button) {
+      button.addEventListener('click', function () { open(button.getAttribute('data-modal-open')); });
+    });
+    $$('[data-modal-close]').forEach(function (button) { button.addEventListener('click', close); });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && openModal) { close(); }
+    });
+  }());
+
   /* --------------------------------------------------------- 6. inline switches */
 
   (function switches() {

@@ -65,6 +65,7 @@ from core.models import (
     StaffProfile,
     StockCategory,
     StockMovement,
+    Supplier,
     normalise_quantity,
 )
 
@@ -74,6 +75,16 @@ from .permissions import panel_login_required, profile_for, require_role
 
 User = get_user_model()
 PAGE_SIZE = 20
+PAGE_SIZE_CHOICES = (20, 50, 100, 200)
+
+
+def _page_size(request):
+    """The chosen `per_page`, restricted to the sizes the pager offers."""
+    try:
+        size = int(request.GET.get("per_page", PAGE_SIZE))
+    except (TypeError, ValueError):
+        return PAGE_SIZE
+    return size if size in PAGE_SIZE_CHOICES else PAGE_SIZE
 
 
 # ---------------------------------------------------------------------------
@@ -533,7 +544,8 @@ def resource_list(request, slug):
 
     queryset, term, filters, sort = _apply_query(request, resource, resource.queryset())
 
-    paginator = Paginator(queryset, PAGE_SIZE)
+    per_page = _page_size(request)
+    paginator = Paginator(queryset, per_page)
     try:
         page_obj = paginator.page(request.GET.get("page", 1))
     except PageNotAnInteger:
@@ -566,6 +578,8 @@ def resource_list(request, slug):
         bulk_actions=bulk_actions,
         total=paginator.count,
         is_filtered=bool(term or any(row["value"] for row in filters)),
+        per_page=per_page,
+        per_page_choices=PAGE_SIZE_CHOICES,
     ))
 
 
@@ -682,6 +696,10 @@ def resource_form(request, slug, pk=None):
             return redirect("panel:resource_create", slug=slug)
         if "save_and_stay" in request.POST:
             return redirect("panel:resource_edit", slug=slug, pk=obj.pk)
+        if resource.slug == "stock-ledger" and getattr(obj, "item_id", None):
+            # A movement is always about one item — land back on it so the
+            # new count is the very next thing seen, not a generic ledger row.
+            return redirect("panel:resource_edit", slug="stock-items", pk=obj.item_id)
         return redirect("panel:resource_list", slug=slug)
 
     if request.method == "POST":
@@ -714,6 +732,10 @@ def resource_form(request, slug, pk=None):
         # A stock item and a receipt are both worth more than their own fields:
         # one needs its ledger beside it, the other its lines.
         stock_item=instance if pk and resource.slug == "stock-items" else None,
+        suppliers=(
+            Supplier.objects.filter(is_active=True).order_by("name")
+            if pk and resource.slug == "stock-items" else None
+        ),
         stock_history=(
             instance.movements.select_related("created_by", "event")[:8]
             if pk and resource.slug == "stock-items" else None

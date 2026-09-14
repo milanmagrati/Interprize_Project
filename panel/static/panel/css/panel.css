@@ -310,7 +310,10 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
 .topbar__theme { display: flex; }
 
 .main { flex: 1; }
-.page { padding: 1.1rem 1rem 3rem; display: grid; gap: 1.1rem; align-content: start; }
+.page {
+  padding: 1.1rem 1rem 3rem; display: grid; grid-template-columns: minmax(0, 1fr);
+  gap: 1.1rem; align-content: start;
+}
 .page--narrow { max-width: 640px; }
 .page--form { max-width: 1180px; }
 
@@ -456,7 +459,7 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
   box-shadow: var(--shadow-xs);
 }
 
-.table { min-width: 680px; font-size: 0.875rem; }
+.table { width: 100%; font-size: 0.875rem; }
 
 .table thead th {
   position: sticky; top: 0; z-index: 1;
@@ -466,7 +469,7 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
   text-align: left;
   font-size: 0.72rem; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--text-3); white-space: nowrap;
+  color: var(--text-3);
 }
 .table th.is-end, .table td.is-end { text-align: right; }
 
@@ -632,6 +635,12 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
   display: grid; gap: 0.85rem; align-content: start;
 }
 .card--danger { border-color: color-mix(in srgb, var(--red) 40%, var(--line)); }
+.card--shelf { position: relative; overflow: hidden; }
+.card--shelf::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, var(--brand), var(--gold));
+}
+.card--shelf .card__head { align-items: center; }
 
 .card__title { font-size: 0.95rem; font-weight: 700; }
 .card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
@@ -1185,6 +1194,44 @@ kbd {
 .palette__hit strong { font-size: 0.875rem; font-weight: 600; }
 .palette__hit span { margin-left: auto; font-size: 0.76rem; color: var(--text-3); }
 
+/* -- quick-action dialogs (receive stock, correct a count, …) ------------- */
+
+.modal { position: fixed; inset: 0; z-index: 130; display: grid; padding: 1rem; }
+.modal[hidden] { display: none; }
+.modal__scrim { position: absolute; inset: 0; background: rgba(10, 18, 20, 0.5); backdrop-filter: blur(3px); }
+.modal__box {
+  position: relative;
+  width: min(480px, 100%);
+  margin: auto;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  align-content: start;
+  animation: pal-in 180ms var(--ease) both;
+}
+.modal__head {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.modal__head h2 { font-size: 1rem; font-weight: 700; }
+.modal__body { padding: 1.1rem; display: grid; gap: 0.9rem; }
+.modal__foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+@media (max-width: 480px) {
+  .modal__foot { flex-direction: column-reverse; }
+  .modal__foot .btn { width: 100%; }
+}
+
 /* ==========================================================================
    13. Empty states and pagination
    ========================================================================== */
@@ -1220,6 +1267,26 @@ kbd {
 .pager__btn:hover { border-color: var(--brand); color: var(--brand); }
 .pager__btn.is-off { opacity: 0.4; pointer-events: none; }
 .pager__page { font-size: 0.8rem; color: var(--text-3); padding-inline: 0.4rem; }
+
+.pager__size label {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.8rem; color: var(--text-3);
+}
+.pager__size select {
+  padding: 0.3rem 1.6rem 0.3rem 0.6rem;
+  background: var(--surface-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.81rem; font-weight: 600;
+  color: var(--text-2);
+  appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 13px) 55%, calc(100% - 9px) 55%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+.pager__size select:hover { border-color: var(--text-3); color: var(--text); }
 
 /* ==========================================================================
    14. Responsive
