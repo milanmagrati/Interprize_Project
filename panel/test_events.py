@@ -700,6 +700,8 @@ class OccasionTests(EventPanelTestCase):
         )
 
     def test_an_event_needs_an_occasion(self):
+        form = self.client.get(self.url("event_create"))
+        self.assertContains(form, 'Occasion <span class="field__req" title="Required">*</span>', html=False)
         response = self.client.post(self.url("event_create"), {
             "name": "Kind unknown", "customer": self.customer.pk,
             "event_date": timezone.localdate().isoformat(), "guests": 0, "revenue": 0,

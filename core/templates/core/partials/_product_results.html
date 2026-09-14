@@ -1,5 +1,5 @@
 {% load humanize %}{% comment %}
-The part of the products page that changes when a filter moves: the toolbar,
+The part of the packages page that changes when a filter moves: the toolbar,
 the active-filter chips, the grid and the pager.
 
 Rendered on its own by `core.views.products` when the request carries
@@ -9,7 +9,7 @@ that has to survive a filter change belongs outside this file.
 <div class="prod-results__bar">
   <div class="prod-results__count">
     <h2 class="listing__count" id="products-title">
-      {{ result_count }} product{{ result_count|pluralize }}
+      {{ result_count }} package{{ result_count|pluralize }}
       {% if result_count != total_count %}<span class="listing__of">of {{ total_count }}</span>{% endif %}
     </h2>
     {% if page_obj.paginator.num_pages > 1 %}
@@ -30,7 +30,7 @@ that has to survive a filter change belongs outside this file.
       {% if featured_only %}<input type="hidden" name="featured" value="1">{% endif %}
       {% if view_mode == "list" %}<input type="hidden" name="view" value="list">{% endif %}
 
-      <label class="sr-only" for="products-sort">Sort products</label>
+      <label class="sr-only" for="products-sort">Sort packages</label>
       <div class="select">
         <select id="products-sort" name="sort" data-autosubmit>
           {% for option in sort_options %}
@@ -90,7 +90,7 @@ that has to survive a filter change belongs outside this file.
     <h3 class="empty__title">Nothing matches those filters</h3>
     <p class="empty__text">
       Widen the budget, drop the rating filter, or clear everything to see all
-      {{ total_count }} product{{ total_count|pluralize }} again.
+      {{ total_count }} package{{ total_count|pluralize }} again.
     </p>
     <a class="btn btn--primary" href="{{ clear_url }}" data-results-link>Clear all filters</a>
   </div>

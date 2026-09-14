@@ -236,18 +236,18 @@ RESOURCES = [
         slug="packages",
         model=m.Package,
         form_class=f.PackageForm,
-        label="Product",
-        plural="Products",
+        label="Package",
+        plural="Packages",
         icon="box",
         group="Catalogue",
         blurb=(
-            "Everything on /products/ and in the homepage grid. Drag to set the "
+            "Everything on /packages/ and in the homepage grid. Drag to set the "
             "order the site shows them in; Site settings decides how many of "
             "them reach the homepage."
         ),
         columns=[
             Column("image", "", "image"),
-            Column("title", "Product", sortable="title", hint="category_name"),
+            Column("title", "Package", sortable="title", hint="category_name"),
             Column("price", "Price", "money", sortable="price", hint="discount_label"),
             Column("rating", "Rating", "rating", sortable="rating", hint="review_count_label"),
             Column("is_featured", "Featured", "toggle", sortable="is_featured"),
@@ -272,7 +272,7 @@ RESOURCES = [
         icon="layers",
         group="Catalogue",
         blurb=(
-            "The kinds of celebration you decorate — Birthday, Wedding. Products are "
+            "The kinds of celebration you decorate — Birthday, Wedding. Packages are "
             "grouped under one, and every event is booked as one. Order here is the "
             "order on the site; switch Live off to retire one — past events keep it."
         ),
@@ -280,7 +280,7 @@ RESOURCES = [
             Column("image", "", "image"),
             Column("name", "Occasion", sortable="name", hint="blurb"),
             Column("price_from", "From", "money", sortable="price_from"),
-            Column("live_count", "Products", "chip", sortable="package_total"),
+            Column("live_count", "Packages", "chip", sortable="package_total"),
             Column("event_total", "Events", "chip", sortable="event_count"),
             Column("is_active", "Live", "toggle", sortable="is_active"),
         ],
@@ -305,10 +305,10 @@ RESOURCES = [
         plural="Gallery photos",
         icon="image",
         group="Catalogue",
-        blurb="Extra photos on a product's detail page. Without any, placeholders stand in.",
+        blurb="Extra photos on a package's detail page. Without any, placeholders stand in.",
         columns=[
             Column("image", "", "image"),
-            Column("package", "Product", sortable="package__title", hint="alt"),
+            Column("package", "Package", sortable="package__title", hint="alt"),
             Column("position", "Order", sortable="position", align="end"),
         ],
         search_fields=["alt", "package__title"],
@@ -387,7 +387,7 @@ RESOURCES = [
         plural="Reviews",
         icon="quote",
         group="Homepage",
-        blurb="Customer quotes. Attach one to a product and it also shows on that page.",
+        blurb="Customer quotes. Attach one to a package and it also shows on that page.",
         columns=[
             Column("name", "Customer", sortable="name", hint="city"),
             Column("rating", "Rating", "rating", sortable="rating"),
@@ -446,7 +446,7 @@ RESOURCES = [
         plural="FAQs",
         icon="help",
         group="Homepage",
-        blurb="Answers shown on the homepage, the product pages and How it works.",
+        blurb="Answers shown on the homepage, the package pages and How it works.",
         columns=[
             Column("question", "Question", sortable="question"),
             Column("answer", "Answer", "excerpt"),
@@ -482,7 +482,7 @@ RESOURCES = [
         icon="message",
         group="Events",
         blurb=(
-            "Questions from the website — about an occasion, a product, or anything. "
+            "Questions from the website — about an occasion, a package, or anything. "
             "Open one to turn it into an event when the customer is ready."
         ),
         can_create=False,

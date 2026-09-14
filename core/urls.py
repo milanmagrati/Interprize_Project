@@ -7,7 +7,9 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.home, name="home"),
-    path("products/", views.products, name="products"),
+    # The route keeps its name, so menu links saved in the panel still work.
+    path("packages/", views.products, name="products"),
+    path("products/", RedirectView.as_view(pattern_name="core:products", permanent=True, query_string=True)),
     # Occasions keep their old route names, so links saved in the panel still work.
     path("occasions/", views.categories, name="categories"),
     path("occasions/<slug:slug>/", views.category_detail, name="category_detail"),

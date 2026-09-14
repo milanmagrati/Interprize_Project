@@ -51,7 +51,7 @@ content tables first.
 | URL | View | Template |
 | --- | --- | --- |
 | `/` | `core.views.home` | `core/home.html` |
-| `/products/` | `core.views.products` | `core/products.html` |
+| `/packages/` | `core.views.products` | `core/products.html` |
 | `/occasions/` | `core.views.categories` | `core/categories.html` |
 | `/occasions/<slug>/` | `core.views.category_detail` | `core/category_detail.html` |
 | `/package/<slug>/` | `core.views.package_detail` | `core/package_detail.html` |
@@ -72,9 +72,9 @@ The old `/categories/`, `/category/<slug>/` and `/cart/` addresses redirect to
 while `DEBUG = True`. Set `DEBUG = False` (and `ALLOWED_HOSTS`) to see the styled
 404 on a genuine miss.
 
-### The products page
+### The packages page
 
-`/products/` is the whole catalogue in one place, reached from **Products** in
+`/packages/` is the whole catalogue in one place, reached from **Packages** in
 the header (a `NavLink` row, so it can be renamed or removed from the panel).
 The homepage keeps a slice of the same catalogue and a button through to here.
 
@@ -89,14 +89,18 @@ The same view answers `?partial=1` with only the results block. That is what
 with `pushState`, and the cards stagger back. Every control is also a plain GET
 form or a real link, so the page works identically with JavaScript off.
 
+The old `/products/` address redirects here, query string and all. Internally
+the view, route name (`core:products`), template and settings fields keep their
+`products` names, so menu links saved in the panel keep working.
+
 What the panel controls, under **Site settings**:
 
 | Section | Sets |
 | --- | --- |
-| Products on the homepage | eyebrow, heading, sub-heading, which products, how many, button label |
-| The products page | eyebrow, heading, sub-heading, products per page |
+| Packages on the homepage | eyebrow, heading, sub-heading, which packages, how many, button label |
+| The packages page | eyebrow, heading, sub-heading, packages per page |
 
-The products themselves are **Catalogue → Products**; drag them there to set the
+The packages themselves are **Catalogue → Packages**; drag them there to set the
 order the "Featured first" and "hand-ordered" modes use.
 
 ## Project layout
@@ -153,29 +157,30 @@ panel/                          the staff control panel
 
 `/manage/`. Sign in with a staff account; everything below is behind that.
 
-### Occasions, products and events
+### Occasions, packages and events
 
 Three words, three different things. Keep them apart:
 
-| | Occasion | Product | Event |
+| | Occasion | Package | Event |
 | --- | --- | --- | --- |
-| What it is | A *kind* of celebration — Birthday, Wedding, Tihar | A ready-made decoration design for one occasion, at a fixed price | *One real job* for one customer, on one date, at one venue |
+| What it is | A *kind* of celebration — Birthday, Wedding, Tihar | A ready-made decoration bundle for one occasion, at a fixed price | *One real job* for one customer, on one date, at one venue |
 | Model | `Category` | `Package` | `Event` |
-| In the panel | Catalogue → Occasions | Catalogue → Products | Events |
-| On the site | browsed: `/occasions/`, menus, filters | browsed and picked: `/products/`, `/package/<slug>/` | booked at `/book/`, followed at `/bookings/EVT-…` |
+| In the panel | Catalogue → Occasions | Catalogue → Packages | Events |
+| On the site | browsed: `/occasions/`, menus, filters | browsed and picked: `/packages/`, `/package/<slug>/` | booked at `/book/`, followed at `/bookings/EVT-…` |
 | Lifetime | Permanent. Retired by switching *Live* off | Published or unpublished | Draft → Confirmed → In progress → Completed / Cancelled |
 
-An occasion has many products and many events. **Every event is of exactly one
-occasion** and may use one product of that occasion — pick a product and its occasion
+An occasion has many packages and many events. **Every event is of exactly one
+occasion** and may use one package of that occasion — pick a package and its occasion
 is filled in. An occasion that has events cannot be deleted (their history would
 lose what they were); switch it off instead. The Events list filters by occasion,
 each occasion's page in the panel links to its events, and the dashboard ranks
 occasions by what their events earned.
 
-The code and URLs call a product a `Package` (`/package/<slug>/`); everything a
-person reads says **product**. The word *setup* is kept only for the act of
-setting up — "delivery, setup and clean-up", "Setup time". What arrives on site
-is the *decoration*, and what sits on a shelf is a *stock item*.
+The model, the page address (`/package/<slug>/`) and everything a person reads
+all say **package**. The word *setup* is kept only for the act of setting up —
+"delivery, setup and clean-up", "Setup time". What arrives on site is the
+*decoration*, and what sits on a shelf is a *stock item* — the counter and the
+stock room never call those packages.
 
 ### What it manages
 
@@ -184,7 +189,7 @@ is the *decoration*, and what sits on a shelf is a *stock item*.
 | Events | Events, Enquiries, Customers |
 | Operations | Staffs, Staff types, Coupons |
 | Inventory | Counter, Stock room, Stock items, Stock groups, Suppliers, Stock ledger, Counter sales |
-| Catalogue | Products, Occasions, Gallery photos, Add-ons, Pricing table |
+| Catalogue | Packages, Occasions, Gallery photos, Add-ons, Pricing table |
 | Homepage | Hero slider, Reviews, Promises, How it works, FAQs, Trust badges |
 | Site | Cities, Time slots, Menu links |
 | System | Media, Activity, Staff & access, Site settings |
@@ -271,8 +276,8 @@ sidebar group next to **Customers**.
 #### Booked from the website
 
 An **occasion** (Birthday, Wedding…) is the kind of event; an **event** is one
-booking of it (see *Occasions, products and events* above). Visitors book at
-`/book/` — occasion, an optional product, date, arrival window, venue, extras and their details — and that becomes
+booking of it (see *Occasions, packages and events* above). Visitors book at
+`/book/` — occasion, an optional package, date, arrival window, venue, extras and their details — and that becomes
 a **draft event** marked *New* on the Events page (and counted in the sidebar),
 with the customer matched by phone number or added. Nothing is charged online:
 the team calls, presses *Confirm event*, and the customer's page at
@@ -281,7 +286,7 @@ directly; anyone else needs the number and the phone. A request can be
 withdrawn online until it is confirmed.
 
 Visitors not ready to book use **Ask a question** (`/enquire/`, and the form on
-the home, contact, occasion and product pages). Enquiries land under
+the home, contact, occasion and package pages). Enquiries land under
 Operations → Enquiries, where *Create event* opens a new event already filled
 in from the enquiry and links the two. Tests: `core/test_booking.py`.
 
@@ -418,7 +423,7 @@ database arrived.
 | `Package` | `includes_text` is one bullet per line; `discount_percent`, `saving`, `gallery` are derived |
 | `PackageImage` | Detail-page gallery, ordered |
 | `HeroSlide` | The homepage deck, with scheduling |
-| `Testimonial` | Attach one to a package and it also shows on that package's page. `booked` is the product shown as "Booked …", filled from the package |
+| `Testimonial` | Attach one to a package and it also shows on that package's page. `booked` is the package shown as "Booked …", filled from the package |
 | `FAQ` `Feature` `HowItWorksStep` `PricingRow` `TrustBadge` `NavLink` | Homepage copy blocks |
 | `City` `TimeSlot` `AddOn` | Booking options |
 | `Customer` `Event` | The operational record: who, what, when, the crew, and the money. See *Events* above |
@@ -487,9 +492,9 @@ out if its markup is absent:
 - scroll reveal via `IntersectionObserver`
 - package gallery with thumbnails and a keyboard-navigable lightbox
 - sticky mobile booking bar, listing filter drawer, budget slider
-- the booking form — live summary and estimate, products filtered to the occasion
-- the header's Products drop-down — hover intent, keyboard focus, Escape to close
-- the products listing — live search, instant facets, a two-thumb budget slider,
+- the booking form — live summary and estimate, packages filtered to the occasion
+- the header's Packages drop-down — hover intent, keyboard focus, Escape to close
+- the packages listing — live search, instant facets, a two-thumb budget slider,
   grid/list layout, and paging that swaps results in over `fetch` with history
   entries to match
 

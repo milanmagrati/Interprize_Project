@@ -67,7 +67,7 @@ so every status change made there shows up here on the next visit.
             <div><dt><svg class="icon" aria-hidden="true"><use href="#i-{{ event.occasion.icon }}"></use></svg>Occasion</dt><dd>{{ event.occasion.name }}</dd></div>
           {% endif %}
           <div>
-            <dt><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Product</dt>
+            <dt><svg class="icon" aria-hidden="true"><use href="#i-sparkles"></use></svg>Package</dt>
             <dd>{% if event.package %}<a href="{{ event.package.get_absolute_url }}">{{ event.package.title }}</a>{% else %}Planned together with you{% endif %}</dd>
           </div>
           <div>

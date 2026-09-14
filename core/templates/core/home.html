@@ -106,11 +106,11 @@
   </div>
 </section>
 
-{# ------------------------------------------------------- products grid #}
+{# ------------------------------------------------------- packages grid #}
 {% comment %}
 A slice of the catalogue, not all of it. The heading, how many cards appear and
-which ones they are all come from Site settings → Products in the panel; the
-button under the grid carries on to the full products page.
+which ones they are all come from Site settings → Packages in the panel; the
+button under the grid carries on to the full packages page.
 {% endcomment %}
 <section class="section" id="products" aria-labelledby="products-title" data-reveal>
   <div class="wrap">
@@ -127,7 +127,7 @@ button under the grid carries on to the full products page.
     {% if brand.home_products_cta_label %}
       <div class="section__foot section__foot--products">
         <p class="section__tally">
-          Showing {{ home_products|length }} of {{ product_total }} product{{ product_total|pluralize }}.
+          Showing {{ home_products|length }} of {{ product_total }} package{{ product_total|pluralize }}.
         </p>
         <a class="btn btn--outline btn--lg" href="{% url 'core:products' %}">
           {{ brand.home_products_cta_label }} <svg class="icon" aria-hidden="true"><use href="#i-arrow-right"></use></svg>
@@ -208,7 +208,7 @@ button under the grid carries on to the full products page.
 {# ----------------------------------------------------------- pricing #}
 <section class="section" id="pricing" aria-labelledby="pricing-title" data-reveal>
   <div class="wrap">
-    {% include "core/partials/_section_head.html" with eyebrow="Pricing" title_id="pricing-title" title="What each occasion costs" lead="Ranges cover our smallest and largest product for each occasion. The middle column is what most people book." centered=1 %}
+    {% include "core/partials/_section_head.html" with eyebrow="Pricing" title_id="pricing-title" title="What each occasion costs" lead="Ranges cover our smallest and largest package for each occasion. The middle column is what most people book." centered=1 %}
 
     <div class="table-card">
       <table class="ptable">

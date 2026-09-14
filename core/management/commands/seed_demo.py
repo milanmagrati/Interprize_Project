@@ -531,6 +531,18 @@ class Command(BaseCommand):
              [("Chair cover", 30)], [], [], 0),
         ]
 
+        # Every event is one occasion, so each demo event names its own rather
+        # than hoping the event's name happens to contain an occasion's.
+        occasion_of = {
+            "Iyer wedding reception": "wedding",
+            "Malhotra 50th anniversary": "anniversary",
+            "Sheikh baby shower": "baby-shower",
+            "Nair corporate launch": "corporate",
+            "Kapoor engagement": "romantic",
+        }
+        occasions = {c.slug: c for c in Category.objects.all()}
+        fallback = Category.objects.order_by("position", "id").first()
+
         for (name, who, days, guests, revenue, status, stock_lines, externals,
              expenses, share) in plans:
             event = Event.objects.create(
@@ -540,9 +552,7 @@ class Command(BaseCommand):
                     "Palace Grounds, Bellary Road", "The Leela, Old Airport Road",
                     "Rooftop, Indiranagar", "Community hall, Jayanagar 4th Block",
                 ]),
-                occasion=next(
-                    (c for c in Category.objects.all() if c.name.lower() in name.lower()), None,
-                ),
+                occasion=occasions.get(occasion_of.get(name), fallback),
             )
             if crews:
                 event.crew.set(random.sample(list(crews), min(2, len(crews))))

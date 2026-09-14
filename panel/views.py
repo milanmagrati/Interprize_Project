@@ -429,8 +429,8 @@ def _alerts():
     if stale:
         rows.append({
             "tone": "amber", "icon": "image",
-            "text": f"{stale} live product{'s' if stale > 1 else ''} still using a placeholder photo.",
-            "url": reverse("panel:resource_list", args=["packages"]), "cta": "Review products",
+            "text": f"{stale} live package{'s' if stale > 1 else ''} still using a placeholder photo.",
+            "url": reverse("panel:resource_list", args=["packages"]), "cta": "Review packages",
         })
 
     fresh = Event.objects.filter(is_new=True).count()
@@ -455,7 +455,7 @@ def _alerts():
         rows.append({
             "tone": "amber", "icon": "layers",
             "text": f"Occasion pages with nothing to show: {names}.",
-            "url": reverse("panel:resource_list", args=["packages"]), "cta": "Add a product",
+            "url": reverse("panel:resource_list", args=["packages"]), "cta": "Add a package",
         })
 
     short = InventoryItem.objects.needs_attention().count()
@@ -1151,7 +1151,7 @@ def media_library(request):
     items = []
     for package in Package.objects.exclude(image_file="").only("id", "title", "image_file"):
         items.append({"url": package.image_file.url, "name": package.image_file.name,
-                      "used_by": package.title, "kind": "Product",
+                      "used_by": package.title, "kind": "Package",
                       "url_to": reverse("panel:resource_edit", args=["packages", package.pk])})
     for image in PackageImage.objects.exclude(image_file="").select_related("package"):
         items.append({"url": image.image_file.url, "name": image.image_file.name,
@@ -1196,7 +1196,7 @@ def quick_search(request):
             Q(title__icontains=term) | Q(slug__icontains=term)
         ).select_related("category")[:5]:
             results.append({
-                "group": "Products", "label": package.title,
+                "group": "Packages", "label": package.title,
                 "meta": f"Rs. {package.price:,} · {package.category.name}",
                 "url": reverse("panel:resource_edit", args=["packages", package.pk]),
             })

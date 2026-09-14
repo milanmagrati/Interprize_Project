@@ -159,9 +159,9 @@ def featured_packages(limit=8):
 
 
 # ---------------------------------------------------------------------------
-# Products
+# Packages
 #
-# The products page and the homepage grid read the catalogue through these.
+# The packages page and the homepage grid read the catalogue through these.
 # `discount_pc` is annotated rather than derived in Python so the page can sort
 # and paginate on it in the database — `Package.discount_percent` stays as the
 # display property, and the two agree because they use the same arithmetic.
@@ -239,7 +239,7 @@ def home_products(limit=None, source=None):
 
 
 def product_count():
-    """How many products exist in total — the homepage says "x of y"."""
+    """How many packages exist in total — the homepage says "x of y"."""
     try:
         return Package.objects.live().count()
     except DatabaseError:
@@ -283,7 +283,7 @@ def product_facets():
 
 
 def nav_products(limit=3):
-    """A few cards for the Products drop-down in the header."""
+    """A few cards for the Packages drop-down in the header."""
     return _safe(product_queryset().order_by("-is_featured", "position", "id")[:limit])
 
 

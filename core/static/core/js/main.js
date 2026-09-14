@@ -19,9 +19,9 @@
      13. Toast
      14. Auth modal (sign in / sign up) — OTP flow, simulated client-side
      15. Hero slider (images + autoplaying video)
-     16. Products drop-down in the header
-     17. Products listing: filters, live search, layout, paging
-     18. Booking: the /book/ form, the product page estimate, a booking's page
+     16. Packages drop-down in the header
+     17. Packages listing: filters, live search, layout, paging
+     18. Booking: the /book/ form, the package page estimate, a booking's page
    ========================================================================== */
 
 (function () {
@@ -593,7 +593,7 @@
 
     // Sort dropdown submits its form on change. requestSubmit() rather than
     // submit(), because only the former fires a submit event — which is what
-    // the products listing listens for to swap results in without a reload.
+    // the packages listing listens for to swap results in without a reload.
     document.addEventListener("change", function (event) {
       var select = event.target.closest ? event.target.closest("[data-autosubmit]") : null;
       if (!select || !select.form) return;
@@ -1286,7 +1286,7 @@
     var items = $$("[data-mega]");
     if (!items.length) return;
 
-    // The trigger stays a real link to /products/ — clicking it navigates.
+    // The trigger stays a real link to /packages/ — clicking it navigates.
     // The panel opens on hover and on keyboard focus, so neither pointer nor
     // keyboard visitors lose the shortcuts inside it.
     var HOVER_IN = 90;
@@ -1623,7 +1623,7 @@
   })();
 
   /* --------------------------------------------------------------- 18. */
-  // The product page: the estimate follows the add-ons ticked.
+  // The package page: the estimate follows the add-ons ticked.
   (function setupEstimate() {
     var form = $("[data-price-form]");
     if (!form) return;
@@ -1640,7 +1640,7 @@
     update();
   })();
 
-  // The booking form: live summary, products for the chosen occasion, steps
+  // The booking form: live summary, packages for the chosen occasion, steps
   // ticked off as they are filled.
   (function bookingFlow() {
     var form = $("[data-bookflow]");
@@ -1673,7 +1673,7 @@
       el.classList.toggle("is-empty", !text);
     }
 
-    // Only the chosen occasion's products, plus the "plan it with us" card.
+    // Only the chosen occasion's packages, plus the "plan it with us" card.
     function filterSetups(fromUser) {
       if (!setupsBox) return;
       var occasion = checked("occasion");
@@ -1685,7 +1685,7 @@
         if (match) shown += 1;
         var radio = $("input", card);
         if (!match && radio.checked) {
-          // A product from another occasion cannot stay picked.
+          // A package from another occasion cannot stay picked.
           radio.checked = false;
           var custom = $(".setup-card--custom input", setupsBox);
           if (custom) custom.checked = true;
@@ -1694,7 +1694,7 @@
       if (setupNote) {
         setupNote.hidden = !slug || shown > 0;
         setupNote.textContent = occasion
-          ? "No ready-made " + occasion.getAttribute("data-name").toLowerCase() + " products yet — a planner will design the decoration with you."
+          ? "No ready-made " + occasion.getAttribute("data-name").toLowerCase() + " packages yet — a planner will design the decoration with you."
           : "";
       }
       if (fromUser && setupsBox.scrollTop) setupsBox.scrollTop = 0;
@@ -1797,7 +1797,7 @@
     filterSetups(false);
     refresh();
 
-    // Open on the first problem, or on the picked product.
+    // Open on the first problem, or on the picked package.
     var errors = $("[data-bookflow-errors]", form);
     if (errors) {
       errors.focus({ preventScroll: true });

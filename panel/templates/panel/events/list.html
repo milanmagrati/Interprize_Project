@@ -21,7 +21,7 @@ would show with the search and date filters kept, so the numbers never lie.
         {% if key != 'q' and key != 'page' %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endif %}
       {% endfor %}
       <svg class="icon" aria-hidden="true"><use href="#p-search"></use></svg>
-      <input type="search" name="q" value="{{ q }}" placeholder="Search number, event, customer, venue…"
+      <input type="search" name="q" value="{{ q }}" placeholder="Search number, event, customer, occasion, venue…"
              aria-label="Search events">
       {% if q %}
         <a class="toolbar__clear" href="{% querystring q=None %}" aria-label="Clear search">

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}{{ brand.products_page_title|default:"All products" }} &mdash; {{ brand.name }}{% endblock %}
+{% block title %}{{ brand.products_page_title|default:"All packages" }} &mdash; {{ brand.name }}{% endblock %}
 
 {% block content %}
 {% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
@@ -18,13 +18,13 @@
         </svg>
         {{ brand.products_page_eyebrow|default:"The full catalogue" }}
       </p>
-      <h1 class="prod-head__title">{{ brand.products_page_title|default:"Every product we offer" }}</h1>
+      <h1 class="prod-head__title">{{ brand.products_page_title|default:"Every package we offer" }}</h1>
       {% if brand.products_page_lead %}
         <p class="prod-head__lead">{{ brand.products_page_lead }}</p>
       {% endif %}
 
       <ul class="prod-head__stats">
-        <li><strong>{{ total_count }}</strong> products</li>
+        <li><strong>{{ total_count }}</strong> packages</li>
         <li><strong>{{ occasion_facets|length }}</strong> occasions</li>
         <li><strong>{{ cities|length }}</strong> cities</li>
       </ul>
@@ -38,8 +38,8 @@
         {% if view_mode == "list" %}<input type="hidden" name="view" value="list">{% endif %}
         <label class="field field--search prod-head__field">
           <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
-          <span class="sr-only">Search products</span>
-          <input type="search" name="q" value="{{ term }}" placeholder="Search products, themes, colours&hellip;"
+          <span class="sr-only">Search packages</span>
+          <input type="search" name="q" value="{{ term }}" placeholder="Search packages, themes, colours&hellip;"
                  autocomplete="off" data-live-search>
         </label>
         <button class="btn btn--primary" type="submit">Search</button>
@@ -65,7 +65,7 @@
 
     <div class="filters-scrim" data-filters-scrim hidden></div>
 
-    <aside class="filters" id="filters" aria-label="Filter products">
+    <aside class="filters" id="filters" aria-label="Filter packages">
       <div class="filters__head">
         <h2 class="filters__title">Filters</h2>
         <button class="icon-button filters__close" type="button" aria-label="Close filters" data-filters-close>
@@ -86,7 +86,7 @@
           <legend class="filters__legend">Search</legend>
           <label class="field field--search">
             <svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg>
-            <span class="sr-only">Search products</span>
+            <span class="sr-only">Search packages</span>
             <input type="search" name="q" value="{{ term }}" placeholder="Anything at all" autocomplete="off">
           </label>
         </fieldset>
@@ -146,7 +146,7 @@
           <label class="check check--wide">
             <input type="checkbox" name="deal" value="1"{% if deals_only %} checked{% endif %}>
             <span class="check__box" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg></span>
-            <span class="check__label">Discounted products</span>
+            <span class="check__label">Discounted packages</span>
           </label>
           <label class="check check--wide">
             <input type="checkbox" name="featured" value="1"{% if featured_only %} checked{% endif %}>

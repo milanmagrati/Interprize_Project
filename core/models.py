@@ -206,7 +206,7 @@ class SiteSettings(models.Model):
     delivery_fee = models.PositiveIntegerField(default=249)
     tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=13)
 
-    # -- the products section, on the homepage and on its own page ---------
+    # -- the packages section, on the homepage and on its own page ---------
     PRODUCT_SOURCE_CHOICES = [
         ("featured", "Featured first"),
         ("newest", "Newest first"),
@@ -218,9 +218,9 @@ class SiteSettings(models.Model):
 
     home_products_eyebrow = models.CharField(
         max_length=60,
-        default="Featured products",
+        default="Featured packages",
         verbose_name="Homepage eyebrow",
-        help_text="The small line above the heading of the homepage products block.",
+        help_text="The small line above the heading of the homepage packages block.",
     )
     home_products_title = models.CharField(
         max_length=120,
@@ -240,7 +240,7 @@ class SiteSettings(models.Model):
         default=8,
         validators=[MinValueValidator(1), MaxValueValidator(24)],
         verbose_name="How many to show at home",
-        help_text="The homepage shows this many products; the rest live on the products page.",
+        help_text="The homepage shows this many packages; the rest live on the packages page.",
     )
     home_products_source = models.CharField(
         max_length=20,
@@ -250,19 +250,19 @@ class SiteSettings(models.Model):
     )
     home_products_cta_label = models.CharField(
         max_length=60,
-        default="See all products",
+        default="See all packages",
         verbose_name="Button under the grid",
-        help_text="Links to the products page. Leave blank to hide the button.",
+        help_text="Links to the packages page. Leave blank to hide the button.",
         blank=True,
     )
 
     products_page_eyebrow = models.CharField(
-        max_length=60, default="The full catalogue", verbose_name="Products page eyebrow"
+        max_length=60, default="The full catalogue", verbose_name="Packages page eyebrow"
     )
     products_page_title = models.CharField(
         max_length=120,
-        default="Every product we offer",
-        verbose_name="Products page heading",
+        default="Every package we offer",
+        verbose_name="Packages page heading",
     )
     products_page_lead = models.CharField(
         max_length=240,
@@ -271,12 +271,12 @@ class SiteSettings(models.Model):
             "Filter by occasion, budget and rating. Every price is final and "
             "includes delivery, setup and clean-up."
         ),
-        verbose_name="Products page sub-heading",
+        verbose_name="Packages page sub-heading",
     )
     products_per_page = models.PositiveIntegerField(
         default=9,
         validators=[MinValueValidator(3), MaxValueValidator(48)],
-        verbose_name="Products per page",
+        verbose_name="Packages per page",
     )
 
     maintenance_mode = models.BooleanField(
@@ -387,7 +387,7 @@ class Category(Positioned, PictureMixin):
     """
     An occasion: a *kind* of celebration — Birthday, Wedding, Baby shower.
 
-    Occasions are the catalogue side. Customers browse them, and products
+    Occasions are the catalogue side. Customers browse them, and packages
     are grouped under one. An `Event` is the operational side: one real
     job for one customer on one date, and every event is *of* an occasion. An
     occasion is permanent — it is retired with `is_active`, never deleted out
@@ -405,7 +405,7 @@ class Category(Positioned, PictureMixin):
     price_from = models.PositiveIntegerField(default=1499)
     package_count = models.PositiveIntegerField(
         default=0,
-        verbose_name="Displayed product count",
+        verbose_name="Displayed package count",
         help_text="The number shown on the card. Leave 0 to show the real count.",
     )
     is_active = models.BooleanField(default=True)
@@ -486,7 +486,7 @@ class Package(Positioned, PictureMixin, Timestamped):
         help_text="One item per line. Each line becomes a ticked bullet.",
     )
     is_featured = models.BooleanField(
-        default=False, help_text="Featured products fill the homepage grid."
+        default=False, help_text="Featured packages fill the homepage grid."
     )
     is_active = models.BooleanField(
         default=True, help_text="Unpublish to hide it from the public site."
@@ -549,7 +549,7 @@ class Package(Positioned, PictureMixin, Timestamped):
     def gallery(self):
         """
         Detail-page photos: the extra gallery photos if any were uploaded,
-        else the product's own picture, else five placeholders so a brand
+        else the package's own picture, else five placeholders so a brand
         new package still has a working gallery before anyone uploads to it.
         """
         shots = [
@@ -818,7 +818,7 @@ class Testimonial(Positioned):
         max_length=140,
         blank=True,
         verbose_name="What they booked",
-        help_text="The product they had, shown as “Booked …”. Filled in from the linked product.",
+        help_text="The package they had, shown as “Booked …”. Filled in from the linked package.",
     )
     package = models.ForeignKey(
         Package,
@@ -826,7 +826,7 @@ class Testimonial(Positioned):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="testimonials",
-        help_text="Link it to a product and it shows on that product's page.",
+        help_text="Link it to a package and it shows on that package's page.",
     )
     date = models.CharField(
         max_length=40, blank=True, help_text="Shown as written, e.g. March 2026."
@@ -1137,7 +1137,7 @@ class StaffMember(models.Model):
 
 class Enquiry(models.Model):
     """
-    A question from the website — about an occasion, a product, or anything. The
+    A question from the website — about an occasion, a package, or anything. The
     panel reads it, and turns it into an event once the customer is ready.
     """
 
@@ -1155,7 +1155,7 @@ class Enquiry(models.Model):
     occasion = models.CharField(max_length=120, blank=True)
     package = models.ForeignKey(
         Package, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="enquiries", verbose_name="About the product",
+        related_name="enquiries", verbose_name="About the package",
     )
     event_date = models.DateField(null=True, blank=True)
     guests = models.PositiveIntegerField(default=0, verbose_name="Number of guests")
@@ -1178,7 +1178,7 @@ class Enquiry(models.Model):
 
     @property
     def about_label(self):
-        """What the list shows under the occasion: the product, else the city."""
+        """What the list shows under the occasion: the package, else the city."""
         bits = [self.package.title] if self.package_id else []
         if self.event_date:
             bits.append(self.event_date.strftime("%d %b %Y"))
@@ -2375,8 +2375,8 @@ class Event(Timestamped):
     )
     package = models.ForeignKey(
         Package, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="events", verbose_name="Product",
-        help_text="The product from the website this event is built around, if any.",
+        related_name="events", verbose_name="Package",
+        help_text="The package from the website this event is built around, if any.",
     )
     time_slot = models.CharField(
         max_length=40, blank=True, verbose_name="Arrival window",

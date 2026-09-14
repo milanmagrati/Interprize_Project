@@ -46,7 +46,7 @@ BRAND = {
 
 NAV_LINKS = [
     {"label": "Home", "url_name": "core:home", "anchor": ""},
-    {"label": "Products", "url_name": "core:products", "anchor": ""},
+    {"label": "Packages", "url_name": "core:products", "anchor": ""},
     {"label": "Occasions", "url_name": "core:categories", "anchor": ""},
     {"label": "How It Works", "url_name": "core:how_it_works", "anchor": ""},
     {"label": "Reviews", "url_name": "core:home", "anchor": "#reviews"},
@@ -85,16 +85,16 @@ HERO_SLIDES = [
         "heading": "Someone else can",
         "heading_accent": "hang the balloons.",
         "description": (
-            "Pick a product, pick a slot, and a Celebra decorator arrives with everything "
+            "Pick a package, pick a slot, and a Celebra decorator arrives with everything "
             "in the van — builds it, photographs it, and takes the packaging away."
         ),
-        "meta": "148 birthday products · from Rs. 1,499",
+        "meta": "148 birthday packages · from Rs. 1,499",
         "alt": "A pastel balloon arch built around a cake table in a living room",
         "image_seed": "celebra-hero-birthday",
         "video_mp4": None,
         "video_webm": None,
         "duration": 6500,
-        "cta_label": "Browse birthday products",
+        "cta_label": "Browse birthday packages",
         "cta_url_name": "core:category_detail",
         "cta_url_arg": "birthday",
         "cta2_label": "See how it works",
@@ -114,7 +114,7 @@ HERO_SLIDES = [
             "Haldi, mehendi, sangeet and reception stages, built by a crew that has done "
             "it four hundred times. One planner from the first call to the clean-up."
         ),
-        "meta": "58 wedding products · from Rs. 7,999",
+        "meta": "58 wedding packages · from Rs. 7,999",
         "alt": "Decorators assembling a floral wedding stage in a banquet hall",
         "image_seed": "celebra-hero-wedding",
         "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
@@ -140,7 +140,7 @@ HERO_SLIDES = [
             "Proposals, anniversaries and quiet dinners for two. We set up while you are "
             "still at work and come back the next morning to take it all down."
         ),
-        "meta": "87 romantic products · from Rs. 2,199",
+        "meta": "87 romantic packages · from Rs. 2,199",
         "alt": "A candlelit table for two set up on a terrace at dusk",
         "image_seed": "celebra-hero-romantic",
         "video_mp4": None,
@@ -166,7 +166,7 @@ HERO_SLIDES = [
             "Jungle, space, unicorn or under-the-sea — themed head to toe, props included, "
             "and photographed before we leave so you have the room at its best."
         ),
-        "meta": "112 themed products · from Rs. 2,999",
+        "meta": "112 themed packages · from Rs. 2,999",
         "alt": "A jungle-themed birthday corner with balloon animals and a photo backdrop",
         "image_seed": "celebra-hero-kids",
         "video_mp4": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
@@ -193,7 +193,7 @@ HERO_SLIDES = [
             "Everything the afternoon needs, priced as one number — materials, labour, "
             "travel inside city limits and clean-up all included."
         ),
-        "meta": "64 baby shower products · from Rs. 2,499",
+        "meta": "64 baby shower packages · from Rs. 2,499",
         "alt": "A pastel balloon arch and photo corner set for a baby shower",
         "image_seed": "celebra-hero-baby",
         "video_mp4": None,
@@ -1485,10 +1485,10 @@ DEFAULT_CITY = "Kathmandu"
 HOW_IT_WORKS = [
     {
         "step": 1,
-        "title": "Choose your product",
+        "title": "Choose your package",
         "icon": "gift",
         "text": (
-            "Browse by occasion and pick a product at a price that's already final. "
+            "Browse by occasion and pick a package at a price that's already final. "
             "Every listing shows exactly what arrives with the decorator."
         ),
     },
@@ -1530,7 +1530,7 @@ FEATURES = [
     {
         "title": "Verified decorators",
         "icon": "shield",
-        "text": "Every decorator is background-checked, trained on our products and rated by customers after each booking.",
+        "text": "Every decorator is background-checked, trained on our packages and rated by customers after each booking.",
     },
     {
         "title": "On-time guarantee",
@@ -1550,7 +1550,7 @@ FEATURES = [
     {
         "title": "Same-day booking",
         "icon": "zap",
-        "text": "Book before 2 PM for same-evening decoration in any metro. Selected products go out in ninety minutes.",
+        "text": "Book before 2 PM for same-evening decoration in any metro. Selected packages go out in ninety minutes.",
     },
 ]
 
@@ -1572,7 +1572,7 @@ FAQS = [
         "answer": (
             "Three days is comfortable and gets you the widest choice of slots. "
             "Same-day booking is available in every metro if you order before 2 PM, "
-            "and a handful of compact products go out in ninety minutes."
+            "and a handful of compact packages go out in ninety minutes."
         ),
     },
     {
@@ -1587,7 +1587,7 @@ FAQS = [
         "question": "What if my venue has rules about walls and adhesive?",
         "answer": (
             "Tell us in the booking notes and the decorator switches to freestanding "
-            "frames, weighted bases and removable clips. Most of our products already "
+            "frames, weighted bases and removable clips. Most of our packages already "
             "work this way — we decorate a lot of rented flats and hotel rooms."
         ),
     },

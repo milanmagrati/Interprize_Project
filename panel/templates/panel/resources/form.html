@@ -311,12 +311,12 @@ grouped cards; anything else falls back to a single column of fields.
         {% endif %}
 
         {% if resource.slug == "categories" and instance %}
-          {% with booked=instance.event_total products=instance.live_count %}
+          {% with booked=instance.event_total packages=instance.live_count %}
           <div class="card">
             <h2 class="card__title">Booked as {{ instance.name }}</h2>
             <p class="card__note">
               An occasion is the kind of celebration; each event is one real booking of it.
-              {{ products }} live product{{ products|pluralize }} and
+              {{ packages }} live package{{ packages|pluralize }} and
               {{ booked }} event{{ booked|pluralize }} belong to {{ instance.name }}.
               {% if booked %}Switch Live off to retire it — those events keep it.{% endif %}
             </p>

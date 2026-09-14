@@ -19,7 +19,7 @@ def site_chrome(request):
         # No query at all for a browser that has not booked anything.
         "booking_count": queries.open_booking_count(request.session.get("my_bookings", [])),
         "active_city": request.GET.get("city") or default_city,
-        # Read by the header's Products drop-down. Lazy, so a menu without a
-        # Products link never runs the query.
+        # Read by the header's Packages drop-down. Lazy, so a menu without a
+        # Packages link never runs the query.
         "nav_products": SimpleLazyObject(queries.nav_products),
     }

@@ -25,7 +25,7 @@ BOOKING_HORIZON_DAYS = 365
 class BookingRequestForm(forms.Form):
     """
     Everything a visitor fills in on /book/. Choices are checked against what is
-    live right now, so a stale page cannot book a hidden product or a full slot.
+    live right now, so a stale page cannot book a hidden package or a full slot.
     """
 
     occasion = forms.CharField(required=False)
@@ -77,7 +77,7 @@ class BookingRequestForm(forms.Form):
             return None
         match = next((p for p in self.packages if p.slug == slug), None)
         if match is None:
-            raise forms.ValidationError("That product is no longer available — pick another, or leave it to us.")
+            raise forms.ValidationError("That package is no longer available — pick another, or leave it to us.")
         return match
 
     def clean_event_date(self):
@@ -122,12 +122,12 @@ class BookingRequestForm(forms.Form):
             raise forms.ValidationError("Something went wrong — please try again.")
         occasion, package = cleaned.get("occasion"), cleaned.get("package")
         if not occasion and package and "occasion" not in self.errors:
-            # A product already says what the occasion is.
+            # A package already says what the occasion is.
             cleaned["occasion"] = occasion = package.category
         if not occasion and "occasion" not in self.errors:
             self.add_error("occasion", "Pick what you are celebrating.")
         elif occasion and package and package.category_id != occasion.pk:
-            self.add_error("package", f"{package.title} is a {package.category.name} product — pick that occasion, or another product.")
+            self.add_error("package", f"{package.title} is a {package.category.name} package — pick that occasion, or another package.")
         return cleaned
 
     # -- what the page shows ---------------------------------------------
@@ -207,7 +207,7 @@ class TrackBookingForm(forms.Form):
 
 
 class EnquiryForm(forms.ModelForm):
-    """A question about an occasion or a product, from any page that carries the form."""
+    """A question about an occasion or a package, from any page that carries the form."""
 
     package = forms.CharField(required=False)
     website = forms.CharField(required=False)

@@ -61,10 +61,10 @@ User = get_user_model()
 # every page that renders the navbar, since {% url %} raises on a bad name.
 ROUTE_CHOICES = [
     ("core:home", "Home"),
-    ("core:products", "All products"),
+    ("core:products", "All packages"),
     ("core:categories", "All occasions"),
     ("core:category_detail", "An occasion page — needs a slug"),
-    ("core:package_detail", "A product page — needs a slug"),
+    ("core:package_detail", "A package page — needs a slug"),
     ("core:book", "Book an event"),
     ("core:track", "Track a booking"),
     ("core:enquire", "Ask a question"),
@@ -461,11 +461,11 @@ class SiteSettingsForm(PanelModelForm):
         ("Contact", ["phone", "whatsapp", "email", "address", "hours", "default_city"]),
         ("Social", ["instagram", "facebook", "youtube", "twitter"]),
         ("Checkout", ["free_delivery_threshold", "delivery_fee", "tax_percent"]),
-        ("Products on the homepage", [
+        ("Packages on the homepage", [
             "home_products_eyebrow", "home_products_title", "home_products_lead",
             "home_products_source", "home_products_limit", "home_products_cta_label",
         ]),
-        ("The products page", [
+        ("The packages page", [
             "products_page_eyebrow", "products_page_title", "products_page_lead",
             "products_per_page",
         ]),
@@ -606,7 +606,7 @@ class EnquiryForm(PanelModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["package"].queryset = Package.objects.select_related("category").order_by("title")
-        self.fields["package"].empty_label = "No particular product"
+        self.fields["package"].empty_label = "No particular package"
         self.fields["guests"].required = False
         self.fields["guests"].widget.attrs.pop("required", None)
 
@@ -1166,19 +1166,26 @@ class EventForm(PanelModelForm):
         occasion = self.fields["occasion"]
         occasion.queryset = Category.objects.order_by("position", "name")
         occasion.empty_label = "Pick an occasion"
-        # Required, but enforced in clean() rather than on the field: a product
-        # on its own already says which occasion it is.
-        occasion.help_text = (
-            "What kind of celebration this is. Picking a product below fills it in."
+        # Every event is one occasion. A package on its own already says which,
+        # so a submit with only a package gets its occasion filled in before
+        # validation, and the browser is not asked to insist on the field.
+        occasion.required = True
+        occasion.widget.attrs.pop("required", None)
+        occasion.error_messages["required"] = (
+            "Pick the occasion — every event is one (Birthday, Wedding…)."
         )
+        occasion.help_text = (
+            "What kind of celebration this is. Picking a package below fills it in."
+        )
+        self._occasion_from_package()
         package = self.fields["package"]
-        # A product that has since been unpublished stays selectable on its own event.
+        # A package that has since been unpublished stays selectable on its own event.
         current = self.instance.package_id if self.instance.pk else None
         package.queryset = (
             Package.objects.filter(Q(is_active=True) | Q(pk=current))
             .select_related("category").order_by("category__position", "title")
         )
-        package.empty_label = "No product — planned from scratch"
+        package.empty_label = "No package — planned from scratch"
         package.label_from_instance = lambda p: f"{p.title} · {p.category.name} · Rs. {p.price:,}"
         crew = self.fields["crew"]
         # Somebody since switched off stays ticked on the events they worked.
@@ -1198,6 +1205,19 @@ class EventForm(PanelModelForm):
             attrs={"class": "field__input field__input--select"},
         )
 
+    def _occasion_from_package(self):
+        if not self.is_bound or self.data.get("occasion"):
+            return
+        raw = str(self.data.get("package") or "")
+        category_id = (
+            Package.objects.filter(pk=raw).values_list("category_id", flat=True).first()
+            if raw.isdigit() else None
+        )
+        if category_id:
+            data = self.data.copy()
+            data["occasion"] = str(category_id)
+            self.data = data
+
     def sections(self):
         return _sections(self)
 
@@ -1215,15 +1235,9 @@ class EventForm(PanelModelForm):
         cleaned["new_customer_name"] = new_name
 
         occasion, package = cleaned.get("occasion"), cleaned.get("package")
-        if package and not occasion:
-            cleaned["occasion"] = package.category
-        elif not occasion and "occasion" not in self.errors:
+        if package and occasion and package.category_id != occasion.pk:
             self.add_error(
-                "occasion", "Pick the occasion — every event is one (Birthday, Wedding…).",
-            )
-        elif package and occasion and package.category_id != occasion.pk:
-            self.add_error(
-                "package", f"{package.title} is a {package.category.name} product, not {occasion.name}.",
+                "package", f"{package.title} is a {package.category.name} package, not {occasion.name}.",
             )
         return cleaned
 

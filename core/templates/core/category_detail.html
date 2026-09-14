@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load humanize %}
 
-{% block title %}{{ category.name }} decoration products &mdash; {{ brand.name }}{% endblock %}
+{% block title %}{{ category.name }} decoration packages &mdash; {{ brand.name }}{% endblock %}
 
 {% block content %}
 {% include "core/partials/_breadcrumbs.html" with breadcrumbs=breadcrumbs %}
@@ -37,7 +37,7 @@
 
     <div class="filters-scrim" data-filters-scrim hidden></div>
 
-    <aside class="filters" id="filters" aria-label="Filter products">
+    <aside class="filters" id="filters" aria-label="Filter packages">
       <div class="filters__head">
         <h2 class="filters__title">Filters</h2>
         <button class="icon-button filters__close" type="button" aria-label="Close filters" data-filters-close>
@@ -81,7 +81,7 @@
         <fieldset class="filters__group">
           <legend class="filters__legend">Sort by</legend>
           <div class="select">
-            <select name="sort" aria-label="Sort products">
+            <select name="sort" aria-label="Sort packages">
               {% for option in sort_options %}
                 <option value="{{ option.value }}"{% if sort == option.value %} selected{% endif %}>{{ option.label }}</option>
               {% endfor %}
@@ -111,13 +111,13 @@
     <div class="listing__main">
       <div class="listing__bar">
         <h2 class="listing__count" id="listing-title">
-          {{ result_count }} product{{ result_count|pluralize }}
+          {{ result_count }} package{{ result_count|pluralize }}
           {% if result_count != total_count %}<span class="listing__of">of {{ total_count }}</span>{% endif %}
         </h2>
         <form class="listing__sort" method="get" action="">
           {% if min_rating %}<input type="hidden" name="rating" value="{{ min_rating }}">{% endif %}
           <input type="hidden" name="max_price" value="{{ max_price }}">
-          <label class="sr-only" for="sort-top">Sort products</label>
+          <label class="sr-only" for="sort-top">Sort packages</label>
           <div class="select">
             <select id="sort-top" name="sort" data-autosubmit>
               {% for option in sort_options %}
@@ -143,10 +143,10 @@
           <svg class="icon empty__icon" aria-hidden="true"><use href="#i-search"></use></svg>
           {% if total_count %}
             <h3 class="empty__title">Nothing matches those filters</h3>
-            <p class="empty__text">Widen the budget or drop the rating filter to see the rest of the {{ category.name|lower }} products.</p>
+            <p class="empty__text">Widen the budget or drop the rating filter to see the rest of the {{ category.name|lower }} packages.</p>
             <a class="btn btn--primary" href="{% url 'core:category_detail' category.slug %}">Clear filters</a>
           {% else %}
-            <h3 class="empty__title">No products here yet</h3>
+            <h3 class="empty__title">No packages here yet</h3>
             <p class="empty__text">We still decorate {{ category.name|lower }} events — book it and a planner designs the decoration with you.</p>
             <a class="btn btn--primary" href="{% url 'core:book' %}?occasion={{ category.slug }}">Book an event</a>
           {% endif %}
@@ -160,7 +160,7 @@
   <div class="wrap wrap--narrow">
     {% include "core/partials/_section_head.html" with eyebrow="Coverage" title="Booking outside "|add:active_city|add:"?" centered=1 %}
     <p class="section-lead center">
-      We deliver {{ category.name|lower }} products in {{ cities|length }} cities. Pick yours from the header,
+      We deliver {{ category.name|lower }} packages in {{ cities|length }} cities. Pick yours from the header,
       or <a href="{% url 'core:contact' %}">ask about a city</a> that is not listed yet.
     </p>
     <div class="chip-row center">

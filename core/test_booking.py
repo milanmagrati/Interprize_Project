@@ -82,7 +82,7 @@ class BookPageTests(BookingTestCase):
         self.assertRegex(page, rf'name="package" value="{self.wall.slug}"[^>]*\schecked')
         self.assertNotRegex(page, r'name="occasion" value="wedding"[^>]*\schecked')
         self.assertIn('value="2030-01-02"', page)
-        self.assertNotIn("Old Setup", page)       # unpublished products are not offered
+        self.assertNotIn("Old Setup", page)       # unpublished packages are not offered
         self.assertNotIn("Retired", page)
         self.assertIn("8 PM – 10 PM <em>full</em>", page)
 
@@ -144,10 +144,10 @@ class BookPageTests(BookingTestCase):
                 response = self.book(**{field: value})
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, message)
-        # A wedding product for a birthday.
+        # A wedding package for a birthday.
         response = self.book(package=self.stage.slug)
-        self.assertContains(response, "is a Wedding product")
-        # No occasion and no product.
+        self.assertContains(response, "is a Wedding package")
+        # No occasion and no package.
         response = self.book(occasion="", package="")
         self.assertContains(response, "Pick what you are celebrating.")
         self.assertEqual(Event.objects.count(), 0)
@@ -332,3 +332,12 @@ class PanelSideTests(BookingTestCase):
         NavLink.objects.create(label="Occasions", url_name="core:categories")
         response = self.client.get(reverse("core:home"))
         self.assertContains(response, ">Occasions</a>")
+
+    def test_the_listing_calls_them_packages(self):
+        self.assertEqual(reverse("core:products"), "/packages/")
+        old = self.client.get("/products/?occasion=birthday")
+        self.assertRedirects(old, "/packages/?occasion=birthday", status_code=301, fetch_redirect_response=False)
+        page = self.client.get(reverse("core:products"))
+        self.assertContains(page, "Search packages")
+        self.assertContains(page, self.wall.title)
+        self.assertNotContains(page, "Search products")

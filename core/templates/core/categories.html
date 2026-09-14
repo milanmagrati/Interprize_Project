@@ -18,7 +18,7 @@
       </p>
       <h1 class="page-head__title">What are you celebrating?</h1>
       <p class="page-head__lead">
-        Start with the occasion. Each one opens onto products you can book at a fixed price
+        Start with the occasion. Each one opens onto packages you can book at a fixed price
         in {{ active_city }} — or book the event straight away and plan the decoration with us.
       </p>
       <p class="page-head__actions">
@@ -29,7 +29,7 @@
       </p>
     </div>
     <ul class="page-head__stats">
-      <li><strong>500+</strong><span>products listed</span></li>
+      <li><strong>500+</strong><span>packages listed</span></li>
       <li><strong>{{ cities|length }}</strong><span>cities live</span></li>
       <li><strong>4.8</strong><span>average rating</span></li>
     </ul>
@@ -50,7 +50,7 @@
             <span class="cat-card__title">{{ category.name }}</span>
             <span class="cat-card__blurb">{{ category.blurb }}</span>
             <span class="cat-card__foot">
-              <span class="cat-card__count">{{ category.display_count }} product{{ category.display_count|pluralize }}</span>
+              <span class="cat-card__count">{{ category.display_count }} package{{ category.display_count|pluralize }}</span>
               <span class="cat-card__price">from Rs.&nbsp;{{ category.price_from }}</span>
             </span>
           </span>
