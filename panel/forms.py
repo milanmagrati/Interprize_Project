@@ -831,8 +831,29 @@ class InventoryItemForm(PanelModelForm):
         ("Standing", ["is_sellable", "is_active", "notes"]),
     ]
 
+    # Only on a new item: the count still comes from the ledger, this just
+    # writes its first row in the same save.
+    OPENING_FIELDS = ["opening_quantity", "opening_kind", "opening_reference"]
+
+    opening_quantity = forms.DecimalField(
+        required=False, min_value=0, max_digits=12, decimal_places=2,
+        label="Units on hand now",
+        help_text="Leave empty to start at zero.",
+    )
+    opening_kind = forms.ChoiceField(
+        required=False, initial="opening", label="Where they came from",
+        choices=[("opening", "Already in the store"), ("purchase", "Just bought from the supplier")],
+    )
+    opening_reference = forms.CharField(
+        required=False, max_length=40, label="Reference",
+        help_text="Optional invoice or delivery-note number.",
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            for name in self.OPENING_FIELDS:
+                self.fields.pop(name)
         self.fields["sku"].required = False
         groups = StockCategory.objects.filter(is_active=True)
         if self.instance.category_id:
@@ -857,6 +878,9 @@ class InventoryItemForm(PanelModelForm):
         for title, names in self.SECTIONS:
             yield title, [self[name] for name in names]
 
+    def opening_fields(self):
+        return [self[name] for name in self.OPENING_FIELDS if name in self.fields]
+
     def clean_sku(self):
         return (self.cleaned_data.get("sku") or "").upper().strip()
 
@@ -870,7 +894,27 @@ class InventoryItemForm(PanelModelForm):
                 "That sells for less than it costs. Fix the price, or leave it at 0 "
                 "if the item is never sold.",
             )
+        opening = cleaned.get("opening_quantity")
+        if opening and cleaned.get("usage_type") == "reusable" and opening != opening.to_integral_value():
+            self.add_error("opening_quantity", "Reusable stock is counted in whole units.")
         return cleaned
+
+    def opening_movement(self, user):
+        """The first ledger row for a new item, or None when it starts empty."""
+        quantity = self.cleaned_data.get("opening_quantity")
+        if not quantity or self.instance.pk is None:
+            return None
+        kind = self.cleaned_data.get("opening_kind") or "opening"
+        return StockMovement(
+            item=self.instance,
+            kind=kind,
+            change=quantity,
+            unit_cost=self.cleaned_data.get("cost_price") or 0,
+            supplier=self.cleaned_data.get("supplier") if kind == "purchase" else None,
+            reference=self.cleaned_data.get("opening_reference") or "",
+            note="Starting stock, entered with the new item",
+            created_by=user,
+        )
 
 
 class StockMovementForm(PanelModelForm):
@@ -937,6 +981,10 @@ class StockMovementForm(PanelModelForm):
 
         if change == 0:
             self.add_error("change", "A movement of zero would not change anything.")
+            return cleaned
+
+        if item is not None and item.is_reusable and change != change.to_integral_value():
+            self.add_error("change", f"{item.name} is reusable stock, so it is counted in whole units.")
             return cleaned
 
         direction = StockMovement.DIRECTIONS.get(kind, 0)

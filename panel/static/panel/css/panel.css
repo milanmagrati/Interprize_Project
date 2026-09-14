@@ -641,6 +641,8 @@ code, .code, kbd { font-family: var(--mono); font-size: 0.82em; }
   background: linear-gradient(90deg, var(--brand), var(--gold));
 }
 .card--shelf .card__head { align-items: center; }
+.card--shelf .field[hidden], .card--shelf .meta[hidden] { display: none; }
+.card--shelf .meta { padding-top: 0.7rem; border-top: 1px solid var(--line); }
 
 .card__title { font-size: 0.95rem; font-weight: 700; }
 .card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
@@ -1339,6 +1341,7 @@ kbd {
     margin: -3px; padding: 3px;
   }
   .form__side .card--sticky { position: static; }
+  .form__side .grid--side { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (min-width: 1280px) {

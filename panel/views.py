@@ -682,16 +682,34 @@ def resource_form(request, slug, pk=None):
     )
 
     if request.method == "POST" and form.is_valid():
-        obj = form.save(commit=False)
-        if resource.slug == "stock-ledger" and not pk:
-            obj.created_by = request.user
-        obj.save()
-        form.save_m2m()
+        opening = None
+        with transaction.atomic():
+            obj = form.save(commit=False)
+            if resource.slug == "stock-ledger" and not pk:
+                obj.created_by = request.user
+            obj.save()
+            form.save_m2m()
+            if resource.slug == "stock-items" and not pk:
+                opening = form.opening_movement(request.user)
+                if opening:
+                    opening.save()
         log(request, "update" if pk else "create", obj=obj, model_label=resource.label)
-        messages.success(
-            request,
-            f"{resource.label} “{obj}” {'updated' if pk else 'created'}.",
-        )
+        if resource.slug == "stock-ledger" and not pk:
+            messages.success(
+                request,
+                f"Stock updated: {obj.signed_label} {obj.item.unit_label}. "
+                f"{obj.item.name} now has {obj.item.quantity_label} on the shelf.",
+            )
+        elif opening:
+            messages.success(
+                request,
+                f"{resource.label} “{obj}” created with {obj.quantity_label} on the shelf.",
+            )
+        else:
+            messages.success(
+                request,
+                f"{resource.label} “{obj}” {'updated' if pk else 'created'}.",
+            )
         if "save_and_add" in request.POST:
             return redirect("panel:resource_create", slug=slug)
         if "save_and_stay" in request.POST:
@@ -733,8 +751,11 @@ def resource_form(request, slug, pk=None):
         # one needs its ledger beside it, the other its lines.
         stock_item=instance if pk and resource.slug == "stock-items" else None,
         suppliers=(
-            Supplier.objects.filter(is_active=True).order_by("name")
+            Supplier.objects.filter(Q(is_active=True) | Q(pk=instance.supplier_id)).order_by("name")
             if pk and resource.slug == "stock-items" else None
+        ),
+        opening_fields=(
+            form.opening_fields() if not pk and resource.slug == "stock-items" else None
         ),
         stock_history=(
             instance.movements.select_related("created_by", "event")[:8]

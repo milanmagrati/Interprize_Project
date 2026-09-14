@@ -304,7 +304,7 @@
       modal.hidden = false;
       document.body.style.overflow = 'hidden';
       openModal = modal;
-      var first = $('input, select, textarea', modal);
+      var first = $('input:not([type="hidden"]), select, textarea', modal);
       if (first) { first.focus(); }
     }
 
@@ -324,6 +324,37 @@
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && openModal) { close(); }
     });
+  }());
+
+  // Starting stock on a new item: what it is worth, as the numbers are typed.
+  (function openingStock() {
+    var card = $('[data-opening]');
+    if (!card) { return; }
+    var quantity = $('#id_opening_quantity');
+    var kind = $('#id_opening_kind');
+    var reference = $('[data-field="opening_reference"]');
+    var cost = $('#id_cost_price');
+    var price = $('#id_sale_price');
+    var summary = $('[data-opening-summary]', card);
+    var value = $('[data-opening-value]', card);
+    var retail = $('[data-opening-retail]', card);
+    if (!quantity || !summary) { return; }
+
+    function rupees(amount) { return '₹' + Math.round(amount).toLocaleString('en-IN'); }
+
+    function refresh() {
+      var units = parseFloat(quantity.value) || 0;
+      summary.hidden = units <= 0;
+      value.textContent = rupees(units * (cost ? parseFloat(cost.value) || 0 : 0));
+      retail.textContent = rupees(units * (price ? parseFloat(price.value) || 0 : 0));
+      // A reference only means something on a delivery.
+      if (reference && kind) { reference.hidden = kind.value !== 'purchase'; }
+    }
+
+    [quantity, kind, cost, price].forEach(function (input) {
+      if (input) { input.addEventListener('input', refresh); input.addEventListener('change', refresh); }
+    });
+    refresh();
   }());
 
   /* --------------------------------------------------------- 6. inline switches */
