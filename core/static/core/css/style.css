@@ -3788,7 +3788,10 @@ form.is-sending [type="submit"]::after {
   overflow-y: auto;
   padding: 0.2rem;
   margin: -0.2rem;
-  overscroll-behavior: contain;
+  /* This grid sits inline in the page, not in an overlay — once the wheel
+     reaches its top or bottom, let the scroll hand off to the page instead
+     of stopping dead there. */
+  overscroll-behavior: auto;
 }
 .setup-card { position: relative; display: flex; flex-direction: column; cursor: pointer; }
 .setup-card[hidden] { display: none; }

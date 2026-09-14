@@ -2279,7 +2279,9 @@ button.steps__hit:active .steps__dot { transform: scale(0.95); }
 .picks {
   display: grid; gap: 0.6rem;
   grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  max-height: min(34rem, 70vh); overflow-y: auto; overscroll-behavior: contain;
+  /* This list sits inline inside an expanded drawer, not an overlay — once
+     the wheel reaches its top or bottom, hand the scroll off to the page. */
+  max-height: min(34rem, 70vh); overflow-y: auto; overscroll-behavior: auto;
   margin: -4px; padding: 4px;
   scrollbar-width: thin;
 }
